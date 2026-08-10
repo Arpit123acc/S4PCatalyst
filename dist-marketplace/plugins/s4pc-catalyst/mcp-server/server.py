@@ -298,7 +298,7 @@ def tool_search_released_apis(args):
                    args.get("query", ""), args.get("area"))
     return {
         "verified": False,
-        "source": "seed catalog (mcp-server/catalog/released_apis.json), curated 2026-07-18",
+        "source": "seed catalog (mcp-server/catalog/catalog.db · apis table), Hub-synced",
         "authoritative_source": CATALOG_APIS.get("_meta", {}).get("authoritative_sources"),
         "instruction_to_model": ("Treat these as candidates, not facts. Before putting an API into a design "
                                  "document, verify it on the SAP Business Accelerator Hub and confirm the "
@@ -314,7 +314,7 @@ def tool_search_released_badis(args):
                    args.get("query", ""), args.get("area"))
     return {
         "verified": False,
-        "source": "seed catalog (mcp-server/catalog/released_badis.json)",
+        "source": "seed catalog (mcp-server/catalog/catalog.db · badis table), Hub-synced",
         "authoritative_source": CATALOG_BADIS.get("_meta", {}).get("authoritative_sources"),
         "instruction_to_model": ("BAdI availability varies by release and activated scope items. The ONLY proof a "
                                  "BAdI exists for this tenant is seeing it in the Custom Logic app or ADT Released "
@@ -680,6 +680,217 @@ def tool_observability_snapshot(args):
         "audit_log_path": AUDIT_PATH,
     }
 
+# ── Digital Brain: Layer 2 (SAP Knowledge Vectors) + Layer 3 (Experience Graph) ──
+
+_VECTOR_DIR = os.path.join(BASE_DIR, "vector")
+_VEC_ENG    = None  # cached after first successful import
+
+def _load_vector_engine():
+    global _VEC_ENG
+    if _VEC_ENG is not None:
+        return _VEC_ENG, None
+    try:
+        if _VECTOR_DIR not in sys.path:
+            sys.path.insert(0, _VECTOR_DIR)
+        import engine as _eng
+        _VEC_ENG = _eng
+        return _VEC_ENG, None
+    except Exception as exc:
+        return None, str(exc)
+
+def tool_semantic_search(args):
+    query = (args.get("query") or "").strip()
+    if not query:
+        return {"error": "query is required"}
+    eng, err = _load_vector_engine()
+    if eng is None:
+        return {"error": "Layer 2 unavailable (%s). Run: python mcp-server/vector/build_index.py" % err}
+    top_k       = int(args.get("top_k") or 5)
+    filter_type = args.get("object_type")
+    results     = eng.search(query, top_k=top_k, filter_type=filter_type)
+    if isinstance(results, dict) and "error" in results:
+        return {"error": results["error"],
+                "hint": "Run: python mcp-server/vector/build_index.py to build the index."}
+    return {
+        "verified": False,
+        "source":   "S4PC TF-IDF index (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT.",
+        "query":    query,
+        "filter":   filter_type,
+        "results":  results,
+        "note":     "Scores are TF-IDF cosine similarity [0-1]. Higher = more relevant. Re-verify objects before use in designs.",
+    }
+
+def tool_find_similar_delivery(args):
+    description = (args.get("description") or "").strip()
+    if not description:
+        return {"error": "description is required"}
+    eng, err = _load_vector_engine()
+    if eng is None:
+        return {"error": "Layer 3 unavailable (%s). Run: python mcp-server/vector/build_index.py" % err}
+    top_k   = int(args.get("top_k") or 3)
+    results = eng.search(description, top_k=top_k, filter_type="delivery")
+    if isinstance(results, dict) and "error" in results:
+        return {"error": results["error"],
+                "hint": "Run: python mcp-server/vector/build_index.py. No delivery history yet if output/ is empty."}
+    return {
+        "verified": True,
+        "source":   "S4PC Experience Graph (output/<RUN-ID>/run.json files)",
+        "description": description,
+        "similar_deliveries": results,
+        "note":     ("Matched by TF-IDF similarity on FD name, approved approach, objects used, and run summary. "
+                     "Open the run.json for full context. Experience Graph grows with every completed pipeline run."),
+    }
+
+def tool_rebuild_vector_index(args):
+    global _VEC_ENG
+    build_script = os.path.join(_VECTOR_DIR, "build_index.py")
+    engine_file  = os.path.join(_VECTOR_DIR, "engine.py")
+    if not os.path.exists(engine_file):
+        return {"error": "engine.py not found at %s" % _VECTOR_DIR}
+    if not os.path.exists(build_script):
+        return {"error": "build_index.py not found at %s" % _VECTOR_DIR}
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("s4pc_build_index", build_script)
+        mod  = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        docs = mod.build_documents()
+        eng, err = _load_vector_engine()
+        if eng is None:
+            return {"error": "engine import failed: " + str(err)}
+        count   = eng.build_and_save(docs)
+        _VEC_ENG = None  # force reload on next search so new index is picked up
+        by_type: dict = {}
+        for d in docs:
+            by_type[d["type"]] = by_type.get(d["type"], 0) + 1
+        return {
+            "success":    True,
+            "indexed":    count,
+            "by_type":    by_type,
+            "index_path": os.path.join(_VECTOR_DIR, "index.json"),
+            "note":       "Index rebuilt. semantic_search and find_similar_delivery now use the updated index.",
+        }
+    except Exception as exc:
+        return {"error": str(exc), "traceback": traceback.format_exc()[:800]}
+
+# ── Digital Brain: Layer 1 (Live Object Graph) ────────────────────────────────────
+
+_GRAPH_DIR = os.path.join(BASE_DIR, "graph")
+_GRAPH_ENG = None  # cached after first successful import
+
+def _load_graph_engine():
+    global _GRAPH_ENG
+    if _GRAPH_ENG is not None:
+        return _GRAPH_ENG, None
+    try:
+        if _GRAPH_DIR not in sys.path:
+            sys.path.insert(0, _GRAPH_DIR)
+        import graph_engine as _ge
+        _GRAPH_ENG = _ge
+        return _GRAPH_ENG, None
+    except Exception as exc:
+        return None, str(exc)
+
+def tool_get_object_graph(args):
+    object_name = (args.get("object_name") or "").strip()
+    if not object_name:
+        return {"error": "object_name is required"}
+    ge, err = _load_graph_engine()
+    if ge is None:
+        return {"error": "Layer 1 unavailable (%s). Run: python mcp-server/graph/build_graph.py" % err}
+    depth = int(args.get("depth") or 1)
+    result = ge.get_object_graph(object_name, depth=depth)
+    if "error" not in result:
+        result["verified"] = False
+        result["source"]   = "S4PC Live Object Graph (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
+    return result
+
+def tool_get_area_map(args):
+    area = (args.get("area") or "").strip()
+    if not area:
+        ge, err = _load_graph_engine()
+        if ge is None:
+            return {"error": "Layer 1 unavailable (%s). Run: python mcp-server/graph/build_graph.py" % err}
+        graph, err2 = ge._load()
+        if graph is None:
+            return {"error": err2}
+        al = ge.list_areas(graph)
+        al["hint"] = "Call get_area_map with one of the available_areas keys above."
+        return al
+    ge, err = _load_graph_engine()
+    if ge is None:
+        return {"error": "Layer 1 unavailable (%s). Run: python mcp-server/graph/build_graph.py" % err}
+    result = ge.get_area_map(area)
+    if "error" not in result:
+        result["verified"] = False
+        result["source"]   = "S4PC Live Object Graph (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
+    return result
+
+def tool_sync_object_graph(args):
+    global _GRAPH_ENG
+    build_script  = os.path.join(_GRAPH_DIR, "build_graph.py")
+    engine_file   = os.path.join(_GRAPH_DIR, "graph_engine.py")
+    live_enrich   = bool(args.get("live_enrich", False))
+
+    if not os.path.exists(engine_file):
+        return {"error": "graph_engine.py not found at %s" % _GRAPH_DIR}
+    if not os.path.exists(build_script):
+        return {"error": "build_graph.py not found at %s" % _GRAPH_DIR}
+
+    try:
+        # Load fresh from SQLite so sync_hub changes are picked up without a restart
+        apis      = _catalog_db.load_apis().get("apis", [])
+        cds_views = _catalog_db.load_cds_views().get("views", [])
+        badis     = _catalog_db.load_badis().get("badis", [])
+
+        ge, err = _load_graph_engine()
+        if ge is None:
+            return {"error": "graph_engine import failed: " + str(err)}
+
+        graph = ge.build_graph(apis, cds_views, badis)
+
+        # ── live enrichment: attach entity names from tenant $metadata ──────────
+        live_log = []
+        if live_enrich and MODE == "live":
+            allowlist = GUARD.get("odata_service_allowlist", [])
+            enriched  = 0
+            for api_name in list(graph["nodes"].keys())[:10]:  # cap at 10 services
+                if graph["nodes"][api_name]["type"] != "api":
+                    continue
+                svc = api_name.replace("_SRV", "").replace("_PROCESS", "")
+                if svc not in allowlist and api_name not in allowlist:
+                    continue
+                try:
+                    meta_result = tool_odata_get_metadata({"service": api_name})
+                    if "content" in meta_result:
+                        raw = meta_result["content"][0]["text"]
+                        payload = json.loads(raw)
+                        entities = payload.get("entity_types", payload.get("entities", []))
+                        if entities:
+                            graph["nodes"][api_name]["live_entities"] = entities
+                            enriched += 1
+                except Exception as exc:
+                    live_log.append("WARN %s: %s" % (api_name, exc))
+            live_log.insert(0, "Live enrichment: %d services enriched with $metadata entity types." % enriched)
+        elif live_enrich and MODE != "live":
+            live_log.append("live_enrich=True ignored: server is in offline mode. Set SAP_MODE=live to enable.")
+
+        stats = ge.save_graph(graph)
+        _GRAPH_ENG = None  # force reload on next call
+
+        return {
+            "success":     True,
+            "nodes":       stats["nodes"],
+            "edges":       stats["edges"],
+            "areas":       stats["areas"],
+            "by_type":     stats["by_type"],
+            "graph_path":  ge.GRAPH_PATH,
+            "live_log":    live_log,
+            "note":        "Graph rebuilt. get_object_graph and get_area_map now use the updated graph.",
+        }
+    except Exception as exc:
+        return {"error": str(exc), "traceback": traceback.format_exc()[:800]}
+
 TOOLS = {
     "search_released_apis": {
         "description": ("Search the curated catalog of SAP-released APIs (OData/SOAP/events) for S/4HANA Cloud "
@@ -799,6 +1010,79 @@ TOOLS = {
             "required": []},
         "handler": tool_observability_snapshot,
     },
+    "semantic_search": {
+        "description": ("Layer 2 — SAP Knowledge Vectors: TF-IDF semantic search across the full released-object "
+                        "catalog (APIs, CDS views, BAdIs) and past experience entries. Use when keyword search "
+                        "misses or the requirement is vague — e.g. 'goods movement validation' finds the right "
+                        "BAdI even if the exact name is unknown. Scores are cosine-similarity; always re-verify "
+                        "hits on authoritative sources (api.sap.com, Custom Logic app, ADT)."),
+        "schema": {"type": "object", "properties": {
+            "query":       {"type": "string",
+                            "description": "Natural-language query, e.g. 'supplier invoice posting validation'"},
+            "object_type": {"type": "string",
+                            "description": "Optional filter: api | cds_view | badi | experience | delivery"},
+            "top_k":       {"type": "integer", "description": "Max results to return (default 5)"}},
+            "required": ["query"]},
+        "handler": tool_semantic_search,
+    },
+    "find_similar_delivery": {
+        "description": ("Layer 3 — Experience Graph: find the most similar past S4PC pipeline runs to a new "
+                        "requirement. Returns matching run IDs with approved approach, extensibility mode, and "
+                        "objects used — reuse proven patterns and avoid repeated mistakes. Call this at intake "
+                        "alongside query_experience. Grows richer with every completed pipeline run."),
+        "schema": {"type": "object", "properties": {
+            "description": {"type": "string",
+                            "description": "Requirement summary, e.g. 'goods receipt email notification to supplier'"},
+            "top_k":       {"type": "integer", "description": "Max past runs to return (default 3)"}},
+            "required": ["description"]},
+        "handler": tool_find_similar_delivery,
+    },
+    "rebuild_vector_index": {
+        "description": ("Rebuild the Digital Brain TF-IDF index from the current catalog files + all completed "
+                        "pipeline run.json files. Run after adding new catalog entries or completing a pipeline "
+                        "run to keep semantic_search and find_similar_delivery up to date. Also callable via: "
+                        "python mcp-server/vector/build_index.py"),
+        "schema": {"type": "object", "properties": {}},
+        "handler": tool_rebuild_vector_index,
+    },
+    "get_object_graph": {
+        "description": ("Layer 1 — Live Object Graph: given a single released SAP object name (API, CDS view, "
+                        "or BAdI), return all directly related objects across types — e.g. the CDS views and "
+                        "BAdIs that share the same business concept as an API. Uses name-fragment matching; "
+                        "falls back to area-mates when no name-match edges exist. Use to discover the full "
+                        "released-object landscape around a requirement before coding."),
+        "schema": {"type": "object", "properties": {
+            "object_name": {"type": "string",
+                            "description": "A released object name, e.g. I_PurchaseOrder or API_BUSINESS_PARTNER"},
+            "depth":       {"type": "integer",
+                            "description": "BFS hop depth (1=direct neighbours, 2=neighbours of neighbours; default 1)"}},
+            "required": ["object_name"]},
+        "handler": tool_get_object_graph,
+    },
+    "get_area_map": {
+        "description": ("Layer 1 — Live Object Graph: return ALL released APIs, CDS views, and BAdIs for a "
+                        "given SAP business area (e.g. 'Procurement', 'Finance', 'Sales'). The complete "
+                        "released-object map for a module in one call. Call without area to list all available "
+                        "areas. Use at requirement intake to understand the full extensibility landscape."),
+        "schema": {"type": "object", "properties": {
+            "area": {"type": "string",
+                     "description": "Business area, e.g. 'Procurement', 'Finance', 'Sales', 'Master Data'. "
+                                    "Omit to list all available areas."}},
+            "required": []},
+        "handler": tool_get_area_map,
+    },
+    "sync_object_graph": {
+        "description": ("Layer 1 — Live Object Graph: rebuild graph.json from the current catalog files. "
+                        "In live mode with live_enrich=true, also fetches OData $metadata from the connected "
+                        "tenant to add actual entity+field names to API nodes — the 'live' part of the Live "
+                        "Object Graph. Run after any catalog change. Also callable via: "
+                        "python mcp-server/graph/build_graph.py"),
+        "schema": {"type": "object", "properties": {
+            "live_enrich": {"type": "boolean",
+                            "description": "Enrich API nodes with live $metadata from the tenant (live mode only)"}},
+            "required": []},
+        "handler": tool_sync_object_graph,
+    },
 }
 
 SERVER_INSTRUCTIONS = """S/4HANA Cloud PUBLIC Edition clean-core server. Rules for the model:
@@ -819,6 +1103,15 @@ SERVER_INSTRUCTIONS = """S/4HANA Cloud PUBLIC Edition clean-core server. Rules f
    at the package step.
 8. Seed catalogs are candidates, not truth: authoritative sources are api.sap.com, the Custom Logic app, and
    ADT Released Objects. Repeat this caveat in deliverables.
+9. Use semantic_search (Layer 2) when keyword search misses or the requirement is vague — it searches the
+   full catalog by meaning, not token match. Filter by object_type=api/cds_view/badi/experience as needed.
+10. Use find_similar_delivery (Layer 3) at intake to surface prior pipeline runs with similar requirements;
+    reuse proven extensibility approaches. Call rebuild_vector_index after each completed run to keep the
+    Experience Graph current.
+11. Use get_object_graph to discover all released objects related to a single known object (APIs, CDS views,
+    BAdIs linked by shared business concept). Use get_area_map to see the complete released-object landscape
+    for a business area. Call sync_object_graph (offline) or sync_object_graph+live_enrich (live mode) after
+    catalog changes to keep the graph current.
 """
 
 PROMPTS = {
@@ -1308,14 +1601,35 @@ def tool_btp_deploy(args):
             "in-tenant dependencies are deployed & active FIRST — custom fields (key-user), the "
             "communication scenario + arrangement for every consumed API/event, and any in-tenant "
             "RAP/CDS objects. Complete the Step 13 prerequisite gate, then pass prereqs_confirmed=true.")
-    user, pwd, token = os.environ.get("CF_USER", ""), os.environ.get("CF_PASSWORD", ""), os.environ.get("CF_TOKEN", "")
+    user, pwd = os.environ.get("CF_USER", ""), os.environ.get("CF_PASSWORD", "")
+    cid, csecret = os.environ.get("CF_CLIENT_ID", ""), os.environ.get("CF_CLIENT_SECRET", "")
     if not (api and org):
         raise GuardrailViolation("Live deploy needs CF_API and CF_ORG (env or args).")
-    if not ((user and pwd) or token):
-        raise GuardrailViolation("Live deploy needs CF_USER+CF_PASSWORD or CF_TOKEN in the environment (never in code/args).")
-    steps.append(run(["cf", "api", api]))
-    if not token:
-        steps.append(run(["cf", "auth", user, pwd], display="cf auth ****"))  # credentials redacted from output
+    # Reuse an active `cf login` session when one exists for THIS endpoint — works for every auth
+    # method (trial SSO, corporate-IdP SSO, or user+password) and every region/account. `cf target`
+    # is read-only; `cf api` RESETS the session and is fatal for SSO logins (no non-interactive
+    # re-auth), so only fall back to api+auth when nothing is already logged in. The endpoint match
+    # guards against reusing a session pointed at a different account.
+    probe = run(["cf", "target"], display="cf target")
+    steps.append(probe)
+    logged_in = (probe["code"] == 0
+                 and api.rstrip("/") in (probe["out"] or "")
+                 and "Not logged in" not in (probe["out"] or ""))
+    if not logged_in:
+        # Non-interactive fallbacks (priority): service key (client-credentials) → user+password.
+        if cid and csecret:
+            steps.append(run(["cf", "api", api]))
+            steps.append(run(["cf", "auth", cid, csecret, "--client-credentials"],
+                             display="cf auth **** --client-credentials"))  # secret redacted
+        elif user and pwd:
+            steps.append(run(["cf", "api", api]))
+            steps.append(run(["cf", "auth", user, pwd], display="cf auth ****"))  # credentials redacted
+        else:
+            raise GuardrailViolation(
+                "No active Cloud Foundry session for %s and no credentials. Choose one: run "
+                "`cf login -a %s` (add --sso for SSO/trial) on this runner before deploying — the "
+                "deploy reuses that session — or set CF_CLIENT_ID+CF_CLIENT_SECRET (service key, "
+                "best for CI) or CF_USER+CF_PASSWORD (technical/communication user)." % (api, api))
     steps.append(run(["cf", "target", "-o", org, "-s", space]))
     mtars = sorted(_glob.glob(os.path.join(project, "mta_archives", "*.mtar")))
     if not mtars:

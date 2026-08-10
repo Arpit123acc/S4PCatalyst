@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 logs/
 .DS_Store
+*.db
+plugins/*/mcp-server/vector/index.json
+plugins/*/mcp-server/graph/graph.json

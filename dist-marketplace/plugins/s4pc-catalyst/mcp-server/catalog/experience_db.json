@@ -387,6 +387,40 @@
       ],
       "added": "2026-07-21",
       "source": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-028",
+      "category": "developer",
+      "topic": "PBS scope (J12/1Q4) — all key objects are outside the offline catalog; budget pre-build verification",
+      "lesson": "For any FD covering Professional Services / PBS (scope items J12, 1Q4 or similar), assume that the engagement project CDS views, work package CDS views, Work Agreement API, Resource Assignment API, and timesheet BAdI are ALL NOT_VERIFIED in the offline catalog. Add a mandatory pre-build gate: (1) find PBS CDS view names on SAP Help Released CDS Views list, (2) confirm Work Agreement and Resource Assignment APIs on api.sap.com, (3) locate the timesheet BAdI in the SAP Help List of BAdIs under the PBS scope filter. Skipping this causes 4 NOT_VERIFIED findings, 6 open Major transport blockers, and a quality score below 50.",
+      "impact": "Prevents low quality scores and blocked transports on PBS deliverables",
+      "tags": [
+        "PBS",
+        "professional-services",
+        "NOT_VERIFIED",
+        "pre-build",
+        "tenant-verification",
+        "J12",
+        "1Q4"
+      ],
+      "added": "2026-08-06",
+      "source": "SMART-SEARCH-FD-R3"
+    },
+    {
+      "id": "EXP-029",
+      "category": "developer",
+      "topic": "cx_static_check cannot use MESSAGE syntax in ABAP Cloud — use ev_error output parameter instead",
+      "lesson": "RAISE EXCEPTION TYPE cx_static_check MESSAGE ... does not compile in ABAP for Cloud Development because cx_static_check does not implement if_t100_message. Replace with an EXPORTING ev_error TYPE string output parameter: set ev_error = |...| and RETURN on error; callers check IF ev_error IS NOT INITIAL. This pattern is clean-core compliant and testable. Catches this at Gate 2 (Code Review) as a Critical finding if missed.",
+      "impact": "Avoids non-compiling Critical finding in code review",
+      "tags": [
+        "cx_static_check",
+        "exception",
+        "ABAP_Cloud",
+        "error-handling",
+        "RAP"
+      ],
+      "added": "2026-08-06",
+      "source": "SMART-SEARCH-FD-R3"
     }
   ]
 }

@@ -155,10 +155,13 @@ You act as the **delivery-lead** orchestrator and own `run.json`, the three gate
 checkpoints. Each step maps to a specialist **role** below.
 
 **Execution mode — important:**
-- **Headless / automated run (the webapp's "Run pipeline", `claude -p`): perform every step
-  YOURSELF, inline, in the noted role.** Do **not** spawn sub-agents with the `Task` tool in a
-  headless run — it is not permitted there and would stall. Update `run.json` after **every** step
-  so the Workflow Explorer shows live progress. This is fast and reliable.
+- **Headless / automated run (the webapp's "Run pipeline"):** the webapp spawns a separate
+  `claude -p` process per pipeline **phase** (A → B → C → D → E), each with a scoped prompt
+  containing only what that phase needs. If you receive a prompt that starts with
+  `HEADLESS PIPELINE — Phase`, follow **that prompt's instructions directly** — do NOT read this
+  SKILL.md (the phase prompt replaces it for that phase). Never spawn sub-agents with `Task`
+  in a headless run. Update `run.json` after every step so the Workflow Explorer shows live
+  progress.
 - **Interactive session only:** you *may* delegate a step to the matching specialist agent in
   `.claude/agents/` via `Task` if you want isolated context — optional, never in headless.
 
@@ -248,12 +251,13 @@ assume approval; never continue on silence.
    developer creates must share the same names (this is what keeps a mixed solution consistent).
    ABAP-for-Cloud / RAP / CDS for developer mode; Custom Fields & Logic etc. for key user; CAP +
    UI5 for side-by-side. For side-by-side, **READ (WebFetch) the official developer docs that match
-   the object type being built** — via `get_reference_links` → `fetch_docs_by_object`: CAP/CAPM →
-   CAP (cap.cloud.sap), Node.js (nodejs.org), JavaScript; UI5/Fiori → UI5 (ui5.sap.com), HTML,
-   CSS, JavaScript; both → the union. For npm, fetch the JSON registry `registry.npmjs.org/<package>`
-   (not the npmjs.com web page — it blocks bots). SAP Community (community.sap.com) is cite-only
-   (anti-bot) — link it, don't fetch it. Ground the code in the fetched pages; if a fetch fails, cite
-   the URL for manual verification and continue. Write `06-code.md`.
+   the object type being built** (WebFetch is auto-enabled for side-by-side runs) — via
+   `get_reference_links` → `fetch_docs_by_object`: CAP/CAPM → CAP (cap.cloud.sap), Node.js
+   (nodejs.org), JavaScript; UI5/Fiori → UI5 (ui5.sap.com), HTML, CSS, JavaScript; both → the union.
+   For npm, fetch the JSON registry `registry.npmjs.org/<package>` (not the npmjs.com web page — it
+   blocks bots). SAP Community (community.sap.com) is cite-only (anti-bot) — link it, don't fetch it.
+   Ground the code in the fetched pages; if a fetch fails, cite the URL for manual verification and
+   continue. Write `06-code.md`.
 7. **GATE 2: Code review** — clean-core + security review of the generated code (released objects
    only, no classical ABAP; authorisations, secret hygiene, input validation); verdict
    SHIP/FIX/REDESIGN. Then ✋ **CHECKPOINT 2 — Code approval.** In `run.json.checkpoint_request`,
@@ -455,12 +459,15 @@ the webapp, not in this chat:
    in-context:
    `${CLAUDE_PLUGIN_ROOT}/mcp-server/catalog/released_cds_views.json`, `${CLAUDE_PLUGIN_ROOT}/mcp-server/catalog/released_badis.json`,
    `${CLAUDE_PLUGIN_ROOT}/mcp-server/catalog/released_apis.json`, `${CLAUDE_PLUGIN_ROOT}/mcp-server/catalog/forbidden_patterns.json`.
+   **Note:** the live catalog is `${CLAUDE_PLUGIN_ROOT}/mcp-server/catalog/catalog.db` (SQLite); the JSON files above are
+   seed snapshots kept for Claude-readable fallback and may be stale if `sync_hub.py` has been run
+   since initial setup — they are still reliable for offline release checks.
    Per object: matches a `forbidden_patterns.json` entry (BAPI / classical table / enhancement
    point / Smart Form) → `NOT_AVAILABLE`; in a catalog OR matches released naming (CDS
    `I_/C_/A_/R_/E_`, APIs `API_*`/`*_SRV`/SOAP `*_IN`/`*_OUT`, events `CE_*`) → `LIKELY_RELEASED`;
    otherwise → `NOT_VERIFIED`. **Do NOT run the `check_object_release_state` CLI once per object,
    and do NOT probe for a Python interpreter (`where python`, `py --version`, `cd`, etc.)** — the
-   catalogs are plain JSON already on disk; a few `Read`s replace all of it. The only tool you may
+   JSON seeds are on disk; a few `Read`s replace all of it. The only tool you may
    shell out to is `abap_cloud_lint`, and only at the Lint step (step 9).
 4. **Progress:** update `run.json` after every step (status RUNNING on the active step) — the
    webapp polls it live. Never leave the manifest stale for more than one step.
