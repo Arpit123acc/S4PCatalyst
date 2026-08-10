@@ -175,9 +175,14 @@ assume approval; never continue on silence.
    guess a custom field / CDS / RAP / CBO / table name;** the code and the in-tenant objects the
    developer creates must share the same names (this is what keeps a mixed solution consistent).
    ABAP-for-Cloud / RAP / CDS for developer mode; Custom Fields & Logic etc. for key user; CAP +
-   UI5 for side-by-side. For side-by-side, **follow the official developer docs** (via
-   `get_reference_links`): CAP (cap.cloud.sap), UI5 (ui5.sap.com), Node.js (nodejs.org), JavaScript
-   and npm — and check SAP Community for the latest releases. Write `06-code.md`.
+   UI5 for side-by-side. For side-by-side, **READ (WebFetch) the official developer docs that match
+   the object type being built** (WebFetch is auto-enabled for side-by-side runs) — via
+   `get_reference_links` → `fetch_docs_by_object`: CAP/CAPM → CAP (cap.cloud.sap), Node.js
+   (nodejs.org), JavaScript; UI5/Fiori → UI5 (ui5.sap.com), HTML, CSS, JavaScript; both → the union.
+   For npm, fetch the JSON registry `registry.npmjs.org/<package>` (not the npmjs.com web page — it
+   blocks bots). SAP Community (community.sap.com) is cite-only (anti-bot) — link it, don't fetch it.
+   Ground the code in the fetched pages; if a fetch fails, cite the URL for manual verification and
+   continue. Write `06-code.md`.
 7. **GATE 2: Code review** — clean-core + security review of the generated code (released objects
    only, no classical ABAP; authorisations, secret hygiene, input validation); verdict
    SHIP/FIX/REDESIGN. Then ✋ **CHECKPOINT 2 — Code approval.** In `run.json.checkpoint_request`,

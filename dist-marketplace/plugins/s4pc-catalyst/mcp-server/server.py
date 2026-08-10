@@ -82,22 +82,47 @@ REFERENCE_LINKS = {
         "use_for": "SAP's interactive guide for choosing the extensibility pattern."},
     "cap_docs": {
         "url": "https://cap.cloud.sap/docs/",
+        "fetch_for": ["cap"],
         "use_for": "SAP Cloud Application Programming Model (CAP/CAPM) — authoritative docs, best practices and APIs for the CAP service in a side-by-side solution. MUST follow for CAP data models, services, handlers and deployment."},
     "ui5_docs": {
         "url": "https://ui5.sap.com/",
+        "fetch_for": ["ui5"],
         "use_for": "SAPUI5 — authoritative docs, controls and best practices for the Fiori/UI5 app in a side-by-side solution. MUST follow for UI5 views, controllers and app structure."},
     "nodejs_docs": {
         "url": "https://nodejs.org/docs/latest/api/",
+        "fetch_for": ["cap"],
         "use_for": "Node.js API reference — follow for the CAP (Node.js) runtime and any Node code."},
     "javascript_ref": {
         "url": "https://www.w3schools.com/js/default.asp",
+        "fetch_for": ["ui5", "cap"],
         "use_for": "JavaScript reference for UI5/CAP client- and server-side code."},
+    "html_ref": {
+        "url": "https://www.w3schools.com/html/",
+        "fetch_for": ["ui5"],
+        "use_for": "HTML reference for UI5/Fiori view markup and any custom HTML."},
+    "css_ref": {
+        "url": "https://www.w3schools.com/css/",
+        "fetch_for": ["ui5"],
+        "use_for": "CSS reference for UI5/Fiori styling and any custom CSS."},
     "npm_registry": {
         "url": "https://www.npmjs.com/package/npm",
-        "use_for": "npm packages — verify package names/versions used in CAP/UI5 builds."},
+        "fetch_url": "https://registry.npmjs.org/",
+        "fetch_for": ["cap", "ui5"],
+        "use_for": "npm packages — verify names/versions used in CAP/UI5 builds. FETCH the JSON registry at https://registry.npmjs.org/<package> (NOT the npmjs.com web page, which blocks automated requests); cite the npmjs.com page for humans."},
     "sap_community": {
         "url": "https://community.sap.com/",
-        "use_for": "SAP Community — latest releases, blogs and discussions; check for recent guidance on CAP/UI5/BTP/ABAP Cloud."},
+        "cite_only": True,
+        "use_for": "SAP Community — latest releases, blogs and discussions on CAP/UI5/BTP/ABAP Cloud. CITE-ONLY: the site blocks automated fetches (anti-bot), so link it for humans — do NOT WebFetch it."},
+}
+
+# Object-type -> which REFERENCE_LINKS to READ (WebFetch) when building side-by-side code.
+# The developer fetches the set matching what it is building (CAP service, UI5 app, or both).
+# NOTE: for npm_registry, fetch its 'fetch_url' (registry.npmjs.org JSON), not the web 'url'.
+# sap_community is intentionally NOT here — it is cite-only (anti-bot blocks automated fetch).
+FETCH_DOCS_BY_OBJECT = {
+    "cap":  ["cap_docs", "nodejs_docs", "npm_registry", "javascript_ref"],
+    "ui5":  ["ui5_docs", "javascript_ref", "html_ref", "css_ref", "npm_registry"],
+    "capm": ["cap_docs", "nodejs_docs", "npm_registry", "javascript_ref"],
 }
 
 # Deterministic per-mode facts: tooling, skillset, cost class, doc links.
@@ -121,7 +146,8 @@ MODE_PROFILES = {
         "tooling": "CAP (Node/Java) or ABAP Environment, UI5/Fiori via Build Work Zone, Integration Suite (CPI), Event Mesh / Advanced Event Mesh, SAP Build Process Automation — consuming released APIs + business events",
         "skillset": "BTP developer (CAP/UI5/integration)",
         "cost_class": "BTP CONSUMPTION COST — every service has its own pricing; get plans and estimates from SAP Discovery Center and put the cost line in the proposal",
-        "docs": ["sap_discovery_center", "sap_business_accelerator_hub"],
+        "docs": ["sap_discovery_center", "sap_business_accelerator_hub", "cap_docs", "ui5_docs",
+                 "nodejs_docs", "javascript_ref", "html_ref", "css_ref", "npm_registry", "sap_community"],
         "typical_feasibility": "High for integrations, external users, independent lifecycle, non-covered workflow (SBPA), custom UX (CAP+UI5); overkill for logic a released BAdI does in 20 lines."},
 }
 
@@ -533,6 +559,7 @@ def tool_get_reference_links(args):
         "verified": True,
         "source": "curated authoritative SAP documentation sources",
         "links": REFERENCE_LINKS,
+        "fetch_docs_by_object": FETCH_DOCS_BY_OBJECT,
         "usage_rules": [
             "Released CDS views -> SAP Help 'Released CDS Views' list (released_cds_views_list) + ADT Released Objects / View Browser; cite the list for every CDS view's release (C1) state.",
             "BAdIs -> SAP Help 'List of BAdIs' (released_badis_list) + Custom Logic app; cite it for every BAdI.",
@@ -540,6 +567,7 @@ def tool_get_reference_links(args):
             "BTP services + PRICING -> SAP Discovery Center; every side-by-side proposal links each service's page and names its pricing metric.",
             "Configuration objects, released applications, release notes, any other released objects -> S/4HANA Cloud docs root (sap_help_s4hana_cloud).",
             "Standard app check (fit-to-standard) -> Fiori Apps Library.",
+            "SIDE-BY-SIDE (BTP) BUILDS: READ (WebFetch) the developer docs matching the object type you are building, per 'fetch_docs_by_object' — CAP/CAPM -> [cap_docs, nodejs_docs, npm_registry, javascript_ref]; UI5/Fiori -> [ui5_docs, javascript_ref, html_ref, css_ref, npm_registry]; both -> the union. For npm_registry, fetch its 'fetch_url' (https://registry.npmjs.org/<package> — JSON), not the npmjs.com web page. sap_community is CITE-ONLY (anti-bot blocks automated fetch) — link it for humans, do NOT fetch it. Ground the code in the fetched pages. If a fetch fails (e.g. proxy or site blocks it), fall back to citing the URL for manual verification — never block the build.",
         ],
     }
 

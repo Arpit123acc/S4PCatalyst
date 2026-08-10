@@ -518,9 +518,33 @@ HEADLESS_ALLOWED_TOOLS = [
 # Web verification tools are OFF by default for IP safety — pipeline runs are then fully offline
 # (object release is confirmed via the local catalog + SAP naming rules, and deliverables cite the
 # authoritative SAP URLs for manual/tenant confirmation, so no content leaves the machine).
-# Set S4PC_ALLOW_WEB=1 to also let the pipeline confirm against api.sap.com / the SAP Help lists.
-if os.environ.get("S4PC_ALLOW_WEB", "").strip().lower() in ("1", "true", "yes", "on"):
+# Set S4PC_ALLOW_WEB=1 to force web tools ON for EVERY build. Independent of that flag, side-by-side
+# (BTP) builds auto-enable WebFetch/WebSearch per run (see _run_wants_web) so CAP/UI5 code is grounded
+# in the authoritative developer docs (cap.cloud.sap, ui5.sap.com, nodejs, npm, w3schools, community).
+# Key-user and ABAP-Cloud runs stay fully offline.
+_WEB_FORCED_ON = os.environ.get("S4PC_ALLOW_WEB", "").strip().lower() in ("1", "true", "yes", "on")
+if _WEB_FORCED_ON:
     HEADLESS_ALLOWED_TOOLS += ["WebFetch", "WebSearch"]
+
+
+def _run_wants_web(run_id):
+    """Auto-enable live developer-doc fetching for side-by-side (BTP) builds only.
+    CAP/UI5 code must be grounded in the authoritative docs; key-user / ABAP-Cloud runs stay
+    offline. Reads the run's extensibility mode from output/<run_id>/run.json."""
+    if _WEB_FORCED_ON:
+        return True
+    if not run_id:
+        return False
+    try:
+        with open(os.path.join(ROOT_DIR, "output", run_id, "run.json"), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return False
+    mode = (data.get("extensibility_mode") or "").lower()
+    if "side" in mode or "btp" in mode:
+        return True
+    wf = (data.get("workflow") or "").lower()
+    return "btp" in wf or "14" in wf
 
 # ─── Per-phase scoped prompts ────────────────────────────────────────────────
 # Each pipeline checkpoint boundary spawns a FRESH claude -p process whose
@@ -2135,9 +2159,14 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
     log_fh.write("[engine] %s\n[engine] kind=%s fd=%s\n[engine] prompt:\n%s\n%s\n" % (
         time.strftime("%Y-%m-%d %H:%M:%S"), kind, fd, prompt, "-" * 70))
     log_fh.flush()
+    allowed_tools = list(HEADLESS_ALLOWED_TOOLS)
+    if _run_wants_web(run_id) and "WebFetch" not in allowed_tools:
+        allowed_tools += ["WebFetch", "WebSearch"]
+        log_fh.write("[engine] side-by-side (BTP) run -> WebFetch/WebSearch enabled for developer-doc grounding\n")
+        log_fh.flush()
     cmd = [exe, "-p", prompt, "--output-format", "stream-json", "--verbose",
            "--mcp-config", ".mcp.json", "--strict-mcp-config",   # load ONLY the s4pc governance server
-           "--permission-mode", "acceptEdits", "--allowedTools"] + HEADLESS_ALLOWED_TOOLS
+           "--permission-mode", "acceptEdits", "--allowedTools"] + allowed_tools
     try:
         _env = dict(os.environ, **_btp_env())
         _env.pop("ANTHROPIC_API_KEY", None)   # always use the logged-in claude session

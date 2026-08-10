@@ -448,7 +448,8 @@ python mcp-server/graph/build_graph.py</pre>
   <div id="stab-conn">
     <div class="notice">Authentication: <b>no LLM API keys</b> — Claude Code (your session) is the runtime. SAP connectivity (optional, live mode) uses a <b>communication user via environment variables</b> — nothing is stored in files.</div>
     <div class="grid c2">
-      <div class="card"><h3>Mode &amp; guardrails</h3><div id="conn-mode"></div></div>
+      <div class="card"><h3>Mode &amp; guardrails</h3><div id="conn-mode"></div>
+        <p style="margin-top:10px;font-size:.73rem;color:var(--muted)">Mode above governs the <b>SAP tenant connection</b> (the MCP server stays fully offline unless live mode is set). Separately, <b>side-by-side (BTP) builds</b> fetch public developer docs (CAP, UI5, Node.js, w3schools, npm registry) to ground CAP/UI5 code; SAP Community is cite-only. Key-user &amp; ABAP-Cloud builds make no web calls. Set <code>S4PC_ALLOW_WEB=1</code> to allow doc fetching on every build.</p></div>
       <div class="card"><h3>SAP tenant credentials (env)</h3><div id="conn-env"></div>
         <p style="margin-top:10px;font-size:.75rem">To enable live mode set <code>S4PC_MODE=live</code>, <code>SAP_BASE_URL</code>, <code>SAP_COMM_USER</code>, <code>SAP_COMM_PASSWORD</code> and restart. Live mode is read-only, allowlisted &amp; audited.</p></div>
       <div class="card"><h3>OData service allowlist</h3><div id="conn-allow"></div><p style="margin-top:8px;font-size:.73rem">Extend in <code>mcp-server/config.json</code> — a deliberate human-in-the-loop step.</p></div>
