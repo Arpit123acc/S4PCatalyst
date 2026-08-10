@@ -18,8 +18,17 @@
       "protocol": "OData V2",
       "area": "Master Data",
       "communication_scenario": "SAP_COM_0008",
-      "key_entities": ["A_BusinessPartner", "A_Customer", "A_Supplier", "A_BusinessPartnerAddress"],
-      "operations": ["read", "create", "update"],
+      "key_entities": [
+        "A_BusinessPartner",
+        "A_Customer",
+        "A_Supplier",
+        "A_BusinessPartnerAddress"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_BUSINESS_PARTNER/overview",
       "notes": "The standard master-data API for BP/customer/supplier. Replaces BAPI_BUPA_* family."
     },
@@ -29,8 +38,17 @@
       "protocol": "OData V2",
       "area": "Sales",
       "communication_scenario": "SAP_COM_0109",
-      "key_entities": ["A_SalesOrder", "A_SalesOrderItem", "A_SalesOrderScheduleLine"],
-      "operations": ["read", "create", "update", "delete"],
+      "key_entities": [
+        "A_SalesOrder",
+        "A_SalesOrderItem",
+        "A_SalesOrderScheduleLine"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
       "hub_url": "https://api.sap.com/api/API_SALES_ORDER_SRV/overview",
       "notes": "Replaces BAPI_SALESORDER_CREATEFROMDAT2 / BAPI_SALESORDER_CHANGE."
     },
@@ -39,9 +57,17 @@
       "title": "Sales Order (A2X), OData V4",
       "protocol": "OData V4",
       "area": "Sales",
-      "communication_scenario": null,
-      "key_entities": ["SalesOrder", "SalesOrderItem"],
-      "operations": ["read", "create", "update", "delete"],
+      "communication_scenario": "SAP_COM_0109",
+      "key_entities": [
+        "SalesOrder",
+        "SalesOrderItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
       "hub_url": "https://api.sap.com/api/SALESORDER_0001/overview",
       "notes": "V4 successor of API_SALES_ORDER_SRV. Verify communication scenario in tenant — do not guess."
     },
@@ -50,9 +76,17 @@
       "title": "Purchase Order (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
-      "key_entities": ["A_PurchaseOrder", "A_PurchaseOrderItem"],
-      "operations": ["read", "create", "update", "delete"],
+      "communication_scenario": "SAP_COM_0103",
+      "key_entities": [
+        "A_PurchaseOrder",
+        "A_PurchaseOrderItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
       "hub_url": "https://api.sap.com/api/API_PURCHASEORDER_PROCESS_SRV/overview",
       "notes": "Replaces BAPI_PO_CREATE1 / BAPI_PO_CHANGE."
     },
@@ -61,9 +95,16 @@
       "title": "Purchase Requisition (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
-      "key_entities": ["A_PurchaseRequisitionHeader", "A_PurchaseRequisitionItem"],
-      "operations": ["read", "create", "update"],
+      "communication_scenario": "SAP_COM_0103",
+      "key_entities": [
+        "A_PurchaseRequisitionHeader",
+        "A_PurchaseRequisitionItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_PURCHASEREQ_PROCESS_SRV/overview",
       "notes": "Replaces BAPI_PR_CREATE."
     },
@@ -72,9 +113,17 @@
       "title": "Product Master (A2X)",
       "protocol": "OData V2",
       "area": "Master Data",
-      "communication_scenario": null,
-      "key_entities": ["A_Product", "A_ProductPlant", "A_ProductSalesDelivery"],
-      "operations": ["read", "create", "update"],
+      "communication_scenario": "SAP_COM_0009",
+      "key_entities": [
+        "A_Product",
+        "A_ProductPlant",
+        "A_ProductSalesDelivery"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_PRODUCT_SRV/overview",
       "notes": "Replaces BAPI_MATERIAL_SAVEDATA."
     },
@@ -83,9 +132,18 @@
       "title": "Product Classification (A2X)",
       "protocol": "OData V2",
       "area": "Master Data",
-      "communication_scenario": null,
-      "key_entities": ["A_ClfnProduct", "A_ClfnProductCharcValue", "A_ClfnProductClass"],
-      "operations": ["read", "create", "update", "delete"],
+      "communication_scenario": "SAP_COM_0009",
+      "key_entities": [
+        "A_ClfnProduct",
+        "A_ClfnProductCharcValue",
+        "A_ClfnProductClass"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
       "hub_url": "https://api.sap.com/api/API_CLFN_PRODUCT_SRV/overview",
       "notes": "Product classification / characteristic values (classification system). Confirm the communication scenario on the Hub + Communication Arrangements."
     },
@@ -94,9 +152,13 @@
       "title": "Material Stock (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
-      "key_entities": ["A_MatlStkInAcctMod"],
-      "operations": ["read"],
+      "communication_scenario": "SAP_COM_0164",
+      "key_entities": [
+        "A_MatlStkInAcctMod"
+      ],
+      "operations": [
+        "read"
+      ],
       "hub_url": "https://api.sap.com/api/API_MATERIAL_STOCK_SRV/overview",
       "notes": "Read current material stock by material/plant/storage location/batch. Read-only; pairs with the released CDS view I_MaterialStock."
     },
@@ -105,9 +167,15 @@
       "title": "Outbound Delivery (A2X)",
       "protocol": "OData V2",
       "area": "Logistics",
-      "communication_scenario": null,
-      "key_entities": ["A_OutbDeliveryHeader", "A_OutbDeliveryItem"],
-      "operations": ["read", "update"],
+      "communication_scenario": "SAP_COM_0127",
+      "key_entities": [
+        "A_OutbDeliveryHeader",
+        "A_OutbDeliveryItem"
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_OUTBOUND_DELIVERY_SRV/overview",
       "notes": "Includes picking/goods-issue actions. Replaces BAPI_OUTB_DELIVERY_*."
     },
@@ -116,9 +184,15 @@
       "title": "Material Document (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
-      "key_entities": ["A_MaterialDocumentHeader", "A_MaterialDocumentItem"],
-      "operations": ["read", "create"],
+      "communication_scenario": "SAP_COM_0164",
+      "key_entities": [
+        "A_MaterialDocumentHeader",
+        "A_MaterialDocumentItem"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
       "hub_url": "https://api.sap.com/api/API_MATERIAL_DOCUMENT_SRV/overview",
       "notes": "Goods movements. Replaces BAPI_GOODSMVT_CREATE."
     },
@@ -127,9 +201,16 @@
       "title": "Physical Inventory Document (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
-      "key_entities": ["A_PhysInventoryDocHeader", "A_PhysInventoryDocItem"],
-      "operations": ["read", "create", "update"],
+      "communication_scenario": "SAP_COM_0164",
+      "key_entities": [
+        "A_PhysInventoryDocHeader",
+        "A_PhysInventoryDocItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_PHYSICAL_INVENTORY_DOC_SRV/overview",
       "notes": null
     },
@@ -138,9 +219,15 @@
       "title": "Supplier Invoice (A2X)",
       "protocol": "OData V2",
       "area": "Finance / Procurement",
-      "communication_scenario": null,
-      "key_entities": ["A_SupplierInvoice", "A_SuplrInvcItemPurOrdRef"],
-      "operations": ["read", "create"],
+      "communication_scenario": "SAP_COM_0057",
+      "key_entities": [
+        "A_SupplierInvoice",
+        "A_SuplrInvcItemPurOrdRef"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
       "hub_url": "https://api.sap.com/api/API_SUPPLIERINVOICE_PROCESS_SRV/overview",
       "notes": "Replaces BAPI_INCOMINGINVOICE_CREATE."
     },
@@ -149,9 +236,13 @@
       "title": "Journal Entry Item (Read, A2X)",
       "protocol": "OData V2",
       "area": "Finance",
-      "communication_scenario": null,
-      "key_entities": ["A_JournalEntryItemBasic"],
-      "operations": ["read"],
+      "communication_scenario": "SAP_COM_0002",
+      "key_entities": [
+        "A_JournalEntryItemBasic"
+      ],
+      "operations": [
+        "read"
+      ],
       "hub_url": "https://api.sap.com/api/API_JOURNALENTRYITEMBASIC_SRV/overview",
       "notes": "Read journal entry items. There is NO direct read access to BSEG/BKPF in Public Cloud — use this API or released CDS views."
     },
@@ -162,7 +253,9 @@
       "area": "Finance",
       "communication_scenario": "SAP_COM_0002",
       "key_entities": [],
-      "operations": ["create"],
+      "operations": [
+        "create"
+      ],
       "hub_url": "https://api.sap.com/api/JOURNALENTRYCREATEREQUESTCONFIRMATION_IN/overview",
       "notes": "Posting journal entries is SOAP-based in Public Cloud. Replaces BAPI_ACC_DOCUMENT_POST."
     },
@@ -171,9 +264,15 @@
       "title": "Maintenance Notification (A2X)",
       "protocol": "OData V2",
       "area": "Asset Management",
-      "communication_scenario": null,
-      "key_entities": ["MaintenanceNotification"],
-      "operations": ["read", "create", "update"],
+      "communication_scenario": "SAP_COM_0249",
+      "key_entities": [
+        "MaintenanceNotification"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_MAINTNOTIFICATION/overview",
       "notes": null
     },
@@ -182,9 +281,16 @@
       "title": "Maintenance Order (A2X)",
       "protocol": "OData V2",
       "area": "Asset Management",
-      "communication_scenario": null,
-      "key_entities": ["MaintenanceOrder", "MaintenanceOrderOperation"],
-      "operations": ["read", "create", "update"],
+      "communication_scenario": "SAP_COM_0249",
+      "key_entities": [
+        "MaintenanceOrder",
+        "MaintenanceOrderOperation"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
       "hub_url": "https://api.sap.com/api/API_MAINTENANCEORDER/overview",
       "notes": null
     },
@@ -193,9 +299,11 @@
       "title": "Bank Account Balance",
       "protocol": "OData V4",
       "area": "Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0460",
       "key_entities": [],
-      "operations": ["read"],
+      "operations": [
+        "read"
+      ],
       "hub_url": null,
       "notes": "UNVERIFIED seed entry — confirm exact service name on SAP Business Accelerator Hub before citing."
     },
@@ -204,9 +312,14 @@
       "title": "Sales Order Business Events",
       "protocol": "Event (SAP Event Mesh / Advanced Event Mesh)",
       "area": "Sales",
-      "communication_scenario": null,
-      "key_entities": ["SalesOrder.Created", "SalesOrder.Changed"],
-      "operations": ["subscribe"],
+      "communication_scenario": "SAP_COM_0092",
+      "key_entities": [
+        "SalesOrder.Created",
+        "SalesOrder.Changed"
+      ],
+      "operations": [
+        "subscribe"
+      ],
       "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
       "notes": "Use business events + side-by-side extension on BTP for async integration instead of custom RFC/IDoc."
     }

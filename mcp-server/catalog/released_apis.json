@@ -39,7 +39,7 @@
       "title": "Product Master (A2X)",
       "protocol": "OData V2",
       "area": "Master Data",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0009",
       "key_entities": [
         "A_Product",
         "A_ProductPlant",
@@ -60,7 +60,7 @@
       "title": "Product Classification (A2X)",
       "protocol": "OData V2",
       "area": "Master Data",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0009",
       "key_entities": [
         "A_ClfnProduct",
         "A_ClfnProductCharcValue",
@@ -80,7 +80,7 @@
       "title": "G/L Account Master (A2X)",
       "protocol": "OData V2",
       "area": "Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0019",
       "key_entities": [
         "A_GLAccountInChartOfAccounts",
         "A_GLAccountText"
@@ -98,7 +98,7 @@
       "title": "Cost Center (A2X)",
       "protocol": "OData V2",
       "area": "Controlling",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0007",
       "key_entities": [
         "A_CostCenter",
         "A_CostCenterText"
@@ -116,7 +116,7 @@
       "title": "Profit Center (A2X)",
       "protocol": "OData V2",
       "area": "Controlling",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0007",
       "key_entities": [
         "A_ProfitCenter",
         "A_ProfitCenterText"
@@ -134,7 +134,7 @@
       "title": "Bank Account (Internal, A2X)",
       "protocol": "OData V2",
       "area": "Treasury",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0460",
       "key_entities": [
         "A_BankAccount"
       ],
@@ -151,7 +151,7 @@
       "title": "Bank Master (A2X)",
       "protocol": "OData V2",
       "area": "Master Data",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0460",
       "key_entities": [
         "A_BankDetail"
       ],
@@ -168,7 +168,7 @@
       "title": "Journal Entry Item (Read, A2X)",
       "protocol": "OData V2",
       "area": "Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0002",
       "key_entities": [
         "A_JournalEntryItemBasic"
       ],
@@ -196,7 +196,7 @@
       "title": "Operational Accounting Document Items (Analytics, A2X)",
       "protocol": "OData V2",
       "area": "Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0002",
       "key_entities": [
         "A_OperationalAcctgDocItemCube"
       ],
@@ -211,7 +211,7 @@
       "title": "Company Code (A2X)",
       "protocol": "OData V2",
       "area": "Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0030",
       "key_entities": [
         "A_CompanyCode"
       ],
@@ -226,7 +226,7 @@
       "title": "Fixed Asset Acquisition (A2X)",
       "protocol": "OData V2",
       "area": "Finance / Asset Accounting",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0348",
       "key_entities": [
         "A_AssetAcquisition"
       ],
@@ -242,7 +242,7 @@
       "title": "Fixed Asset Master (A2X)",
       "protocol": "OData V2",
       "area": "Finance / Asset Accounting",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0348",
       "key_entities": [
         "A_FixedAsset",
         "A_FixedAssetText"
@@ -260,7 +260,7 @@
       "title": "Customer Payment Advice (A2X)",
       "protocol": "OData V2",
       "area": "Finance / Accounts Receivable",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0460",
       "key_entities": [
         "A_CustomerPaymentAdvice",
         "A_CustomerPaymentAdviceItem"
@@ -277,7 +277,7 @@
       "title": "Payment Processing (A2X)",
       "protocol": "OData V2",
       "area": "Finance / Treasury",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0460",
       "key_entities": [
         "A_PaymentOrderHeader"
       ],
@@ -293,7 +293,7 @@
       "title": "Tax Number (A2X)",
       "protocol": "OData V2",
       "area": "Finance / Tax",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0008",
       "key_entities": [],
       "operations": [
         "read"
@@ -306,7 +306,7 @@
       "title": "Bank Account Balance (A2X)",
       "protocol": "OData V4",
       "area": "Finance / Treasury",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0460",
       "key_entities": [],
       "operations": [
         "read"
@@ -341,7 +341,7 @@
       "title": "Sales Order (A2X, OData V4)",
       "protocol": "OData V4",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0109",
       "key_entities": [
         "SalesOrder",
         "SalesOrderItem"
@@ -360,7 +360,7 @@
       "title": "Sales Quotation (A2X)",
       "protocol": "OData V2",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0218",
       "key_entities": [
         "A_SalesQuotation",
         "A_SalesQuotationItem"
@@ -378,7 +378,7 @@
       "title": "Sales Inquiry (A2X)",
       "protocol": "OData V2",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0218",
       "key_entities": [
         "A_SalesInquiry",
         "A_SalesInquiryItem"
@@ -396,7 +396,7 @@
       "title": "Customer Returns (A2X)",
       "protocol": "OData V2",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0109",
       "key_entities": [
         "A_CustomerReturn",
         "A_CustomerReturnItem"
@@ -414,7 +414,7 @@
       "title": "Billing Document (A2X)",
       "protocol": "OData V2",
       "area": "Sales / Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0110",
       "key_entities": [
         "A_BillingDocument",
         "A_BillingDocumentItem"
@@ -431,7 +431,7 @@
       "title": "Credit Memo Request (A2X)",
       "protocol": "OData V2",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0109",
       "key_entities": [
         "A_CreditMemoRequest",
         "A_CreditMemoRequestItem"
@@ -449,7 +449,7 @@
       "title": "Debit Memo Request (A2X)",
       "protocol": "OData V2",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0109",
       "key_entities": [
         "A_DebitMemoRequest",
         "A_DebitMemoRequestItem"
@@ -467,7 +467,7 @@
       "title": "Sales Contract (A2X)",
       "protocol": "OData V2",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0218",
       "key_entities": [
         "A_SalesContract",
         "A_SalesContractItem"
@@ -485,7 +485,7 @@
       "title": "Outbound Delivery (A2X)",
       "protocol": "OData V2",
       "area": "Logistics",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0127",
       "key_entities": [
         "A_OutbDeliveryHeader",
         "A_OutbDeliveryItem",
@@ -503,7 +503,7 @@
       "title": "Inbound Delivery (A2X)",
       "protocol": "OData V2",
       "area": "Logistics",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0127",
       "key_entities": [
         "A_InbDeliveryHeader",
         "A_InbDeliveryItem"
@@ -520,7 +520,7 @@
       "title": "Purchase Order (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0103",
       "key_entities": [
         "A_PurchaseOrder",
         "A_PurchaseOrderItem",
@@ -541,7 +541,7 @@
       "title": "Purchase Requisition (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0103",
       "key_entities": [
         "A_PurchaseRequisitionHeader",
         "A_PurchaseRequisitionItem",
@@ -560,7 +560,7 @@
       "title": "Supplier Invoice (A2X)",
       "protocol": "OData V2",
       "area": "Procurement / Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0057",
       "key_entities": [
         "A_SupplierInvoice",
         "A_SuplrInvcItemPurOrdRef",
@@ -578,7 +578,7 @@
       "title": "Purchasing Info Record (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0061",
       "key_entities": [
         "A_PurchasingInfoRecord"
       ],
@@ -596,7 +596,7 @@
       "title": "Purchasing Contract (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0103",
       "key_entities": [
         "A_PurchasingContract",
         "A_PurchasingContractItem"
@@ -614,7 +614,7 @@
       "title": "Request for Quotation (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0103",
       "key_entities": [
         "A_RFQHeader",
         "A_RFQItem"
@@ -632,7 +632,7 @@
       "title": "Source List (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0082",
       "key_entities": [
         "A_SourceList"
       ],
@@ -649,7 +649,7 @@
       "title": "Scheduling Agreement (A2X)",
       "protocol": "OData V2",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0103",
       "key_entities": [
         "A_SchedulingAgreement",
         "A_SchedulingAgreementItem",
@@ -668,7 +668,7 @@
       "title": "Material Stock (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0164",
       "key_entities": [
         "A_MatlStkInAcctMod"
       ],
@@ -683,7 +683,7 @@
       "title": "Material Document (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0164",
       "key_entities": [
         "A_MaterialDocumentHeader",
         "A_MaterialDocumentItem"
@@ -700,7 +700,7 @@
       "title": "Physical Inventory Document (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0164",
       "key_entities": [
         "A_PhysInventoryDocHeader",
         "A_PhysInventoryDocItem"
@@ -718,7 +718,7 @@
       "title": "Reservation Document (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0164",
       "key_entities": [
         "A_ReservationDocumentHeader",
         "A_ReservationDocumentItem"
@@ -736,7 +736,7 @@
       "title": "Batch Master (A2X)",
       "protocol": "OData V2",
       "area": "Inventory",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0009",
       "key_entities": [
         "A_Batch",
         "A_BatchPlant",
@@ -755,7 +755,7 @@
       "title": "Warehouse Goods Receipt (A2X)",
       "protocol": "OData V2",
       "area": "Warehouse Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0319",
       "key_entities": [],
       "operations": [
         "read",
@@ -769,7 +769,7 @@
       "title": "Planned Order (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_PlannedOrder",
         "A_PlannedOrderComponent"
@@ -788,7 +788,7 @@
       "title": "Production Order (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_ProductionOrder",
         "A_ProductionOrderItem",
@@ -808,7 +808,7 @@
       "title": "Process Order (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning / Process Industries",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_ProcessOrder"
       ],
@@ -825,7 +825,7 @@
       "title": "Production Order Confirmation (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_ProdOrderConfirmation"
       ],
@@ -841,7 +841,7 @@
       "title": "Bill of Materials (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_BOMHeader",
         "A_BOMItem"
@@ -859,7 +859,7 @@
       "title": "Work Center (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_WorkCenter"
       ],
@@ -876,7 +876,7 @@
       "title": "Routing / Task List (A2X)",
       "protocol": "OData V2",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0221",
       "key_entities": [
         "A_RoutingHeader",
         "A_RoutingOperation"
@@ -894,7 +894,7 @@
       "title": "Maintenance Notification (A2X)",
       "protocol": "OData V2",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0249",
       "key_entities": [
         "MaintenanceNotification",
         "MaintenanceNotificationItem",
@@ -913,7 +913,7 @@
       "title": "Maintenance Order (A2X)",
       "protocol": "OData V2",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0249",
       "key_entities": [
         "MaintenanceOrder",
         "MaintenanceOrderOperation",
@@ -932,7 +932,7 @@
       "title": "Equipment Master (A2X)",
       "protocol": "OData V2",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0249",
       "key_entities": [
         "A_Equipment"
       ],
@@ -949,7 +949,7 @@
       "title": "Functional Location (A2X)",
       "protocol": "OData V2",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0249",
       "key_entities": [
         "A_FuncLocation"
       ],
@@ -966,7 +966,7 @@
       "title": "Maintenance Plan (A2X)",
       "protocol": "OData V2",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0249",
       "key_entities": [
         "A_MaintenancePlan",
         "A_MaintenancePlanItem"
@@ -984,7 +984,7 @@
       "title": "Measurement Document (A2X)",
       "protocol": "OData V2",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0249",
       "key_entities": [
         "A_MeasurementDocument"
       ],
@@ -1000,7 +1000,7 @@
       "title": "Inspection Lot (A2X)",
       "protocol": "OData V2",
       "area": "Quality Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0310",
       "key_entities": [
         "A_InspectionLot",
         "A_InspectionCharacteristic"
@@ -1018,7 +1018,7 @@
       "title": "Quality Info Record for Procurement (A2X)",
       "protocol": "OData V2",
       "area": "Quality Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0082",
       "key_entities": [
         "A_QualInfoProcurement"
       ],
@@ -1035,7 +1035,7 @@
       "title": "Project Management (A2X)",
       "protocol": "OData V2",
       "area": "Project System",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0064",
       "key_entities": [
         "A_Project",
         "A_WBSElement",
@@ -1054,7 +1054,7 @@
       "title": "WBS Element (A2X)",
       "protocol": "OData V2",
       "area": "Project System",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0064",
       "key_entities": [
         "A_WBSElement"
       ],
@@ -1071,7 +1071,7 @@
       "title": "Employee (Replication, A2X)",
       "protocol": "OData V2",
       "area": "Human Capital Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0021",
       "key_entities": [
         "A_Employee"
       ],
@@ -1086,7 +1086,7 @@
       "title": "Workforce Person (A2X)",
       "protocol": "OData V2",
       "area": "Human Capital Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0021",
       "key_entities": [
         "A_WorkforcePerson"
       ],
@@ -1101,7 +1101,7 @@
       "title": "Time Recording (A2X)",
       "protocol": "OData V2",
       "area": "Human Capital Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0276",
       "key_entities": [],
       "operations": [
         "read",
@@ -1115,7 +1115,7 @@
       "title": "Real Estate Contract (A2X)",
       "protocol": "OData V2",
       "area": "Real Estate",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0426",
       "key_entities": [
         "A_REFXContractHeader"
       ],
@@ -1132,7 +1132,7 @@
       "title": "Sales Order Business Events",
       "protocol": "Event",
       "area": "Sales",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "SalesOrder.Created.v1",
         "SalesOrder.Changed.v1"
@@ -1148,7 +1148,7 @@
       "title": "Purchase Order Business Events",
       "protocol": "Event",
       "area": "Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "PurchaseOrder.Created.v1",
         "PurchaseOrder.Changed.v1"
@@ -1164,7 +1164,7 @@
       "title": "Business Partner Business Events",
       "protocol": "Event",
       "area": "Master Data",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "BusinessPartner.Created.v1",
         "BusinessPartner.Changed.v1"
@@ -1180,7 +1180,7 @@
       "title": "Supplier Invoice Business Events",
       "protocol": "Event",
       "area": "Finance / Procurement",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "SupplierInvoice.Created.v1"
       ],
@@ -1195,7 +1195,7 @@
       "title": "Billing Document Business Events",
       "protocol": "Event",
       "area": "Sales / Finance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "BillingDocument.Created.v1"
       ],
@@ -1210,7 +1210,7 @@
       "title": "Maintenance Notification Business Events",
       "protocol": "Event",
       "area": "Plant Maintenance",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "MaintenanceNotification.Created.v1",
         "MaintenanceNotification.Changed.v1"
@@ -1226,7 +1226,7 @@
       "title": "Cost Center Business Events",
       "protocol": "Event",
       "area": "Controlling",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "CostCenter.Created.v1",
         "CostCenter.Changed.v1"
@@ -1242,7 +1242,7 @@
       "title": "Production Order Business Events",
       "protocol": "Event",
       "area": "Production Planning",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "ProductionOrder.Created.v1",
         "ProductionOrder.Changed.v1"
@@ -1258,7 +1258,7 @@
       "title": "Material Stock Business Events",
       "protocol": "Event",
       "area": "Inventory",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "MaterialStock.Changed.v1"
       ],
@@ -1273,7 +1273,7 @@
       "title": "Inspection Lot Business Events",
       "protocol": "Event",
       "area": "Quality Management",
-      "communication_scenario": null,
+      "communication_scenario": "SAP_COM_0092",
       "key_entities": [
         "InspectionLot.Created.v1"
       ],
