@@ -1,0 +1,62 @@
+{
+  // Python
+  "python.defaultInterpreterPath": "python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/webapp", "${workspaceFolder}/mcp-server"],
+  "python.analysis.typeCheckingMode": "basic",
+
+  // Editor
+  "editor.formatOnSave": false,
+  "editor.rulers": [100],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "[json]": { "editor.tabSize": 2 },
+  "[markdown]": { "editor.wordWrap": "on", "editor.rulers": [] },
+  "[html]": { "editor.tabSize": 2 },
+
+  // File associations
+  "files.associations": {
+    ".mcp.json": "json",
+    "SKILL.md": "markdown",
+    "CLAUDE.md": "markdown",
+    "run.json": "json"
+  },
+
+  // Search — exclude generated/runtime directories
+  "search.exclude": {
+    "**/output/**": true,
+    "**/webapp/engine-logs/**": true,
+    "**/mcp-server/logs/**": true,
+    "**/__pycache__/**": true,
+    "**/.claude/projects/**": true
+  },
+
+  // Watcher — skip high-volume runtime folders to avoid CPU spikes
+  "files.watcherExclude": {
+    "**/output/**": true,
+    "**/webapp/engine-logs/**": true,
+    "**/mcp-server/logs/**": true,
+    "**/__pycache__/**": true
+  },
+
+  // Explorer
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    "CLAUDE.md": ".mcp.json",
+    "app.py": "*.log",
+    "run.json": "*.md, decisions"
+  },
+
+  // Terminal
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.cwd": "${workspaceFolder}",
+
+  // Markdown preview
+  "markdown.preview.breaks": true,
+
+  // Disable telemetry for this workspace
+  "telemetry.telemetryLevel": "off"
+}

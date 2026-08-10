@@ -1,0 +1,98 @@
+{
+  "_meta": {
+    "description": "Seed catalog of key-user / developer BAdIs available in S/4HANA Cloud Public Edition. Curated starting set, NOT authoritative.",
+    "authoritative_sources": [
+      "SAP Help — List of BAdIs (Public Cloud): https://help.sap.com/docs/SAP_S4HANA_CLOUD/a630d57fc5004c6383e7a81efee7a8bb/7364d84e76e745df91f1413339a7e293.html",
+      "Custom Logic app (Fiori, key user extensibility) in your tenant — lists exactly the released BAdIs available to YOUR release",
+      "Custom Fields and Logic app (F1481)",
+      "ADT Released Objects tree (developer extensibility, release contract C1)",
+      "SAP Business Accelerator Hub > S/4HANA Cloud > Business Add-Ins"
+    ],
+    "released_badis_list_url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/a630d57fc5004c6383e7a81efee7a8bb/7364d84e76e745df91f1413339a7e293.html",
+    "verification_rule": "BAdI availability differs by release and scope item activation. ALWAYS confirm on the SAP Help 'List of BAdIs', the Custom Logic app, or ADT before committing a design. If an entry is not found there, it does not exist for your tenant — full stop.",
+    "last_curated": "2026-07-20"
+  },
+  "badis": [
+    {
+      "name": "MM_PUR_S4_PO_CHECK",
+      "title": "Purchase Order Checks",
+      "area": "Procurement",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Procurement: Purchasing Document",
+      "use_case": "Custom validations on purchase order header/items (block save, raise messages).",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "MM_PUR_S4_PO_MODIFY_HEADER",
+      "title": "Modification of Purchase Order Header",
+      "area": "Procurement",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Procurement: Purchasing Document",
+      "use_case": "Default or override PO header fields (e.g. payment terms, custom fields).",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "MM_PUR_S4_PO_MODIFY_ITEM",
+      "title": "Modification of Purchase Order Item",
+      "area": "Procurement",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Procurement: Purchasing Document Item",
+      "use_case": "Default or override PO item fields.",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "MM_PUR_S4_PR_CHECK",
+      "title": "Purchase Requisition Checks",
+      "area": "Procurement",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Procurement: Purchase Requisition",
+      "use_case": "Custom validations on purchase requisitions.",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "SD_SLS_MODIFY_HEAD",
+      "title": "Modify Sales Document Header",
+      "area": "Sales",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Sales: Sales Document",
+      "use_case": "Default/override sales order header fields during create/change.",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "SD_SLS_CHECK_HEAD",
+      "title": "Check Sales Document Header",
+      "area": "Sales",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Sales: Sales Document",
+      "use_case": "Custom validations on sales order header.",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "SD_SLS_MODIFY_ITEM",
+      "title": "Modify Sales Document Item",
+      "area": "Sales",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Sales: Sales Document Item",
+      "use_case": "Default/override sales order item fields.",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "FI_AC_DOCUMENT_CHECK",
+      "title": "Journal Entry Validation (seed name — verify)",
+      "area": "Finance",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Finance: Journal Entry",
+      "use_case": "Substitution/validation on journal entries (Public Cloud uses released BAdIs under 'Custom Fields and Logic' instead of classic GGB0/OBBH).",
+      "verified_in_tenant": false
+    },
+    {
+      "name": "BADI_SD_BILLING (seed name — verify)",
+      "title": "Billing Document Enhancements",
+      "area": "Sales / Billing",
+      "extensibility_type": "key_user_custom_logic",
+      "business_context": "Sales: Billing Document",
+      "use_case": "Custom logic during billing document creation.",
+      "verified_in_tenant": false
+    }
+  ]
+}

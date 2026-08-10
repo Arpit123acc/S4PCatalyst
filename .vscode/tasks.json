@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start webapp",
+      "type": "shell",
+      "command": "py -3 webapp/app.py",
+      "windows": { "command": "py -3 webapp/app.py" },
+      "linux": { "command": "python3 webapp/app.py" },
+      "osx": { "command": "python3 webapp/app.py" },
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start webapp (no browser)",
+      "type": "shell",
+      "command": "py -3 webapp/app.py",
+      "windows": { "command": "py -3 webapp/app.py" },
+      "linux": { "command": "python3 webapp/app.py" },
+      "osx": { "command": "python3 webapp/app.py" },
+      "options": {
+        "env": { "S4PC_UI_NO_BROWSER": "1" }
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Clear pipeline data (output + engine-logs)",
+      "type": "shell",
+      "windows": {
+        "command": "Remove-Item -Recurse -Force output\\* -ErrorAction SilentlyContinue; Remove-Item -Recurse -Force webapp\\engine-logs\\* -ErrorAction SilentlyContinue; Write-Host 'Pipeline data cleared.'"
+      },
+      "linux": { "command": "rm -rf output/* webapp/engine-logs/* && echo 'Pipeline data cleared.'" },
+      "osx": { "command": "rm -rf output/* webapp/engine-logs/* && echo 'Pipeline data cleared.'" },
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Syntax-check app.py",
+      "type": "shell",
+      "windows": { "command": "py -3 -c \"import ast; ast.parse(open('webapp/app.py', encoding='utf-8').read()); print('app.py: syntax OK')\"" },
+      "linux": { "command": "python3 -c \"import ast; ast.parse(open('webapp/app.py', encoding='utf-8').read()); print('app.py: syntax OK')\"" },
+      "osx": { "command": "python3 -c \"import ast; ast.parse(open('webapp/app.py', encoding='utf-8').read()); print('app.py: syntax OK')\"" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run MCP server (interactive)",
+      "type": "shell",
+      "windows": { "command": "py -3 mcp-server/server.py" },
+      "linux": { "command": "python3 mcp-server/server.py" },
+      "osx": { "command": "python3 mcp-server/server.py" },
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

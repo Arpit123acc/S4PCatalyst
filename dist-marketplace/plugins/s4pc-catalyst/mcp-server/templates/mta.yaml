@@ -1,0 +1,90 @@
+## Sample Multi-Target Application (MTA) descriptor for a side-by-side
+## S/4HANA Cloud Public Edition extension: CAP service + HANA Cloud + UI5/Fiori.
+## The pipeline (Developer, side-by-side mode) generates a filled version of this;
+## the btp_deploy tool builds it with `mbt build` and deploys with `cf deploy`.
+## Replace <app> / <ui5app> and complete the module/resource details for your solution.
+_schema-version: "3.2"
+ID: <app>
+version: 1.0.0
+parameters:
+  enable-parallel-deployments: true
+
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+
+modules:
+  # --- CAP service (Node.js) ---
+  - name: <app>-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: <app>-db
+      - name: <app>-auth
+      - name: <app>-destination
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+
+  # --- HANA Cloud deployer (data model) ---
+  - name: <app>-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: <app>-db
+
+  # --- UI5 / Fiori content → HTML5 application repository ---
+  - name: <app>-ui-deployer
+    type: com.sap.application.content
+    path: app
+    requires:
+      - name: <app>-html5-repo-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      requires:
+        - name: <ui5app>
+          artifacts: ['<ui5app>.zip']
+          target-path: resources/
+
+  - name: <ui5app>
+    type: html5
+    path: app/<ui5app>
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build:cf
+      supported-platforms: []
+
+resources:
+  - name: <app>-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: <app>-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+  - name: <app>-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+  - name: <app>-html5-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host

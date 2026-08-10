@@ -1,0 +1,23 @@
+{
+  "recommendations": [
+    // Python — webapp + MCP server development
+    "ms-python.python",
+    "ms-python.debugpy",
+    "ms-python.pylint",
+
+    // Markdown — FD authoring, SKILL.md, steering docs, deliverables
+    "yzhang.markdown-all-in-one",
+    "bierner.markdown-preview-github-styles",
+
+    // JSON — catalogs, run.json, mcp.json, BTP connection files
+    "zainchen.json",
+
+    // General editing
+    "editorconfig.editorconfig",
+    "streetsidesoftware.code-spell-checker",
+
+    // Claude Code (already installed if you're using this workspace in Claude Code)
+    "anthropic.claude-code"
+  ],
+  "unwantedRecommendations": []
+}

@@ -1,0 +1,1287 @@
+{
+  "_meta": {
+    "description": "Seed catalog of SAP-released APIs for S/4HANA Cloud Public Edition. Curated starting set, NOT the authoritative source. Last expanded: 2026-08-04 covering all major modules.",
+    "authoritative_sources": [
+      "SAP Business Accelerator Hub: https://api.sap.com/products/SAPS4HANACloud/apis/all",
+      "Communication Arrangements app in your tenant (Fiori app F0763)",
+      "Released Objects view in ADT (ABAP Development Tools) for developer extensibility"
+    ],
+    "verification_rule": "Every entry must be re-verified against the tenant release before use. Fields marked null are intentionally unverified — do not invent values.",
+    "finalization_rule": "FINALISE every API against the SAP Business Accelerator Hub (https://api.sap.com/products/SAPS4HANACloud/apis/all). API-named services (API_*/*_SRV) are recognised as released by check_object_release_state — confirm the exact service + communication scenario on the Hub.",
+    "released_apis_list_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all",
+    "last_curated": "2026-08-04"
+  },
+  "apis": [
+    {
+      "name": "API_BUSINESS_PARTNER",
+      "title": "Business Partner (A2X)",
+      "protocol": "OData V2",
+      "area": "Master Data",
+      "communication_scenario": "SAP_COM_0008",
+      "key_entities": [
+        "A_BusinessPartner",
+        "A_Customer",
+        "A_Supplier",
+        "A_BusinessPartnerAddress",
+        "A_BusinessPartnerRole",
+        "A_BusinessPartnerBank"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_BUSINESS_PARTNER/overview",
+      "notes": "Primary master-data API for BP/customer/supplier. Replaces BAPI_BUPA_* family."
+    },
+    {
+      "name": "API_PRODUCT_SRV",
+      "title": "Product Master (A2X)",
+      "protocol": "OData V2",
+      "area": "Master Data",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_Product",
+        "A_ProductPlant",
+        "A_ProductSalesDelivery",
+        "A_ProductProcurement",
+        "A_ProductDescription"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PRODUCT_SRV/overview",
+      "notes": "Material/product master. Replaces BAPI_MATERIAL_SAVEDATA. No direct MARA/MARC access in Public Cloud."
+    },
+    {
+      "name": "API_CLFN_PRODUCT_SRV",
+      "title": "Product Classification (A2X)",
+      "protocol": "OData V2",
+      "area": "Master Data",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_ClfnProduct",
+        "A_ClfnProductCharcValue",
+        "A_ClfnProductClass"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
+      "hub_url": "https://api.sap.com/api/API_CLFN_PRODUCT_SRV/overview",
+      "notes": "Product classification / characteristic values. Confirm communication scenario on Hub."
+    },
+    {
+      "name": "API_GLACCOUNTMASTER_SRV",
+      "title": "G/L Account Master (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_GLAccountInChartOfAccounts",
+        "A_GLAccountText"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_GLACCOUNTMASTER_SRV/overview",
+      "notes": "G/L account master. Replaces direct SKA1/SKB1 access."
+    },
+    {
+      "name": "API_COSTCENTER_SRV",
+      "title": "Cost Center (A2X)",
+      "protocol": "OData V2",
+      "area": "Controlling",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_CostCenter",
+        "A_CostCenterText"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_COSTCENTER_SRV/overview",
+      "notes": "Cost center master. Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_PROFITCENTER_SRV",
+      "title": "Profit Center (A2X)",
+      "protocol": "OData V2",
+      "area": "Controlling",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_ProfitCenter",
+        "A_ProfitCenterText"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PROFITCENTER_SRV/overview",
+      "notes": "Profit center master. Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_BANKACCOUNTINTERNAL_SRV",
+      "title": "Bank Account (Internal, A2X)",
+      "protocol": "OData V2",
+      "area": "Treasury",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_BankAccount"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_BANKACCOUNTINTERNAL_SRV/overview",
+      "notes": "House bank account master. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_BANK_SRV",
+      "title": "Bank Master (A2X)",
+      "protocol": "OData V2",
+      "area": "Master Data",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_BankDetail"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_BANK_SRV/overview",
+      "notes": "Bank master data (BNKA replacement). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_JOURNALENTRYITEMBASIC_SRV",
+      "title": "Journal Entry Item (Read, A2X)",
+      "protocol": "OData V2",
+      "area": "Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_JournalEntryItemBasic"
+      ],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_JOURNALENTRYITEMBASIC_SRV/overview",
+      "notes": "Read journal entry items. No direct BSEG/BKPF access in Public Cloud."
+    },
+    {
+      "name": "JournalEntryCreateRequestConfirmation_In",
+      "title": "Journal Entry - Post (SOAP)",
+      "protocol": "SOAP",
+      "area": "Finance",
+      "communication_scenario": "SAP_COM_0002",
+      "key_entities": [],
+      "operations": [
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/JOURNALENTRYCREATEREQUESTCONFIRMATION_IN/overview",
+      "notes": "Posting journal entries is SOAP-based in Public Cloud. Replaces BAPI_ACC_DOCUMENT_POST."
+    },
+    {
+      "name": "API_OPLACCTGDOCITEMCUBE_SRV",
+      "title": "Operational Accounting Document Items (Analytics, A2X)",
+      "protocol": "OData V2",
+      "area": "Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_OperationalAcctgDocItemCube"
+      ],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_OPLACCTGDOCITEMCUBE_SRV/overview",
+      "notes": "Analytical read of accounting document items. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_COMPANYCODE_SRV",
+      "title": "Company Code (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_CompanyCode"
+      ],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_COMPANYCODE_SRV/overview",
+      "notes": "Read company code configuration. Replaces T001 direct access."
+    },
+    {
+      "name": "API_FIXEDASSET_ACQUISITION_SRV",
+      "title": "Fixed Asset Acquisition (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance / Asset Accounting",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_AssetAcquisition"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_FIXEDASSET_ACQUISITION_SRV/overview",
+      "notes": "Asset acquisition postings. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_ASSET_SRV",
+      "title": "Fixed Asset Master (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance / Asset Accounting",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_FixedAsset",
+        "A_FixedAssetText"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_ASSET_SRV/overview",
+      "notes": "Asset master data. Replaces BAPI_FIXEDASSET_CREATE1. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_CUSTOMER_PAYMENT_ADVICE_SRV",
+      "title": "Customer Payment Advice (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance / Accounts Receivable",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_CustomerPaymentAdvice",
+        "A_CustomerPaymentAdviceItem"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_CUSTOMER_PAYMENT_ADVICE_SRV/overview",
+      "notes": "Incoming remittance advice processing. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_PAYMENT_SRV",
+      "title": "Payment Processing (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance / Treasury",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PaymentOrderHeader"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PAYMENT_SRV/overview",
+      "notes": "Payment order creation/read. Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_TAXNUMBER_SRV",
+      "title": "Tax Number (A2X)",
+      "protocol": "OData V2",
+      "area": "Finance / Tax",
+      "communication_scenario": null,
+      "key_entities": [],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_TAXNUMBER_SRV/overview",
+      "notes": "Tax number / VAT registration data. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_BANKACCOUNTBALANCE",
+      "title": "Bank Account Balance (A2X)",
+      "protocol": "OData V4",
+      "area": "Finance / Treasury",
+      "communication_scenario": null,
+      "key_entities": [],
+      "operations": [
+        "read"
+      ],
+      "hub_url": null,
+      "notes": "UNVERIFIED seed entry — confirm exact service name on SAP Business Accelerator Hub before citing."
+    },
+    {
+      "name": "API_SALES_ORDER_SRV",
+      "title": "Sales Order (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": "SAP_COM_0109",
+      "key_entities": [
+        "A_SalesOrder",
+        "A_SalesOrderItem",
+        "A_SalesOrderScheduleLine",
+        "A_SalesOrderPartner",
+        "A_SalesOrderPricingElement"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SALES_ORDER_SRV/overview",
+      "notes": "Replaces BAPI_SALESORDER_CREATEFROMDAT2 / BAPI_SALESORDER_CHANGE."
+    },
+    {
+      "name": "SALESORDER_0001",
+      "title": "Sales Order (A2X, OData V4)",
+      "protocol": "OData V4",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "SalesOrder",
+        "SalesOrderItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
+      "hub_url": "https://api.sap.com/api/SALESORDER_0001/overview",
+      "notes": "V4 successor of API_SALES_ORDER_SRV. Verify communication scenario in tenant."
+    },
+    {
+      "name": "API_SALES_QUOTATION_SRV",
+      "title": "Sales Quotation (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_SalesQuotation",
+        "A_SalesQuotationItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SALES_QUOTATION_SRV/overview",
+      "notes": "Quotation processing (pre-sales). Replaces VA21/VA22 BAPI equivalents."
+    },
+    {
+      "name": "API_SALES_INQUIRY_SRV",
+      "title": "Sales Inquiry (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_SalesInquiry",
+        "A_SalesInquiryItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SALES_INQUIRY_SRV/overview",
+      "notes": "Pre-sales inquiry (document type IN). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_CUSTOMER_RETURNS_SRV",
+      "title": "Customer Returns (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_CustomerReturn",
+        "A_CustomerReturnItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_CUSTOMER_RETURNS_SRV/overview",
+      "notes": "Customer return orders (REBL)."
+    },
+    {
+      "name": "API_BILLING_DOCUMENT_SRV",
+      "title": "Billing Document (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales / Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_BillingDocument",
+        "A_BillingDocumentItem"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_BILLING_DOCUMENT_SRV/overview",
+      "notes": "Read billing documents (invoices, credit/debit notes). Replaces VBRK/VBRP direct access."
+    },
+    {
+      "name": "API_CREDIT_MEMO_REQUEST_SRV",
+      "title": "Credit Memo Request (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_CreditMemoRequest",
+        "A_CreditMemoRequestItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_CREDIT_MEMO_REQUEST_SRV/overview",
+      "notes": "Credit memo requests. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_DEBIT_MEMO_REQUEST_SRV",
+      "title": "Debit Memo Request (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_DebitMemoRequest",
+        "A_DebitMemoRequestItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_DEBIT_MEMO_REQUEST_SRV/overview",
+      "notes": "Debit memo requests. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_SALES_CONTRACT_SRV",
+      "title": "Sales Contract (A2X)",
+      "protocol": "OData V2",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_SalesContract",
+        "A_SalesContractItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SALES_CONTRACT_SRV/overview",
+      "notes": "Outline sales contracts (quantity / value contracts). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_OUTBOUND_DELIVERY_SRV",
+      "title": "Outbound Delivery (A2X)",
+      "protocol": "OData V2",
+      "area": "Logistics",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_OutbDeliveryHeader",
+        "A_OutbDeliveryItem",
+        "A_OutbDeliveryPartner"
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_OUTBOUND_DELIVERY_SRV/overview",
+      "notes": "Includes picking / goods-issue actions. Replaces BAPI_OUTB_DELIVERY_*."
+    },
+    {
+      "name": "API_INBOUND_DELIVERY_SRV",
+      "title": "Inbound Delivery (A2X)",
+      "protocol": "OData V2",
+      "area": "Logistics",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_InbDeliveryHeader",
+        "A_InbDeliveryItem"
+      ],
+      "operations": [
+        "read",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_INBOUND_DELIVERY_SRV/overview",
+      "notes": "Inbound delivery (goods receipt against PO). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_PURCHASEORDER_PROCESS_SRV",
+      "title": "Purchase Order (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PurchaseOrder",
+        "A_PurchaseOrderItem",
+        "A_PurchaseOrderScheduleLine",
+        "A_PurOrdAccountAssignment"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PURCHASEORDER_PROCESS_SRV/overview",
+      "notes": "Replaces BAPI_PO_CREATE1 / BAPI_PO_CHANGE."
+    },
+    {
+      "name": "API_PURCHASEREQ_PROCESS_SRV",
+      "title": "Purchase Requisition (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PurchaseRequisitionHeader",
+        "A_PurchaseRequisitionItem",
+        "A_PurReqAccountAssignment"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PURCHASEREQ_PROCESS_SRV/overview",
+      "notes": "Replaces BAPI_PR_CREATE."
+    },
+    {
+      "name": "API_SUPPLIERINVOICE_PROCESS_SRV",
+      "title": "Supplier Invoice (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement / Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_SupplierInvoice",
+        "A_SuplrInvcItemPurOrdRef",
+        "A_SuplrInvcDeductionItem"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SUPPLIERINVOICE_PROCESS_SRV/overview",
+      "notes": "Replaces BAPI_INCOMINGINVOICE_CREATE."
+    },
+    {
+      "name": "API_INFORECORD_PROCESS_SRV",
+      "title": "Purchasing Info Record (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PurchasingInfoRecord"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
+      "hub_url": "https://api.sap.com/api/API_INFORECORD_PROCESS_SRV/overview",
+      "notes": "Purchasing info records (EINE/EINA replacement). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_CONTRACT_PROCESS_SRV",
+      "title": "Purchasing Contract (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PurchasingContract",
+        "A_PurchasingContractItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_CONTRACT_PROCESS_SRV/overview",
+      "notes": "Outline purchasing contracts. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_RFQ_PROCESS_SRV",
+      "title": "Request for Quotation (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_RFQHeader",
+        "A_RFQItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_RFQ_PROCESS_SRV/overview",
+      "notes": "RFQ / solicitation to suppliers. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_SOURCELIST_SRV",
+      "title": "Source List (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_SourceList"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SOURCELIST_SRV/overview",
+      "notes": "Procurement source list (EORD replacement). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_SCHEDULING_AGREEMENT_SRV",
+      "title": "Scheduling Agreement (A2X)",
+      "protocol": "OData V2",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_SchedulingAgreement",
+        "A_SchedulingAgreementItem",
+        "A_SchedulingAgreementScheduleLine"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_SCHEDULING_AGREEMENT_SRV/overview",
+      "notes": "Scheduling agreements with delivery schedule lines. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_MATERIAL_STOCK_SRV",
+      "title": "Material Stock (A2X)",
+      "protocol": "OData V2",
+      "area": "Inventory",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_MatlStkInAcctMod"
+      ],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_MATERIAL_STOCK_SRV/overview",
+      "notes": "Read current material stock by material/plant/storage location/batch. Read-only."
+    },
+    {
+      "name": "API_MATERIAL_DOCUMENT_SRV",
+      "title": "Material Document (A2X)",
+      "protocol": "OData V2",
+      "area": "Inventory",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_MaterialDocumentHeader",
+        "A_MaterialDocumentItem"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_MATERIAL_DOCUMENT_SRV/overview",
+      "notes": "Goods movements. Replaces BAPI_GOODSMVT_CREATE."
+    },
+    {
+      "name": "API_PHYSICAL_INVENTORY_DOC_SRV",
+      "title": "Physical Inventory Document (A2X)",
+      "protocol": "OData V2",
+      "area": "Inventory",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PhysInventoryDocHeader",
+        "A_PhysInventoryDocItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PHYSICAL_INVENTORY_DOC_SRV/overview",
+      "notes": null
+    },
+    {
+      "name": "API_RESERVATION_DOCUMENT_SRV",
+      "title": "Reservation Document (A2X)",
+      "protocol": "OData V2",
+      "area": "Inventory",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_ReservationDocumentHeader",
+        "A_ReservationDocumentItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_RESERVATION_DOCUMENT_SRV/overview",
+      "notes": "Replaces BAPI_RESERVATION_CREATE1. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_BATCH_SRV",
+      "title": "Batch Master (A2X)",
+      "protocol": "OData V2",
+      "area": "Inventory",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_Batch",
+        "A_BatchPlant",
+        "A_BatchClassification"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_BATCH_SRV/overview",
+      "notes": "Batch master data (MCH1/MCHA replacement). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_WHSE_GOODS_RECEIPT_SRV",
+      "title": "Warehouse Goods Receipt (A2X)",
+      "protocol": "OData V2",
+      "area": "Warehouse Management",
+      "communication_scenario": null,
+      "key_entities": [],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_WHSE_GOODS_RECEIPT_SRV/overview",
+      "notes": "EWM inbound goods receipt. Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_PLANNED_ORDER_SRV",
+      "title": "Planned Order (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_PlannedOrder",
+        "A_PlannedOrderComponent"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update",
+        "delete"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PLANNED_ORDER_SRV/overview",
+      "notes": "MRP planned orders. Replaces BAPI_PLANNED_ORDER_CREATE. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_PRODUCTION_ORDER_SRV",
+      "title": "Production Order (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_ProductionOrder",
+        "A_ProductionOrderItem",
+        "A_ProductionOrderComponent",
+        "A_ProductionOrderOperation"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PRODUCTION_ORDER_SRV/overview",
+      "notes": "Discrete manufacturing orders. Replaces BAPI_PRODORD_CREATE. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_PROC_ORDER_SRV",
+      "title": "Process Order (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning / Process Industries",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_ProcessOrder"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PROC_ORDER_SRV/overview",
+      "notes": "Process orders (PI/recipe industries). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_PROD_ORDER_CONFIRMATION_SRV",
+      "title": "Production Order Confirmation (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_ProdOrderConfirmation"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PROD_ORDER_CONFIRMATION_SRV/overview",
+      "notes": "Backflush / time confirmation. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_BOM_SRV",
+      "title": "Bill of Materials (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_BOMHeader",
+        "A_BOMItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_BOM_SRV/overview",
+      "notes": "Material BOM. Replaces CSAP_MAT_BOM_CREATE. Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_WORK_CENTER_SRV",
+      "title": "Work Center (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_WorkCenter"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_WORK_CENTER_SRV/overview",
+      "notes": "Work center master (CRHD replacement). Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_ROUTING_SRV",
+      "title": "Routing / Task List (A2X)",
+      "protocol": "OData V2",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_RoutingHeader",
+        "A_RoutingOperation"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_ROUTING_SRV/overview",
+      "notes": "Routings and task lists. Replaces BAPI_ROUTING_CREATE. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_MAINTNOTIFICATION",
+      "title": "Maintenance Notification (A2X)",
+      "protocol": "OData V2",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "MaintenanceNotification",
+        "MaintenanceNotificationItem",
+        "MaintenanceNotificationActivity"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_MAINTNOTIFICATION/overview",
+      "notes": null
+    },
+    {
+      "name": "API_MAINTENANCEORDER",
+      "title": "Maintenance Order (A2X)",
+      "protocol": "OData V2",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "MaintenanceOrder",
+        "MaintenanceOrderOperation",
+        "MaintenanceOrderComponent"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_MAINTENANCEORDER/overview",
+      "notes": null
+    },
+    {
+      "name": "API_EQUIPMENT_SRV",
+      "title": "Equipment Master (A2X)",
+      "protocol": "OData V2",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_Equipment"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_EQUIPMENT_SRV/overview",
+      "notes": "Equipment master (EQUI/EQUZ replacement). Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_FUNCLOCATION_SRV",
+      "title": "Functional Location (A2X)",
+      "protocol": "OData V2",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_FuncLocation"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_FUNCLOCATION_SRV/overview",
+      "notes": "Functional location master. Verify exact service name on Hub — seed entry."
+    },
+    {
+      "name": "API_MAINTENANCE_PLAN_SRV",
+      "title": "Maintenance Plan (A2X)",
+      "protocol": "OData V2",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_MaintenancePlan",
+        "A_MaintenancePlanItem"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_MAINTENANCE_PLAN_SRV/overview",
+      "notes": "Preventive maintenance plans. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_MEASUREMENT_DOCUMENT_SRV",
+      "title": "Measurement Document (A2X)",
+      "protocol": "OData V2",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_MeasurementDocument"
+      ],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_MEASUREMENT_DOCUMENT_SRV/overview",
+      "notes": "Counter/measurement point readings. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_INSPECTIONLOT_SRV",
+      "title": "Inspection Lot (A2X)",
+      "protocol": "OData V2",
+      "area": "Quality Management",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_InspectionLot",
+        "A_InspectionCharacteristic"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_INSPECTIONLOT_SRV/overview",
+      "notes": "QM inspection lot and results recording. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_QUALITYINFOBDNPROC_SRV",
+      "title": "Quality Info Record for Procurement (A2X)",
+      "protocol": "OData V2",
+      "area": "Quality Management",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_QualInfoProcurement"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_QUALITYINFOBDNPROC_SRV/overview",
+      "notes": "QM quality info records for purchasing. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_PROJECT_SRV",
+      "title": "Project Management (A2X)",
+      "protocol": "OData V2",
+      "area": "Project System",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_Project",
+        "A_WBSElement",
+        "A_Network"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_PROJECT_SRV/overview",
+      "notes": "Project definitions, WBS elements, networks. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_WBS_ELEMENT_SRV",
+      "title": "WBS Element (A2X)",
+      "protocol": "OData V2",
+      "area": "Project System",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_WBSElement"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_WBS_ELEMENT_SRV/overview",
+      "notes": "WBS element master. May be part of API_PROJECT_SRV — verify on Hub. Seed entry."
+    },
+    {
+      "name": "API_EMPLOYEE_SRV",
+      "title": "Employee (Replication, A2X)",
+      "protocol": "OData V2",
+      "area": "Human Capital Management",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_Employee"
+      ],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_EMPLOYEE_SRV/overview",
+      "notes": "Employee replication from SuccessFactors. Read-only in S/4HC. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_WORKFORCE_PERSON_SRV",
+      "title": "Workforce Person (A2X)",
+      "protocol": "OData V2",
+      "area": "Human Capital Management",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_WorkforcePerson"
+      ],
+      "operations": [
+        "read"
+      ],
+      "hub_url": "https://api.sap.com/api/API_WORKFORCE_PERSON_SRV/overview",
+      "notes": "Workforce person data. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_TIMERECORDINGOPERATIONS_SRV",
+      "title": "Time Recording (A2X)",
+      "protocol": "OData V2",
+      "area": "Human Capital Management",
+      "communication_scenario": null,
+      "key_entities": [],
+      "operations": [
+        "read",
+        "create"
+      ],
+      "hub_url": "https://api.sap.com/api/API_TIMERECORDINGOPERATIONS_SRV/overview",
+      "notes": "Cat2 time recording. Verify on Hub — seed entry."
+    },
+    {
+      "name": "API_REALESTATECNTRCT_SRV",
+      "title": "Real Estate Contract (A2X)",
+      "protocol": "OData V2",
+      "area": "Real Estate",
+      "communication_scenario": null,
+      "key_entities": [
+        "A_REFXContractHeader"
+      ],
+      "operations": [
+        "read",
+        "create",
+        "update"
+      ],
+      "hub_url": "https://api.sap.com/api/API_REALESTATECNTRCT_SRV/overview",
+      "notes": "Flexible real estate contract management. Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_SALESORDER_0001",
+      "title": "Sales Order Business Events",
+      "protocol": "Event",
+      "area": "Sales",
+      "communication_scenario": null,
+      "key_entities": [
+        "SalesOrder.Created.v1",
+        "SalesOrder.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Use with side-by-side BTP extensions for async event-driven integration."
+    },
+    {
+      "name": "CE_PURCHASEORDER_0001",
+      "title": "Purchase Order Business Events",
+      "protocol": "Event",
+      "area": "Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "PurchaseOrder.Created.v1",
+        "PurchaseOrder.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify exact event object name on Hub — seed entry."
+    },
+    {
+      "name": "CE_BUSINESSPARTNER_0001",
+      "title": "Business Partner Business Events",
+      "protocol": "Event",
+      "area": "Master Data",
+      "communication_scenario": null,
+      "key_entities": [
+        "BusinessPartner.Created.v1",
+        "BusinessPartner.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_SUPPLIERINVOICE_0001",
+      "title": "Supplier Invoice Business Events",
+      "protocol": "Event",
+      "area": "Finance / Procurement",
+      "communication_scenario": null,
+      "key_entities": [
+        "SupplierInvoice.Created.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_BILLINGDOCUMENT_0001",
+      "title": "Billing Document Business Events",
+      "protocol": "Event",
+      "area": "Sales / Finance",
+      "communication_scenario": null,
+      "key_entities": [
+        "BillingDocument.Created.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_MAINTENANCENOTIFICATION_0001",
+      "title": "Maintenance Notification Business Events",
+      "protocol": "Event",
+      "area": "Plant Maintenance",
+      "communication_scenario": null,
+      "key_entities": [
+        "MaintenanceNotification.Created.v1",
+        "MaintenanceNotification.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_COSTCENTER_0001",
+      "title": "Cost Center Business Events",
+      "protocol": "Event",
+      "area": "Controlling",
+      "communication_scenario": null,
+      "key_entities": [
+        "CostCenter.Created.v1",
+        "CostCenter.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_PRODUCTIONORDER_0001",
+      "title": "Production Order Business Events",
+      "protocol": "Event",
+      "area": "Production Planning",
+      "communication_scenario": null,
+      "key_entities": [
+        "ProductionOrder.Created.v1",
+        "ProductionOrder.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_MATERIALSTOCK_0001",
+      "title": "Material Stock Business Events",
+      "protocol": "Event",
+      "area": "Inventory",
+      "communication_scenario": null,
+      "key_entities": [
+        "MaterialStock.Changed.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    },
+    {
+      "name": "CE_INSPECTIONLOT_0001",
+      "title": "Inspection Lot Business Events",
+      "protocol": "Event",
+      "area": "Quality Management",
+      "communication_scenario": null,
+      "key_entities": [
+        "InspectionLot.Created.v1"
+      ],
+      "operations": [
+        "subscribe"
+      ],
+      "hub_url": "https://api.sap.com/products/SAPS4HANACloud/apis/all?type=events",
+      "notes": "Verify on Hub — seed entry."
+    }
+  ]
+}

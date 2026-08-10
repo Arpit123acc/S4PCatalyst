@@ -1,0 +1,15 @@
+{
+  "_meta": {
+    "description": "Agent roster for the S/4HANA Public Cloud pipeline. Each agent is a role (also defined as a Claude Code subagent in .claude/agents/) orchestrated by the Delivery Lead across the pipeline, running its mapped skill. No per-agent API keys — Claude Code is the shared runtime.",
+    "runtime": "Claude (session model) — no per-agent API keys",
+    "orchestration": "Delivery Lead + 5 specialist roles across the 12-step pipeline. Automated (headless) runs execute inline for speed; the .claude/agents/ subagents can be delegated via the Task tool in an interactive session."
+  },
+  "agents": [
+    {"id": "DL", "name": "Delivery Lead", "reports_to": null, "group": "Delivery Lead", "tier": "Tier 1", "skill": "s4pc-ricefw-pipeline", "role": "Orchestrates the pipeline: delegates each step to the right specialist, owns the 3 quality gates and 3 human checkpoints, and packages the final deliverables.", "status": "ready"},
+    {"id": "XA", "name": "Extensibility Architect", "reports_to": "Delivery Lead", "group": "Design", "tier": "Tier 1", "skill": "s4pc-extensibility-decision", "role": "Analyses the FD (fit-to-standard, requirement quality) and decides the extensibility mode per capability (key user / developer / side-by-side); owns the release-verdict gate.", "status": "ready"},
+    {"id": "DEV", "name": "Developer", "reports_to": "Delivery Lead", "group": "Build", "tier": "Tier 1", "skill": "s4pc-ricefw-pipeline", "role": "Builds per the chosen mode: RAP/CDS/released BAdIs + Fiori Elements (developer); Custom Fields & Logic, Adapt UI, CDS views, analytical queries, forms, flexible workflow (key user); or CAP/ABAP Environment + Integration Suite iFlows (side-by-side).", "status": "ready"},
+    {"id": "CR", "name": "Clean-Core Reviewer", "reports_to": "Delivery Lead", "group": "Quality", "tier": "Tier 1", "skill": "s4pc-clean-core-review", "role": "Adversarial review + security: lint gate, release-verdict gate, upgrade-safety challenge, plus authorization concept, secret hygiene and input validation.", "status": "ready"},
+    {"id": "TA", "name": "Test Agent", "reports_to": "Delivery Lead", "group": "Quality", "tier": "Tier 1", "skill": "s4pc-ricefw-pipeline", "role": "ABAP Unit design with test doubles; API test scripts; negative tests mapped to acceptance criteria.", "status": "ready"},
+    {"id": "CH", "name": "Challenger", "reports_to": "Delivery Lead", "group": "Quality", "tier": "Tier 1", "skill": "s4pc-clean-core-review", "role": "Final challenge round before ship — tries to break the design and confirm the extensibility-pattern selection.", "status": "ready"}
+  ]
+}

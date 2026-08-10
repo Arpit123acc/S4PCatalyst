@@ -1,0 +1,18 @@
+{
+  "name": "s4pc-tools",
+  "owner": {
+    "name": "S4PC Catalyst Team"
+  },
+  "description": "Accenture S/4HANA Cloud Public Edition clean-core delivery tools.",
+  "plugins": [
+    {
+      "name": "s4pc-catalyst",
+      "source": "./plugins/s4pc-catalyst",
+      "description": "Clean-core RICEFW pipeline, extensibility decisions, clean-core reviews and FD creation for S/4HANA Cloud Public Edition.",
+      "version": "1.0.0",
+      "author": {
+        "name": "S4PC Catalyst Team"
+      }
+    }
+  ]
+}

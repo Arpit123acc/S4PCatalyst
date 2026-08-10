@@ -1,0 +1,16 @@
+logs/
+__pycache__/
+.DS_Store
+output/
+node_modules/
+*.code-workspace
+webapp/data/btp-connection.json
+webapp/data/btp-connections.json
+mcp-server/logs/
+mcp-server/vector/index.json
+mcp-server/graph/graph.json
+mcp-server/catalog/catalog.db
+*.pyc
+.env
+*.pem
+*.key

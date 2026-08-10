@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — Leadership Presentation</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root{
+  --bg:#07070f;--surface:rgba(255,255,255,.04);--surface-hov:rgba(255,255,255,.07);
+  --border:rgba(255,255,255,.08);--border-hi:rgba(255,255,255,.16);
+  --text:#e2e8f0;--muted:#94a3b8;--subtle:#475569;
+  --purple:#8b5cf6;--blue:#3b82f6;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;
+  /* legacy aliases for inline styles */
+  --dark:var(--bg);--card:rgba(255,255,255,.04);--border-solid:rgba(255,255,255,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+
+/* Dot grid texture */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:28px 28px}
+/* Ambient orb */
+body::after{content:'';position:fixed;top:-220px;left:-120px;width:640px;height:640px;pointer-events:none;z-index:0;
+  background:radial-gradient(circle,rgba(139,92,246,.13) 0%,transparent 70%);
+  animation:orb 14s ease-in-out infinite alternate}
+@keyframes orb{0%{transform:translate(0,0)}100%{transform:translate(130px,90px)}}
+
+.deck{position:relative;width:100%;height:100%;z-index:1}
+
+/* Slides */
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:42px 58px 82px;overflow:hidden}
+.slide.active{display:flex;animation:fadeUp .32s ease forwards}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* Cover */
+.slide-cover{justify-content:center;align-items:center;text-align:center}
+.slide-cover::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:900px;height:380px;
+  background:radial-gradient(ellipse,rgba(139,92,246,.18) 0%,rgba(59,130,246,.09) 50%,transparent 70%);pointer-events:none}
+.slide-cover .logo{font-size:3.8rem;font-weight:900;letter-spacing:-.03em;position:relative;
+  background:linear-gradient(135deg,#c4b5fd 0%,#93c5fd 60%,#c4b5fd 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.slide-cover .sub{font-size:1.05rem;color:var(--muted);margin-top:8px;letter-spacing:.06em;position:relative}
+.slide-cover .tagline{font-size:1.35rem;color:var(--text);margin-top:30px;max-width:640px;line-height:1.6;font-weight:500;position:relative}
+.slide-cover .meta{font-size:.78rem;color:var(--subtle);margin-top:42px;position:relative}
+
+/* Content */
+.slide-content{background:transparent}
+.slide-header{font-size:1.55rem;font-weight:800;letter-spacing:-.02em;margin-bottom:2px;
+  background:linear-gradient(135deg,#c4b5fd,#93c5fd);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.slide-sub{font-size:.8rem;color:var(--muted);margin-bottom:20px;letter-spacing:.04em;text-transform:uppercase}
+
+/* Grids */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:1}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;flex:1}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;flex:1}
+
+/* Cards — glass */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;backdrop-filter:blur(10px);transition:border-color .2s,background .2s}
+.card:hover{border-color:var(--border-hi);background:var(--surface-hov)}
+.card-purple{border-color:rgba(139,92,246,.3);background:rgba(139,92,246,.08)}
+.card-green{border-color:rgba(34,197,94,.25);background:rgba(34,197,94,.07)}
+.card-amber{border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.07)}
+.card-blue{border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.08)}
+.card-red{border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.07)}
+.card h3{font-size:.92rem;font-weight:700;margin-bottom:8px}
+.card p,.card li{font-size:.76rem;color:var(--muted);line-height:1.65}
+.card ul{padding-left:14px}
+.card .icon{font-size:1.5rem;margin-bottom:8px}
+.card .num{font-size:2rem;font-weight:900;color:var(--purple)}
+
+/* Chips */
+.chip{display:inline-block;border-radius:99px;padding:3px 11px;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:2px;border:1px solid}
+.chip-purple{background:rgba(139,92,246,.15);color:#c4b5fd;border-color:rgba(139,92,246,.35)}
+.chip-blue{background:rgba(59,130,246,.15);color:#93c5fd;border-color:rgba(59,130,246,.35)}
+.chip-green{background:rgba(34,197,94,.12);color:#86efac;border-color:rgba(34,197,94,.28)}
+.chip-amber{background:rgba(245,158,11,.12);color:#fcd34d;border-color:rgba(245,158,11,.28)}
+.chip-red{background:rgba(239,68,68,.12);color:#fca5a5;border-color:rgba(239,68,68,.28)}
+.chip-gray{background:rgba(148,163,184,.1);color:#94a3b8;border-color:rgba(148,163,184,.2)}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:.76rem}
+th{background:rgba(139,92,246,.1);color:#c4b5fd;padding:8px 12px;text-align:left;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase}
+td{padding:8px 12px;border-top:1px solid var(--border);color:var(--text);vertical-align:top}
+tr:hover td{background:rgba(139,92,246,.05)}
+
+/* Pipeline visual */
+.pipeline{display:flex;align-items:center;gap:0;flex-wrap:wrap;flex:1;align-content:center}
+.pstep{display:flex;flex-direction:column;align-items:center;min-width:80px}
+.pstep .box{background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.62rem;text-align:center;width:76px}
+.pstep .n{font-size:.55rem;color:var(--muted);margin-bottom:2px}
+.pstep .lbl{font-weight:700;color:var(--text)}
+.pstep .agt{font-size:.5rem;color:var(--muted);margin-top:1px}
+.pstep.gate .box{border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.1)}
+.pstep.cp   .box{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.1)}
+.pstep.pass .box{border-color:rgba(34,197,94,.5);background:rgba(34,197,94,.1)}
+.parrow{color:var(--border-hi);font-size:.9rem;margin:0 2px}
+
+/* Flow */
+.flow{display:flex;flex-direction:column;gap:12px;flex:1;justify-content:center}
+.flow-row{display:flex;align-items:center;gap:12px}
+.flow-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:.78rem;flex:1;text-align:center}
+.flow-arrow{font-size:1.2rem;color:var(--muted);flex:0 0 auto}
+
+/* Bullets */
+.bullets{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.bullet{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;backdrop-filter:blur(8px)}
+.bullet .bi{font-size:1.2rem;flex:0 0 auto;margin-top:1px}
+.bullet-content h4{font-size:.84rem;font-weight:700;margin-bottom:2px}
+.bullet-content p{font-size:.74rem;color:var(--muted);line-height:1.55}
+
+/* ── Floating pill nav ── */
+.nav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:3px;z-index:200;
+  background:rgba(10,10,22,.82);border:1px solid var(--border-hi);border-radius:99px;
+  padding:4px 4px;backdrop-filter:blur(20px);
+  box-shadow:0 8px 32px rgba(0,0,0,.5),0 0 0 1px rgba(139,92,246,.1)}
+.nav button{background:transparent;border:none;color:var(--muted);border-radius:99px;
+  padding:6px 18px;cursor:pointer;font-size:.76rem;font-weight:600;transition:all .15s;font-family:inherit}
+.nav button:hover{background:rgba(139,92,246,.2);color:#c4b5fd}
+.nav .slide-title{font-size:.7rem;font-weight:600;color:var(--text);
+  min-width:180px;max-width:300px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px}
+.nav .counter{font-size:.68rem;color:var(--subtle);background:rgba(255,255,255,.05);
+  border-radius:99px;padding:3px 10px;white-space:nowrap}
+
+/* Index button */
+.index-btn{position:fixed;top:18px;right:18px;
+  background:rgba(10,10,22,.82);border:1px solid var(--border-hi);
+  color:var(--muted);border-radius:10px;padding:7px 14px;cursor:pointer;
+  font-size:.73rem;font-weight:600;font-family:inherit;
+  backdrop-filter:blur(20px);z-index:200;transition:all .2s;
+  box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.index-btn:hover{color:#c4b5fd;border-color:rgba(139,92,246,.45);background:rgba(139,92,246,.12)}
+
+/* Progress bar */
+.progress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--purple),var(--blue));transition:width .3s;z-index:300}
+
+/* Highlight */
+.highlight{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.28);border-radius:12px;padding:14px 18px;margin-top:14px}
+.highlight p{font-size:.8rem;line-height:1.7;color:var(--text)}
+
+/* Two-col */
+.twocol{display:flex;gap:22px;flex:1}
+.twocol .left{flex:1;display:flex;flex-direction:column;gap:14px}
+.twocol .right{flex:1;display:flex;flex-direction:column;gap:14px}
+
+/* Big stat */
+.stat-row{display:flex;gap:14px;margin-bottom:18px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;flex:1;text-align:center}
+.stat .v{font-size:2rem;font-weight:900;color:var(--purple)}
+.stat .l{font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+/* Label */
+.label{font-size:.58rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+
+/* ── Index slide ── */
+.slide-index{padding:42px 58px 100px}
+.index-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.idx-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 15px;
+  cursor:pointer;transition:all .22s;position:relative;overflow:hidden}
+.idx-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(139,92,246,.1),transparent);opacity:0;transition:opacity .22s}
+.idx-card:hover{border-color:rgba(139,92,246,.42);transform:translateY(-2px);box-shadow:0 6px 24px rgba(139,92,246,.16)}
+.idx-card:hover::before{opacity:1}
+.idx-num{font-size:.56rem;font-weight:800;color:var(--purple);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.idx-title{font-size:.78rem;font-weight:700;color:var(--text);line-height:1.3}
+.idx-desc{font-size:.63rem;color:var(--muted);margin-top:4px;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="progress" id="prog"></div>
+
+<div class="deck" id="deck">
+
+<!-- SLIDE 1: COVER -->
+<div class="slide slide-cover active">
+  <div class="logo">S4PC Catalyst</div>
+  <div class="sub">Agentic Delivery Accelerator · SAP S/4HANA Cloud, Public Edition</div>
+  <div class="tagline">From Functional Design to clean-core, deployment-ready code — governed, gated, and built by a team of AI agents.</div>
+  <div style="display:flex;gap:12px;margin-top:28px;justify-content:center;flex-wrap:wrap">
+    <span class="chip chip-purple">Multi-Agent Pipeline</span>
+    <span class="chip chip-blue">Clean-Core Enforced</span>
+    <span class="chip chip-green">Human-in-the-Loop</span>
+    <span class="chip chip-amber">MCP Governance</span>
+    <span class="chip chip-gray">BTP Deploy</span>
+  </div>
+  <div class="meta">Confidential · SAP S/4HANA Cloud Public Edition Practice</div>
+</div>
+
+<!-- SLIDE 2: INDEX -->
+<div class="slide slide-content slide-index">
+  <div class="slide-header">Slide Index</div>
+  <div class="slide-sub">Click any card to jump to that slide · Press I to toggle · Arrow keys to navigate</div>
+  <div class="index-grid" id="index-grid"></div>
+</div>
+
+<!-- SLIDE 3: THE PROBLEM -->
+<div class="slide slide-content">
+  <div class="slide-header">The Problem We Solve</div>
+  <div class="slide-sub">SAP Public Cloud forces discipline. Most teams don't have tooling that enforces it.</div>
+  <div class="grid2" style="gap:16px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="bullet">
+        <div class="bi">🚫</div>
+        <div class="bullet-content"><h4>Classical ABAP is Forbidden</h4><p>No BAPIs, no function modules, no user exits, no dynpros, no SAPscript. Every non-released object is upgrade-unsafe and will not compile on Public Edition.</p></div>
+      </div>
+      <div class="bullet">
+        <div class="bi">📋</div>
+        <div class="bullet-content"><h4>Released Objects Must Be Verified</h4><p>Every API, BAdI, CDS view, and class needs a C1 release contract. Relying on memory leads to hallucination — wrong objects that fail ATC checks on the tenant.</p></div>
+      </div>
+      <div class="bullet">
+        <div class="bi">⚠️</div>
+        <div class="bullet-content"><h4>Inconsistent Delivery Quality</h4><p>Without automated gates, code quality varies by developer. Review cycles are expensive and catch issues late — after build, not before.</p></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="bullet">
+        <div class="bi">🔍</div>
+        <div class="bullet-content"><h4>Three Extensibility Modes — Easy to Get Wrong</h4><p>Key User, Developer (ABAP Cloud), and Side-by-Side (BTP) each have different constraints, cost profiles, and upgrade behaviour. Wrong choice = rework.</p></div>
+      </div>
+      <div class="bullet">
+        <div class="bi">💸</div>
+        <div class="bullet-content"><h4>BTP Services Have Real Cost</h4><p>Every side-by-side service runs on consumption billing. Proposals without cost lines are incomplete — and no tooling enforces that cost is documented.</p></div>
+      </div>
+      <div class="bullet">
+        <div class="bi">🧠</div>
+        <div class="bullet-content"><h4>LLM Hallucination Risk is High</h4><p>SAP-specific knowledge (released objects, BAdI names, API endpoints) is sparse in public training data. LLMs confidently produce plausible but wrong SAP artifacts.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3: WHAT IS S4PC CATALYST -->
+<div class="slide slide-content">
+  <div class="slide-header">What is S4PC Catalyst?</div>
+  <div class="slide-sub">An agentic delivery accelerator — not a chatbot, not a whiteboard tool</div>
+  <div class="stat-row">
+    <div class="stat"><div class="v">6</div><div class="l">Specialist AI Agents</div></div>
+    <div class="stat"><div class="v">12/14</div><div class="l">Pipeline Steps</div></div>
+    <div class="stat"><div class="v">3</div><div class="l">Quality Gates</div></div>
+    <div class="stat"><div class="v">3</div><div class="l">Human Checkpoints</div></div>
+    <div class="stat"><div class="v">16</div><div class="l">MCP Governance Tools</div></div>
+    <div class="stat"><div class="v">20+</div><div class="l">ABAP Lint Rules</div></div>
+  </div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label">Input</div>
+      <div class="card card-blue"><h3>📄 Functional Design Document</h3><p>A structured FD written by a functional consultant or generated by the s4pc-fd-creation skill from raw business requirements.</p></div>
+      <div class="label" style="margin-top:8px">Output</div>
+      <div class="card card-green"><h3>📦 Packaged Deliverable</h3><p>Lint-passed, peer-reviewed code (RAP/CAP/BAdI/Adobe Forms) + Technical Design + Unit Tests + Tenant Verification Checklist + optional BTP MTA deploy.</p></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label">How It Works</div>
+      <div class="card card-purple"><h3>🤖 Multi-Agent Orchestration</h3><p>A Delivery Lead agent orchestrates 5 specialist agents through a 12-step pipeline with hard quality gates. No agent can skip a gate. No pipeline can complete without 3 human approvals.</p></div>
+      <div class="card"><h3>🛡 Anti-Hallucination by Design</h3><p>The s4pc MCP server provides all SAP-specific facts from a local SQLite catalog — no LLM guesses SAP object names. Every verdict is logged with an authoritative source reference.</p></div>
+      <div class="card"><h3>⚙️ Three Extensibility Modes</h3><p>Key User (in-app, zero cost), Developer (ABAP Cloud via ADT), and Side-by-Side (BTP, consumption cost). Pipeline adapts to the correct mode per requirement.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 4: 12/14-STEP PIPELINE -->
+<div class="slide slide-content">
+  <div class="slide-header">The 12/14-Step Pipeline</div>
+  <div class="slide-sub">Build-first. Gate-gated. Human-approved at every checkpoint.</div>
+  <div class="pipeline" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:8px">
+    <div class="pstep"><div class="n">STEP 1</div><div class="box"><div class="lbl">Intake</div><div class="agt">Delivery Lead</div></div></div><div class="parrow">→</div>
+    <div class="pstep"><div class="n">STEP 2</div><div class="box"><div class="lbl">Solution Proposal</div><div class="agt">Arch</div></div></div><div class="parrow">→</div>
+    <div class="pstep"><div class="n">STEP 3</div><div class="box"><div class="lbl">Release Verdicts</div><div class="agt">Arch</div></div></div><div class="parrow">→</div>
+    <div class="pstep gate"><div class="n">GATE 1</div><div class="box"><div class="lbl">Release Check</div><div class="agt">Reviewer</div></div></div><div class="parrow">→</div>
+    <div class="pstep cp"><div class="n">✋ CP1</div><div class="box"><div class="lbl">Solution Approval</div><div class="agt">Human</div></div></div><div class="parrow">→</div>
+    <div class="pstep"><div class="n">STEP 6</div><div class="box"><div class="lbl">Build</div><div class="agt">Developer</div></div></div><div class="parrow">→</div>
+    <div class="pstep gate"><div class="n">GATE 2</div><div class="box"><div class="lbl">Code Review</div><div class="agt">Reviewer</div></div></div><div class="parrow">→</div>
+    <div class="pstep cp"><div class="n">✋ CP2</div><div class="box"><div class="lbl">Code Approval</div><div class="agt">Human</div></div></div><div class="parrow">→</div>
+    <div class="pstep"><div class="n">STEP 8</div><div class="box"><div class="lbl">Lint</div><div class="agt">Reviewer</div></div></div><div class="parrow">→</div>
+    <div class="pstep"><div class="n">STEP 9</div><div class="box"><div class="lbl">Unit Tests</div><div class="agt">Test Agent</div></div></div><div class="parrow">→</div>
+    <div class="pstep"><div class="n">STEP 10</div><div class="box"><div class="lbl">Tech Design</div><div class="agt">Developer</div></div></div><div class="parrow">→</div>
+    <div class="pstep gate"><div class="n">GATE 3</div><div class="box"><div class="lbl">Peer Review</div><div class="agt">Challenger</div></div></div><div class="parrow">→</div>
+    <div class="pstep cp"><div class="n">✋ CP3</div><div class="box"><div class="lbl">Acceptance</div><div class="agt">Human</div></div></div><div class="parrow">→</div>
+    <div class="pstep pass"><div class="n">STEP 12</div><div class="box"><div class="lbl">Package</div><div class="agt">Delivery Lead</div></div></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+    <span class="chip chip-purple">Gate = pipeline cannot continue if FAIL</span>
+    <span class="chip chip-amber">✋ = human decision required</span>
+    <span class="chip chip-blue">+2 steps for BTP side-by-side: Prereq Check (Step 13) + Deploy (Step 14)</span>
+    <span class="chip chip-green">Build runs from approved proposal — TD is documentation after the fact</span>
+  </div>
+  <div class="highlight" style="margin-top:12px">
+    <p><b>Key design principle:</b> The pipeline is <b>build-first</b>. The Technical Design is written <em>after</em> the code is built and tested — as documentation of what was actually built, not a speculative blueprint. This eliminates the TD/code drift that plagues traditional delivery.</p>
+  </div>
+</div>
+
+<!-- SLIDE 5: 6 AGENTS -->
+<div class="slide slide-content">
+  <div class="slide-header">The 6 Specialist Agents</div>
+  <div class="slide-sub">Each agent owns a distinct role. Model selection is cost-optimised by task complexity.</div>
+  <table style="flex:1">
+    <thead>
+      <tr><th>Agent</th><th>Model</th><th>Role</th><th>Owns</th><th>Why this model?</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Delivery Lead</b></td>
+        <td><span class="chip chip-blue">Sonnet</span></td>
+        <td>Orchestrator</td>
+        <td>Pipeline flow, all 3 gates, packaging, human checkpoint prompts</td>
+        <td>Orchestration is execution-heavy, not deep-reasoning. Sonnet keeps cost low on high-volume steps.</td>
+      </tr>
+      <tr>
+        <td><b>Extensibility Architect</b></td>
+        <td><span class="chip chip-purple">Opus</span></td>
+        <td>Decision maker</td>
+        <td>Extensibility mode selection, release verdict analysis, object inventory, approach scoring (Feasibility / Approach / Cost)</td>
+        <td>Wrong extensibility decision = project rework. Opus provides deeper reasoning at the most consequential decision point.</td>
+      </tr>
+      <tr>
+        <td><b>Developer</b></td>
+        <td><span class="chip chip-blue">Sonnet</span></td>
+        <td>Builder</td>
+        <td>RAP/CDS/BAdI code, CAP Node.js, UI5, Adobe Forms, Application Jobs, xs-security.json, mta.yaml</td>
+        <td>Code generation is pattern-execution, not novel reasoning. Sonnet is fast and cost-efficient here.</td>
+      </tr>
+      <tr>
+        <td><b>Clean-Core Reviewer</b></td>
+        <td><span class="chip chip-purple">Opus</span></td>
+        <td>Adversarial reviewer</td>
+        <td>ABAP lint (20 rules), release-state gate, security review (auth, input validation, secret hygiene), upgrade-safety</td>
+        <td>Adversarial review must catch subtle issues. Opus misses fewer edge cases in security and clean-core compliance.</td>
+      </tr>
+      <tr>
+        <td><b>Test Agent</b></td>
+        <td><span class="chip chip-blue">Sonnet</span></td>
+        <td>Test designer</td>
+        <td>ABAP Unit tests with test doubles, API test scripts, negative tests mapped to acceptance criteria</td>
+        <td>Test design from a spec is structured and pattern-driven — Sonnet handles it with high quality.</td>
+      </tr>
+      <tr>
+        <td><b>Challenger</b></td>
+        <td><span class="chip chip-purple">Opus</span></td>
+        <td>Final auditor</td>
+        <td>Peer review, upgrade-safety challenge, SHIP / FIX / REDESIGN verdict, quality score (0–100)</td>
+        <td>The last gate before packaging. Opus provides the adversarial depth needed to catch what earlier reviewers missed.</td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="display:flex;gap:10px;margin-top:12px">
+    <span class="chip chip-purple">3 × Opus — at decision and review gates</span>
+    <span class="chip chip-blue">3 × Sonnet — at execution steps</span>
+    <span class="chip chip-green">Cost split: ~70% Sonnet (cheap) · ~30% Opus (targeted)</span>
+  </div>
+</div>
+
+<!-- SLIDE 6: AGENT INTERACTION -->
+<div class="slide slide-content">
+  <div class="slide-header">How Agents Interact</div>
+  <div class="slide-sub">Sequential pipeline with gate enforcement — no agent can bypass a checkpoint</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card card-purple">
+        <h3>🔄 Orchestration Model</h3>
+        <p>The Delivery Lead spawns each specialist as an isolated Claude Code subprocess. Each agent reads <code>run.json</code> (the shared state file) + its assigned deliverables, does its work, and writes results back. The Delivery Lead then evaluates the gate verdict before handing off to the next step.</p>
+      </div>
+      <div class="card card-amber">
+        <h3>✋ Human Gate Mechanics</h3>
+        <p>At CP1, CP2, and CP3 the Delivery Lead sets <code>run.json.status = "awaiting_approval"</code> and <code>checkpoint_request</code>. The pipeline <b>stops</b>. The webapp surfaces the decision panel. No agent resumes until the human submits Approve / Adjust / Reject via the UI.</p>
+      </div>
+      <div class="card card-red">
+        <h3>🚫 Gate Failure Behaviour</h3>
+        <p>A FAIL verdict at any gate terminates the current phase. The human must review findings, apply fixes, and resume. Automatic retry is not allowed — every gate failure is a human decision point. This prevents runaway cost from repeated agent loops.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="label">Agent Communication Flow</div>
+      <div class="flow">
+        <div class="flow-row">
+          <div class="flow-box" style="border-color:#7c3aed;background:#1a0e3a">📋 <b>FD Document</b><br><span style="font-size:.68rem;color:var(--muted)">Human-authored input</span></div>
+          <div class="flow-arrow">↓</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-box" style="border-color:#2563eb">🎯 <b>Delivery Lead</b> reads FD + run.json → spawns Architect</div>
+        </div>
+        <div class="flow-row" style="margin-left:20px">
+          <div class="flow-arrow">↓</div>
+          <div class="flow-box">🏗 <b>Architect</b> writes solution proposal + release verdicts → updates run.json</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-arrow">↓</div>
+          <div class="flow-box" style="border-color:#dc2626">🛡 <b>Reviewer</b> checks release verdicts → PASS / FAIL gate</div>
+        </div>
+        <div class="flow-row" style="margin-left:20px">
+          <div class="flow-arrow">↓</div>
+          <div class="flow-box" style="border-color:#d97706">✋ <b>Human CP1</b> → Approve / Adjust / Reject approach</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-arrow">↓</div>
+          <div class="flow-box">👨‍💻 <b>Developer</b> builds code using approved proposal + locked naming contract</div>
+        </div>
+        <div class="flow-row" style="margin-left:20px">
+          <div class="flow-arrow">↓</div>
+          <div class="flow-box" style="border-color:#dc2626">🛡 <b>Reviewer</b> + <b>Challenger</b> → SHIP / FIX / REDESIGN</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-arrow">↓</div>
+          <div class="flow-box" style="border-color:#16a34a">📦 <b>Delivery Lead</b> packages → tenant verification checklist + deploy</div>
+        </div>
+      </div>
+      <p style="font-size:.68rem;color:var(--muted);margin-top:4px">Shared state: <code>output/&lt;RUN-ID&gt;/run.json</code> — all agents read/write this single file. No inter-agent API calls — the filesystem is the message bus.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7: WHY NOT WHITEBOARDING -->
+<div class="slide slide-content">
+  <div class="slide-header">This Is Not Whiteboarding</div>
+  <div class="slide-sub">Concrete, verifiable evidence from live sessions</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bullet"><div class="bi">☁️</div><div class="bullet-content"><h4>Real BTP Infrastructure Created</h4><p>In this session: XSUAA service instance <b>po-viewer-xsuaa</b> and Destination service instance <b>po-viewer-destination</b> were created in the Vistra <code>dev-build-space</code> on <code>eu10-005.hana.ondemand.com</code>. Check the BTP cockpit — the resources are there.</p></div></div>
+      <div class="bullet"><div class="bi">📦</div><div class="bullet-content"><h4>Real MTA Archive Produced</h4><p>A 37 MB <code>.mtar</code> file was built by <code>mbt</code>, staged successfully on BTP CF (buildpack ran, app compiled), and deployed. This is production-grade packaging, not a mockup.</p></div></div>
+      <div class="bullet"><div class="bi">🔒</div><div class="bullet-content"><h4>Pipeline Literally Blocked at Gates</h4><p>The pipeline stopped 3 times and waited for explicit human approval before continuing. There is no workaround — <code>run.json.status = "awaiting_approval"</code> freezes all agent activity.</p></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bullet"><div class="bi">🛡</div><div class="bullet-content"><h4>Real ABAP Lint on Real Rules</h4><p>The lint gate runs 20 ABAP-for-Cloud rules against every generated snippet. A FAIL on any rule blocks the pipeline — the code cannot proceed. Not a documentation checklist: a programmatic verdict.</p></div></div>
+      <div class="bullet"><div class="bi">📋</div><div class="bullet-content"><h4>Real SAP Catalog Checks</h4><p><code>API_PURCHASEORDER_PROCESS_SRV</code> was verified against 10,000+ released objects in the offline catalog (74 APIs · 8,928 CDS Views · 1,734 BAdIs). The verdict <code>LIKELY_RELEASED</code> is logged with source reference (SAP Business Accelerator Hub). No object is used without a release check.</p></div></div>
+      <div class="bullet"><div class="bi">🗂</div><div class="bullet-content"><h4>14 Deliverable Files Written</h4><p>Every pipeline run produces: FD analysis, solution proposal, release verdicts, code (13 source files), lint report, unit tests, technical design, peer review, package summary, deployment guide, tenant verification checklist. Versioned, auditable, replayable.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 8: SKILLS -->
+<div class="slide slide-content">
+  <div class="slide-header">The 4 Skills (Agent Playbooks)</div>
+  <div class="slide-sub">Skills are structured prompts + instructions that agents execute — the "how to do the work" layer</div>
+  <div class="grid2" style="gap:20px">
+    <div class="card card-purple" style="padding:22px">
+      <div class="icon">🏭</div>
+      <h3 style="font-size:1rem">s4pc-ricefw-pipeline</h3>
+      <p style="margin-top:8px;margin-bottom:12px">Full end-to-end 12-step delivery pipeline. Entry point: an FD document. Orchestrates all 6 agents through all phases (A–D), all 3 gates, all 3 human checkpoints. Produces the complete deliverable package.</p>
+      <div><span class="chip chip-purple">Report</span><span class="chip chip-purple">Interface</span><span class="chip chip-purple">Conversion</span><span class="chip chip-purple">Enhancement</span><span class="chip chip-purple">Form</span><span class="chip chip-purple">Workflow</span></div>
+    </div>
+    <div class="card card-blue" style="padding:22px">
+      <div class="icon">🏗</div>
+      <h3 style="font-size:1rem">s4pc-extensibility-decision</h3>
+      <p style="margin-top:8px;margin-bottom:12px">Standalone extensibility advisor. Takes a business requirement, analyses fit-to-standard, and recommends the correct mode (Key User / Developer / Side-by-Side) with a Feasibility / Approach / Cost rating and BTP pricing reference where applicable.</p>
+      <div><span class="chip chip-blue">Pre-pipeline decision</span><span class="chip chip-blue">Architecture review</span></div>
+    </div>
+    <div class="card card-green" style="padding:22px">
+      <div class="icon">📄</div>
+      <h3 style="font-size:1rem">s4pc-fd-creation</h3>
+      <p style="margin-top:8px;margin-bottom:12px">Produces a structured, review-ready Functional Design document from raw business inputs — user stories, meeting notes, or a process description. Follows the standard FD template with acceptance criteria and NFRs that the pipeline expects.</p>
+      <div><span class="chip chip-green">Functional consultant input</span><span class="chip chip-green">Gap analysis</span></div>
+    </div>
+    <div class="card card-amber" style="padding:22px">
+      <div class="icon">🛡</div>
+      <h3 style="font-size:1rem">s4pc-clean-core-review</h3>
+      <p style="margin-top:8px;margin-bottom:12px">Adversarial standalone review. Lint-checks ABAP code or a technical design against all 20 clean-core rules. Returns a SHIP / FIX / REDESIGN verdict with specific finding IDs. Can be run independently of the pipeline on existing code.</p>
+      <div><span class="chip chip-amber">Ad-hoc code review</span><span class="chip chip-amber">Legacy assessment</span></div>
+    </div>
+  </div>
+  <div class="highlight">
+    <p>Skills are executed by invoking <code>/s4pc-ricefw-pipeline</code>, <code>/s4pc-extensibility-decision</code>, etc. in Claude Code. They load the playbook into the agent's context and execute structured multi-step workflows — not free-form chat.</p>
+  </div>
+</div>
+
+<!-- SLIDE 9: MCP SERVER -->
+<div class="slide slide-content">
+  <div class="slide-header">The s4pc MCP Governance Server</div>
+  <div class="slide-sub">Why it was built — and why a general LLM cannot replace it</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card card-red">
+        <h3>❌ Why Not Just Ask the LLM?</h3>
+        <p>SAP Public Cloud has strict, evolving rules. General LLMs produce <b>plausible but wrong</b> SAP object names, BAdI names, and API paths. There is no way to fine-tune Claude with the exact, up-to-date SAP released-object catalog. Hallucinated objects cause ATC failures, upgrade breaks, and project rework.</p>
+      </div>
+      <div class="card card-green">
+        <h3>✅ Offline-First, Zero LLM Calls</h3>
+        <p>The MCP server is a pure Python 3.9+ stdlib process — no external dependencies, no network calls in offline mode. It reads a local SQLite catalog (<code>catalog.db</code>) at startup and answers governance questions instantly. <b>No LLM is involved in any governance decision.</b></p>
+      </div>
+      <div class="card card-blue">
+        <h3>📋 Audit Trail</h3>
+        <p>Every tool call is logged to <code>mcp-server/logs/audit.jsonl</code> with timestamp, tool name, arguments, and verdict. Every pipeline run is traceable: which objects were checked, what verdict was returned, which authoritative source was cited.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="label">16 Governance Tools</div>
+      <table>
+        <thead><tr><th>Tool</th><th>Purpose</th><th>Mode</th></tr></thead>
+        <tbody>
+          <tr><td><code>check_object_release_state</code></td><td>Verify any SAP object is released (C1 contract)</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>abap_cloud_lint</code></td><td>Run 20 ABAP-for-Cloud lint rules on a snippet</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>extensibility_advisor</code></td><td>Recommend Key User / Developer / BTP mode</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>search_released_apis</code></td><td>Search the released API catalog</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>search_released_badis</code></td><td>Search the released BAdI catalog</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>get_reference_links</code></td><td>Authoritative SAP doc URLs per object type</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>query_experience</code></td><td>Search team experience database (lessons learned)</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>record_experience</code></td><td>Write new lessons to the experience DB</td><td><span class="chip chip-green">Offline</span></td></tr>
+          <tr><td><code>odata_get_metadata</code></td><td>Fetch live $metadata from a real S/4HC tenant</td><td><span class="chip chip-amber">Live only</span></td></tr>
+          <tr><td><code>odata_query</code></td><td>Read-only OData query against a real S/4HC tenant</td><td><span class="chip chip-amber">Live only</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10: PIPELINE FOR DIFFERENT USE CASES -->
+<div class="slide slide-content">
+  <div class="slide-header">Pipeline Adapts to Every RICEFW Type</div>
+  <div class="slide-sub">Same 12-step skeleton — different agents, tools, and deliverables per use case</div>
+  <table style="flex:1">
+    <thead>
+      <tr><th>Type</th><th>Extensibility Mode</th><th>Key Build Step</th><th>Key Gate Focus</th><th>BTP Deploy?</th><th>Example</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="chip chip-purple">Report</span></td>
+        <td>Developer (RAP/Fiori El.) or Side-by-Side (CAP+UI5)</td>
+        <td>RAP BO + CDS Projection + OData, or CAP srv + approuter</td>
+        <td>CDS release verdicts, XSUAA auth routes</td>
+        <td>Side-by-side: ✅ Step 13–14</td>
+        <td>Supplier PO Status Viewer (this session)</td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-blue">Interface</span></td>
+        <td>Side-by-Side (Integration Suite / CAP event)</td>
+        <td>iFlow design, event handler, API mapping</td>
+        <td>Released API verified, no inbound BAPI</td>
+        <td>Integration Suite: separate deploy</td>
+        <td>S/4HC → third-party ERP sync</td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-amber">Conversion</span></td>
+        <td>Side-by-Side (BTP ABAP Env.) or Developer</td>
+        <td>Migration object, LTMC template, data mapping</td>
+        <td>Source/target field mapping, error handling</td>
+        <td>Optional</td>
+        <td>Legacy customer master migration</td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-green">Enhancement</span></td>
+        <td>Key User (BAdI via Custom Logic) or Developer (released BAdI RAP)</td>
+        <td>BAdI implementation, validation/default logic</td>
+        <td>BAdI release verdict, no FORM/PERFORM</td>
+        <td>❌ In-tenant or git push</td>
+        <td>Custom field default, approval workflow hook</td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-red">Form</span></td>
+        <td>Key User (Maintain Form Templates — Adobe only)</td>
+        <td>Adobe LiveCycle Designer script, form template</td>
+        <td>No SAPscript/Smart Forms (forbidden)</td>
+        <td>❌ In-tenant upload</td>
+        <td>Custom PO output form</td>
+      </tr>
+      <tr>
+        <td><span class="chip chip-gray">Workflow</span></td>
+        <td>Key User (Flexible Workflow) or Side-by-Side (SBPA)</td>
+        <td>Workflow condition config or SBPA process + integration</td>
+        <td>SBPA → no BTP deploy step; in-tenant config only</td>
+        <td>SBPA: ❌ (config guide instead)</td>
+        <td>Multi-level PO approval, exception handling</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="highlight">
+    <p><b>Mixed extensibility is normal and expected.</b> A single FD can span Key User (custom field) + Developer (RAP extension) + Side-by-Side (reporting app). The Architect decomposes per capability and assigns the correct mode to each — never forces one mode on a requirement that spans several.</p>
+  </div>
+</div>
+
+<!-- SLIDE 12: PIPELINE DECISION FORK -->
+<div class="slide slide-content">
+  <div class="slide-header">The Pipeline Decision Fork</div>
+  <div class="slide-sub">CP1 — the human locks the extensibility path; agents route accordingly</div>
+
+  <!-- CP1 banner -->
+  <div style="display:flex;align-items:center;gap:14px;background:rgba(245,158,11,.08);border:1.5px solid rgba(245,158,11,.4);border-radius:12px;padding:12px 18px;margin-bottom:18px">
+    <span style="font-size:1.6rem">🔀</span>
+    <div>
+      <div style="font-weight:800;font-size:.92rem;color:#fcd34d">Checkpoint 1 (CP1) — Solution Approval</div>
+      <div style="font-size:.74rem;color:var(--muted);margin-top:2px">After the Extensibility Architect scores options with MCP <code>extensibility_advisor</code>, a human developer reviews the proposal and explicitly locks the extensibility mode. The Delivery Lead reads <code>run.json["approved_approach"]</code> and routes the build path. Silence is never approval.</div>
+    </div>
+  </div>
+
+  <!-- Three branches -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;flex:1">
+
+    <!-- Key User -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card card-green" style="padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:800;color:#86efac;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Branch A · Key User</div>
+        <div style="font-size:.88rem;font-weight:700;color:#4ade80;margin-bottom:8px">In-App Extensibility</div>
+        <div style="font-size:.72rem;color:var(--muted);line-height:1.6"><b>When chosen:</b> requirement fits released BAdIs, custom fields, Adapt UI, analytical queries, or Flexible Workflow — no custom ABAP objects needed.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#4ade80">Tools</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Custom Logic app · YY1_ namespace · released BAdI implementations</div>
+        </div>
+        <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#4ade80">Cost</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Zero BTP consumption cost — included in S/4HANA Cloud subscription</div>
+        </div>
+        <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#4ade80">Delivered by</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Developer agent generates BAdI snippet + configuration guide; no ADT build required</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Developer -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card card-purple" style="padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:800;color:#c4b5fd;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Branch B · Developer</div>
+        <div style="font-size:.88rem;font-weight:700;color:#a78bfa;margin-bottom:8px">ABAP Cloud / RAP</div>
+        <div style="font-size:.72rem;color:var(--muted);line-height:1.6"><b>When chosen:</b> requirement needs custom CDS views, RAP business objects, Application Jobs, or released BAdIs beyond key-user scope — built via ADT.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#a78bfa">Tools</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">ADT · git-based software component · Z*/Y* namespace · ABAP for Cloud Development</div>
+        </div>
+        <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#a78bfa">Gates</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">abap_cloud_lint PASS required · ATC check in tenant · unit tests with test doubles</div>
+        </div>
+        <div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.25);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#a78bfa">Cost</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Included in subscription — no BTP service consumption added</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side-by-side -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card card-blue" style="padding:14px 16px">
+        <div style="font-size:.65rem;font-weight:800;color:#93c5fd;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Branch C · Side-by-Side</div>
+        <div style="font-size:.88rem;font-weight:700;color:#60a5fa;margin-bottom:8px">BTP CAP / Integration</div>
+        <div style="font-size:.72rem;color:var(--muted);line-height:1.6"><b>When chosen:</b> requirement needs an external app (CAP), event-driven integration (Integration Suite), or workflow automation (SBPA) consuming released OData/SOAP APIs.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#60a5fa">Tools</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">CAP Node.js / ABAP Env · Cloud Foundry · XSUAA · Destination Service</div>
+        </div>
+        <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#60a5fa">Cost</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">BTP consumption billing per service (CF memory, HANA, Integration flows) — Architect must cite Discovery Center pricing</div>
+        </div>
+        <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:8px;padding:9px 12px">
+          <div style="font-size:.68rem;font-weight:700;color:#60a5fa">Deploy</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:3px">Pipeline Steps 13-14: MBT build + <code>cf deploy</code> via webapp · zero Claude token cost</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 13: COST MODEL -->
+<div class="slide slide-content">
+  <div class="slide-header">How Cost Is Calculated</div>
+  <div class="slide-sub">Two cost domains: AI token cost and BTP service consumption</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="label">AI Token Cost (per pipeline run)</div>
+      <div class="card">
+        <h3>Claude API / Claude Code Subscription</h3>
+        <table style="margin-top:8px">
+          <thead><tr><th>Step</th><th>Agent</th><th>Model</th><th>Est. Tokens</th></tr></thead>
+          <tbody>
+            <tr><td>1–3 + packaging</td><td>Delivery Lead</td><td>Sonnet</td><td>~15k in / ~8k out</td></tr>
+            <tr><td>2–3 (proposal)</td><td>Architect</td><td>Opus</td><td>~20k in / ~10k out</td></tr>
+            <tr><td>6 (build)</td><td>Developer</td><td>Sonnet</td><td>~30k in / ~15k out</td></tr>
+            <tr><td>4+7 (review)</td><td>Reviewer</td><td>Opus</td><td>~25k in / ~8k out</td></tr>
+            <tr><td>9 (tests)</td><td>Test Agent</td><td>Sonnet</td><td>~20k in / ~8k out</td></tr>
+            <tr><td>11 (challenge)</td><td>Challenger</td><td>Opus</td><td>~30k in / ~10k out</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:8px;font-size:.72rem;color:var(--muted)">Approximate per full 12-step run: ~140k input tokens / ~59k output tokens. Opus input: ~3× Sonnet cost.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="label">BTP Service Cost (side-by-side only)</div>
+      <div class="card card-amber">
+        <h3>Consumption-Based BTP Services</h3>
+        <p style="margin-top:6px">Every BTP service carries real cost — the pipeline makes this explicit at the proposal stage with a Discovery Center link and pricing metric.</p>
+        <table style="margin-top:8px">
+          <thead><tr><th>Service</th><th>Metric</th></tr></thead>
+          <tbody>
+            <tr><td>Cloud Foundry Runtime</td><td>GB memory-hours</td></tr>
+            <tr><td>XSUAA (application plan)</td><td>Monthly per-app flat fee</td></tr>
+            <tr><td>Destination Service (lite)</td><td>Requests / month</td></tr>
+            <tr><td>Event Mesh</td><td>Messages published + consumed</td></tr>
+            <tr><td>Integration Suite (CPI)</td><td>Messages / month</td></tr>
+            <tr><td>SBPA</td><td>Process instances / month</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card card-blue">
+        <h3>In-Subscription (Zero Marginal Cost)</h3>
+        <p>Key User and Developer extensibility are included in the S/4HANA Cloud subscription. No BTP consumption. This is factored into every option rating — Key User is always listed as the zero-cost option when feasible.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 12: COST OPTIMISATION -->
+<div class="slide slide-content">
+  <div class="slide-header">Cost Optimisation Strategies</div>
+  <div class="slide-sub">Seven deliberate choices that reduce token and infrastructure cost</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bullet"><div class="bi">🎯</div><div class="bullet-content">
+        <h4>1. Model Tiering — Opus Only Where It Matters</h4>
+        <p>Opus (3× more expensive than Sonnet) is used only at the 3 decision/review gates where reasoning depth directly affects quality. Sonnet handles all execution steps (orchestration, build, tests). Result: ~70% of tokens are billed at Sonnet rates.</p>
+      </div></div>
+      <div class="bullet"><div class="bi">📴</div><div class="bullet-content">
+        <h4>2. Offline MCP — Zero LLM Calls for SAP Facts</h4>
+        <p>All SAP catalog lookups (released objects, lint, BAdI search) run against local SQLite (<code>catalog.db</code>) — zero tokens consumed. The MCP server answers in milliseconds with no API cost. Live mode (real tenant queries) is optional and rate-limited.</p>
+      </div></div>
+      <div class="bullet"><div class="bi">🚦</div><div class="bullet-content">
+        <h4>3. Early Exit on Gate Failure</h4>
+        <p>If the Release Check gate (Step 4) fails, the pipeline stops before Developer, Reviewer, Test Agent, and Challenger all run. A failure caught at Step 4 costs ~2 agent calls instead of 6. Gates are ordered cheapest-to-most-expensive on purpose.</p>
+      </div></div>
+      <div class="bullet"><div class="bi">📝</div><div class="bullet-content">
+        <h4>4. Structured Prompts, Not Open Conversations</h4>
+        <p>Every agent receives a highly structured prompt (phase prompt) that limits scope to exactly the current step. There is no open-ended dialogue or back-and-forth — each agent call is a single bounded task. This minimises context inflation.</p>
+      </div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bullet"><div class="bi">♻️</div><div class="bullet-content">
+        <h4>5. Fresh Context Per Phase</h4>
+        <p>Each phase (A, B, C, D) spawns fresh agent sessions. There is no single long-running conversation accumulating context. Each agent reads only the deliverables it needs — not the entire session history. Context cost stays bounded.</p>
+      </div></div>
+      <div class="bullet"><div class="bi">🔁</div><div class="bullet-content">
+        <h4>6. Human Gates Prevent Expensive Rework Loops</h4>
+        <p>The 3 human checkpoints exist precisely to catch direction errors before they propagate. Approving at CP1 confirms the approach before any code is written. Catching a wrong extensibility choice at CP1 costs 3 agent calls; catching it at CP3 costs all 6.</p>
+      </div></div>
+      <div class="bullet"><div class="bi">💾</div><div class="bullet-content">
+        <h4>7. Build-First TD — No Spec Drift Cost</h4>
+        <p>The Technical Design is written <em>after</em> the code — not before. This eliminates the classic cost sink of iterating the TD to match the code, or re-building code to match a revised TD. One pass, one write.</p>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 13: TECHNOLOGY STACK -->
+<div class="slide slide-content">
+  <div class="slide-header">Technology & Methodology</div>
+  <div class="slide-sub">What's under the hood — and why each choice was made</div>
+  <div class="grid3">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label">AI & Agent Layer</div>
+      <div class="card card-purple">
+        <h3>Claude Code (Anthropic)</h3>
+        <p>The LLM runtime. Claude Code is the CLI — agents are spawned as headless subprocesses with <code>-p &lt;prompt&gt; --output-format stream-json</code>. No API keys in code — the subscription covers all agent calls.</p>
+      </div>
+      <div class="card">
+        <h3>Multi-Agent via Agent SDK</h3>
+        <p>Each specialist is a separate Claude Code process. The Delivery Lead orchestrates via shared filesystem state (<code>run.json</code>). No inter-agent RPC — clean, auditable, restartable.</p>
+      </div>
+      <div class="card">
+        <h3>MCP (Model Context Protocol)</h3>
+        <p>The s4pc server exposes 16 governance tools to Claude Code via the MCP stdio transport. Registered in <code>.mcp.json</code>. Python 3.9+ stdlib — zero pip installs required.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label">Generated Artifacts</div>
+      <div class="card card-blue">
+        <h3>ABAP Cloud / RAP</h3>
+        <p>RAP business objects (CDS + behaviour), Fiori Elements UIs, released BAdI implementations, Application Jobs — all in "ABAP for Cloud Development" language version. OO-only, English, no hard-coding.</p>
+      </div>
+      <div class="card card-green">
+        <h3>CAP Node.js + UI5</h3>
+        <p>For BTP side-by-side: CAP Node.js service + SAP UI5 frontend + XSUAA auth + Destination Service. Packaged as MTA (<code>mta.yaml</code>), built with <code>mbt</code>, deployed with <code>cf deploy</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Adobe LiveCycle (Forms)</h3>
+        <p>Adobe Forms only — no SAPscript or Smart Forms (both forbidden on Public Cloud). Form templates deployed via the Maintain Form Templates app.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label">Platform & Methodology</div>
+      <div class="card card-amber">
+        <h3>SAP S/4HANA Cloud Public Edition</h3>
+        <p>3-system landscape (Dev/QA/Prod). All rules are enforced at the tooling level — not advisory. Git-based ABAP Cloud software components. ADT (Eclipse) for ABAP development.</p>
+      </div>
+      <div class="card">
+        <h3>Build-First Methodology</h3>
+        <p>Inspired by TDD's "make it work, then document": approve the approach (CP1), lock object names, build the code, then write the TD. Prevents the TD/code drift that costs rework time on traditional projects.</p>
+      </div>
+      <div class="card">
+        <h3>Human-in-the-Loop (HITL)</h3>
+        <p>Mandated by design. The pipeline never auto-approves or continues on silence. Mimics professional code review: the AI proposes, the human decides. Three hard stops that cannot be bypassed.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 14: UI/UX -->
+<div class="slide slide-content">
+  <div class="slide-header">UI / UX — The Catalyst Webapp</div>
+  <div class="slide-sub">Zero framework, full-featured pipeline monitoring and governance dashboard</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="label">Technical Choices</div>
+      <div class="card card-purple">
+        <h3>Zero External Dependencies</h3>
+        <p>Pure HTML5, CSS custom properties, vanilla JavaScript. No React, Vue, Angular, or any npm package for the UI layer. Loads instantly, no build step, no node_modules for the webapp itself. Runs on <code>python -m http.server</code> equivalent.</p>
+      </div>
+      <div class="card">
+        <h3>Custom Design System</h3>
+        <p>CSS custom properties (variables) define the full colour and spacing system. Card-based layout, purple brand accent, dark theme optimised for long working sessions. Responsive across screen sizes.</p>
+      </div>
+      <div class="card card-blue">
+        <h3>Real-Time Pipeline Monitoring</h3>
+        <p>3-second polling loop — the UI auto-follows the active pipeline run, switching workflow types and run chips automatically. Step cards update live as agents write to <code>run.json</code>. No WebSocket complexity needed.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="label">Key UX Features</div>
+      <div class="card"><div style="display:flex;gap:8px;align-items:center"><span style="font-size:1.2rem">📊</span><div><h4 style="font-size:.82rem;font-weight:700">Pipeline Explorer</h4><p style="font-size:.73rem;color:var(--muted)">Visual step strip with colour-coded status, live EXECUTING pulse, click-for-detail on any step. Quality score, gate results, findings register, human approvals panel — all in one scrollable view.</p></div></div></div>
+      <div class="card"><div style="display:flex;gap:8px;align-items:center"><span style="font-size:1.2rem">✋</span><div><h4 style="font-size:.82rem;font-weight:700">Inline Checkpoint Approval</h4><p style="font-size:.73rem;color:var(--muted)">Approve / Adjust / Reject with approach selection and notes. CP2 shows a full inline code review panel — reviewers can comment on specific files before approving.</p></div></div></div>
+      <div class="card"><div style="display:flex;gap:8px;align-items:center"><span style="font-size:1.2rem">☁️</span><div><h4 style="font-size:.82rem;font-weight:700">BTP Deploy Panel</h4><p style="font-size:.73rem;color:var(--muted)">Async deploy with live log streaming. Multiple BTP connections (isolated CF sessions per connection). Smart mtar reuse — skips 18-minute mbt build if archive is < 2 hours old.</p></div></div></div>
+      <div class="card"><div style="display:flex;gap:8px;align-items:center"><span style="font-size:1.2rem">🔍</span><div><h4 style="font-size:.82rem;font-weight:700">MCP Governance Dashboard</h4><p style="font-size:.73rem;color:var(--muted)">Live view of all 16 MCP tools, catalog sizes, audit log, offline/live mode indicator. Searchable API / BAdI / CDS / lint catalogs with instant filter.</p></div></div></div>
+      <div class="card"><div style="display:flex;gap:8px;align-items:center"><span style="font-size:1.2rem">📁</span><div><h4 style="font-size:.82rem;font-weight:700">FD Upload & Run Management</h4><p style="font-size:.73rem;color:var(--muted)">Drag-and-drop FD upload, multi-run history, re-run support, versioned output folders. Each run isolated at <code>output/&lt;RUN-ID&gt;/</code>.</p></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 15: SECURITY -->
+<div class="slide slide-content">
+  <div class="slide-header">Security Architecture</div>
+  <div class="slide-sub">Credentials never leave the machine — by design, not by policy</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bullet"><div class="bi">🔑</div><div class="bullet-content"><h4>No API Keys in Code or Files</h4><p>Claude Code is the LLM runtime — no <code>ANTHROPIC_API_KEY</code> in any file, environment variable, or subprocess. The key is never passed to headless agent subprocesses (<code>_env.pop("ANTHROPIC_API_KEY")</code> is enforced in the engine).</p></div></div>
+      <div class="bullet"><div class="bi">💾</div><div class="bullet-content"><h4>SAP Credentials: Environment Variables Only</h4><p>Communication user credentials for S/4HANA Cloud live in environment variables — never in files, never in logs, never in git. The MCP server reads them at startup and never re-serialises them.</p></div></div>
+      <div class="bullet"><div class="bi">🧹</div><div class="bullet-content"><h4>BTP Tokens: Session-Only, In-Memory</h4><p>Bearer tokens and passwords entered in the BTP Connections panel are stored in <code>_BTP_SECRETS</code> — a Python dict that exists only while the webapp is running. Webapp restart clears all credentials. Nothing is written to disk, git, or logs.</p></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="bullet"><div class="bi">🏠</div><div class="bullet-content"><h4>Isolated CF_HOME Per Deploy</h4><p>Each BTP deploy uses a fresh <code>tempfile.mkdtemp()</code> as its <code>CF_HOME</code>. The temp dir is deleted in the <code>finally</code> block after every deploy — success or failure. No credential cross-contamination between different client systems.</p></div></div>
+      <div class="bullet"><div class="bi">📋</div><div class="bullet-content"><h4>Audit Log for All Governance Decisions</h4><p>Every MCP tool call (release check, lint verdict, advisor recommendation) is written to <code>mcp-server/logs/audit.jsonl</code> with timestamp, arguments, and result. Full traceability for compliance reviews.</p></div></div>
+      <div class="bullet"><div class="bi">🔒</div><div class="bullet-content"><h4>Read-Only Live Mode</h4><p>When the MCP server connects to a real S/4HANA tenant (live mode), all OData calls are strictly GET-only. No write, create, or delete operations are permitted. Allowlisted endpoints, rate-limited, audited.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 16: WHY NO SUPER AGENT -->
+<div class="slide slide-content">
+  <div class="slide-header">Why No Super Agent?</div>
+  <div class="slide-sub">Structured orchestration vs dynamic routing — a deliberate cost and quality decision</div>
+
+  <div class="grid2" style="gap:18px;flex:1">
+
+    <!-- LEFT: Super agent approach -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label" style="color:#f87171">❌ Super Agent Approach (what we avoided)</div>
+
+      <div class="card card-red" style="padding:14px 16px">
+        <h3 style="font-size:.88rem;margin-bottom:8px">What a super agent does</h3>
+        <p>A super agent (meta-agent / orchestrator) sits above all specialist agents. At every step transition it reads <b>all previous outputs</b>, reasons about current state, and dynamically decides which agent to call next, whether to retry, or whether to re-plan entirely.</p>
+        <p style="margin-top:6px">Used in: AutoGen GroupChatManager, LangGraph supervisor node, CrewAI manager agent.</p>
+      </div>
+
+      <div class="card card-red" style="padding:14px 16px">
+        <h3 style="font-size:.88rem;margin-bottom:8px">Cost in a 12-step pipeline</h3>
+        <table style="width:100%;font-size:.72rem;margin-top:4px">
+          <thead><tr><th>What it does at each step</th><th>Token cost</th></tr></thead>
+          <tbody>
+            <tr><td>Reads all previous agent outputs to route</td><td style="color:#f87171">~8k–80k input tokens per step</td></tr>
+            <tr><td>12 step transitions × 1 Opus reasoning call</td><td style="color:#f87171">12 extra Opus calls</td></tr>
+            <tr><td>Context grows with every step (accumulates)</td><td style="color:#f87171">80k+ tokens by step 10</td></tr>
+            <tr><td>Re-planning if gate fails</td><td style="color:#f87171">Additional Opus loops</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;background:#450a0a;border-radius:6px;padding:8px 12px;text-align:center">
+          <div style="font-size:.8rem;font-weight:700;color:#fca5a5">3–4× more expensive per pipeline run</div>
+          <div style="font-size:.68rem;color:#94a3b8;margin-top:2px">And adds no quality — it's routing a fixed sequence that is already known</div>
+        </div>
+      </div>
+
+      <div class="card card-red" style="padding:12px 16px">
+        <h3 style="font-size:.85rem;margin-bottom:6px">The core problem with a super agent here</h3>
+        <p>A super agent is designed for <b>open-ended, unpredictable tasks</b> where the next step cannot be known in advance. In S4PC Catalyst, every RICEFW delivery follows the <b>same 12-step sequence</b>. Paying an Opus model to "decide" Step 4 comes after Step 3 — which is already encoded in the Skill — is pure waste.</p>
+      </div>
+    </div>
+
+    <!-- RIGHT: S4PC approach -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="label" style="color:#86efac">✅ S4PC Structured Orchestration (what we built)</div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="card card-green" style="padding:12px 14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="background:#16a34a;color:#fff;border-radius:6px;padding:4px 8px;font-size:.68rem;font-weight:700;flex-shrink:0;white-space:nowrap">Skills (SKILL.md)</div>
+            <div>
+              <p style="font-size:.74rem">Encode the fixed pipeline sequence in a text file. Replaces the super agent's "which step next?" decision. Cost: <b style="color:#86efac">zero tokens</b> — read at session start, not re-evaluated at every step.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-green" style="padding:12px 14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="background:#16a34a;color:#fff;border-radius:6px;padding:4px 8px;font-size:.68rem;font-weight:700;flex-shrink:0;white-space:nowrap">run.json</div>
+            <div>
+              <p style="font-size:.74rem">Shared state file on disk. Every agent reads exactly what it needs without a super agent passing context between them. Replaces "synthesise all previous outputs" at each step. Cost: <b style="color:#86efac">zero tokens</b> — a file read.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-green" style="padding:12px 14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="background:#16a34a;color:#fff;border-radius:6px;padding:4px 8px;font-size:.68rem;font-weight:700;flex-shrink:0;white-space:nowrap">MCP Gates</div>
+            <div>
+              <p style="font-size:.74rem">Release check, lint, peer review all return a <b>binary verdict</b> (PASS / FAIL / SHIP / FIX). No super agent reasoning needed — the gate is a pure function. Replaces "reason about whether to proceed." Cost: <b style="color:#86efac">zero tokens</b> — local computation.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-amber" style="padding:12px 14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="background:#d97706;color:#fff;border-radius:6px;padding:4px 8px;font-size:.68rem;font-weight:700;flex-shrink:0;white-space:nowrap">Human Gates ✋</div>
+            <div>
+              <p style="font-size:.74rem">CP1 / CP2 / CP3 handle the one place where dynamic judgment genuinely matters — <b>a human decides better than any AI super agent</b> at a SAP delivery checkpoint. Replaces "should I continue or re-plan?" at each approval point. Cost: <b style="color:#fcd34d">zero tokens</b>.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-blue" style="padding:12px 14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="background:#2563eb;color:#fff;border-radius:6px;padding:4px 8px;font-size:.68rem;font-weight:700;flex-shrink:0;white-space:nowrap">Delivery Lead</div>
+            <div>
+              <p style="font-size:.74rem">A lightweight <b>Sonnet</b> orchestrator — not Opus. It reads run.json, sees the current step, spawns the next defined agent. No reasoning about routing. Cost: <b style="color:#93c5fd">Sonnet rate</b> (~3× cheaper than Opus), called once per phase.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:linear-gradient(135deg,#052e16,#0c1445);border:1px solid #16a34a;border-radius:8px;padding:12px 16px;margin-top:2px">
+        <div style="font-size:.78rem;font-weight:700;color:#86efac;margin-bottom:6px">Net result: same quality, fraction of the cost</div>
+        <div style="display:flex;gap:16px">
+          <div style="text-align:center;flex:1">
+            <div style="font-size:1.6rem;font-weight:900;color:#f87171">6</div>
+            <div style="font-size:.6rem;color:#94a3b8">agent calls<br>WITH super agent<br>per step transition alone</div>
+          </div>
+          <div style="display:flex;align-items:center;color:#475569;font-size:1.2rem">vs</div>
+          <div style="text-align:center;flex:1">
+            <div style="font-size:1.6rem;font-weight:900;color:#86efac">6</div>
+            <div style="font-size:.6rem;color:#94a3b8">total agent calls<br>for the ENTIRE<br>12-step pipeline</div>
+          </div>
+          <div style="display:flex;align-items:center;color:#475569;font-size:1.2rem">=</div>
+          <div style="text-align:center;flex:1">
+            <div style="font-size:1.6rem;font-weight:900;color:#86efac">3–4×</div>
+            <div style="font-size:.6rem;color:#94a3b8">cheaper than a<br>super-agent<br>architecture</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="highlight" style="margin-top:10px;padding:10px 16px">
+    <p style="font-size:.76rem"><b>Design principle:</b> Use a super agent only when the task space is open-ended and routing cannot be pre-determined. When the pipeline is fixed and well-understood, encode the orchestration into Skills, shared state, and binary gates — and let humans own the judgment calls that remain.</p>
+  </div>
+</div>
+
+<!-- SLIDE 17: SUMMARY -->
+<div class="slide slide-content">
+  <div class="slide-header">Summary</div>
+  <div class="slide-sub">S4PC Catalyst — what it is, what it isn't, and what's next</div>
+  <div class="grid2">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="label">What It Is</div>
+      <div class="card card-green">
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px">
+          <li>✅ <b>Production-grade delivery accelerator</b> — not a PoC, not a demo</li>
+          <li>✅ <b>Real infrastructure</b> — deploys actual BTP services into real CF spaces</li>
+          <li>✅ <b>Real governance</b> — 16 MCP tools, 20 lint rules, 3 hard quality gates</li>
+          <li>✅ <b>Real human control</b> — 3 approval checkpoints that block all AI activity</li>
+          <li>✅ <b>Cost-aware</b> — model tiering, offline MCP, early gate exits</li>
+          <li>✅ <b>Secure</b> — no keys in code, session-only credentials, isolated CF sessions</li>
+          <li>✅ <b>Auditable</b> — every decision logged, every deliverable versioned</li>
+        </ul>
+      </div>
+      <div class="label" style="margin-top:8px">What It Is Not</div>
+      <div class="card card-red">
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:6px">
+          <li>❌ Not a replacement for developers — it accelerates and governs their work</li>
+          <li>❌ Not a chatbot — structured pipeline, not conversational</li>
+          <li>❌ Not a product — a delivery accelerator built for this practice</li>
+          <li>❌ Not a whiteboard — real code, real deployments, real service instances</li>
+        </ul>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="label">Proven in This Session</div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Evidence</th><th>Outcome</th></tr></thead>
+          <tbody>
+            <tr><td>14-step BTP pipeline run</td><td><span class="chip chip-green">All 14 steps PASS</span></td></tr>
+            <tr><td>3 human checkpoints</td><td><span class="chip chip-green">All 3 approved</span></td></tr>
+            <tr><td>Release check gate</td><td><span class="chip chip-green">CONDITIONAL PASS</span></td></tr>
+            <tr><td>Code review gate</td><td><span class="chip chip-green">SHIP</span></td></tr>
+            <tr><td>Peer review (Challenger)</td><td><span class="chip chip-green">82/100</span></td></tr>
+            <tr><td>MTA build (mbt)</td><td><span class="chip chip-green">37 MB archive</span></td></tr>
+            <tr><td>BTP XSUAA instance</td><td><span class="chip chip-green">Created in CF space</span></td></tr>
+            <tr><td>BTP Destination instance</td><td><span class="chip chip-green">Created in CF space</span></td></tr>
+            <tr><td>CAP app staging</td><td><span class="chip chip-green">Buildpack PASS</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="label" style="margin-top:8px">Potential Next Steps</div>
+      <div class="card card-blue">
+        <ul style="font-size:.76rem;line-height:1.8;color:var(--muted)">
+          <li>🔧 <b>Fix CAP startup crash</b> — lazy connect + 512M memory (in progress)</li>
+          <li>📊 <b>Run a Developer extensibility pipeline</b> — RAP + BAdI to show ABAP delivery</li>
+          <li>👥 <b>Multi-user shared instance</b> — team access via S4PC_ACCESS_PASSWORD</li>
+          <li>🌐 <b>Live MCP mode</b> — connect to real S/4HANA tenant for field-level grounding</li>
+          <li>📈 <b>Experience database growth</b> — every run adds lessons for future pipelines</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- SLIDE 17: FULL TECHNICAL ARCHITECTURE -->
+<div class="slide slide-content" style="padding:24px 36px;overflow:hidden">
+  <div class="slide-header" style="font-size:1.4rem;margin-bottom:2px">S4PC Catalyst — Full Technical Architecture</div>
+  <div class="slide-sub" style="margin-bottom:10px">Every component, every connection, every data flow — end to end</div>
+
+  <div style="display:grid;grid-template-rows:auto 1fr auto;gap:8px;height:calc(100% - 68px)">
+
+    <!-- ═══ ROW 1: ENTRY LAYER ═══ -->
+    <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 14px">
+      <span style="font-size:.6rem;font-weight:700;letter-spacing:.1em;color:#64748b;text-transform:uppercase;white-space:nowrap">INPUT</span>
+      <div style="display:flex;align-items:center;gap:6px;flex:1">
+        <div style="background:#1a0e3a;border:1.5px solid #7c3aed;border-radius:7px;padding:5px 10px;text-align:center">
+          <div style="font-size:.72rem;font-weight:700;color:#c4b5fd">📄 Functional Design</div>
+          <div style="font-size:.58rem;color:#94a3b8">input/ folder · FD document</div>
+        </div>
+        <div style="color:#7c3aed;font-size:.8rem;font-weight:700">→</div>
+        <div style="background:#1a0e3a;border:1.5px solid #7c3aed;border-radius:7px;padding:5px 12px;text-align:center">
+          <div style="font-size:.72rem;font-weight:700;color:#c4b5fd">🖥 Webapp UI</div>
+          <div style="font-size:.58rem;color:#94a3b8">localhost:8321 · Python stdlib · upload FD, view pipeline, approve gates</div>
+        </div>
+        <div style="color:#7c3aed;font-size:.8rem;font-weight:700">→ or →</div>
+        <div style="background:#1a0e3a;border:1.5px solid #7c3aed;border-radius:7px;padding:5px 12px;text-align:center">
+          <div style="font-size:.72rem;font-weight:700;color:#c4b5fd">⌨ Claude Code CLI</div>
+          <div style="font-size:.58rem;color:#94a3b8">/s4pc-ricefw-pipeline · slash command · terminal</div>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <div style="background:#0c1a0c;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:.6rem;color:#86efac">Skill: s4pc-ricefw-pipeline</div>
+          <div style="background:#0c1a0c;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:.6rem;color:#86efac">Skill: s4pc-fd-creation</div>
+          <div style="background:#0c1a0c;border:1px solid #16a34a;border-radius:6px;padding:4px 8px;font-size:.6rem;color:#86efac">Skill: s4pc-extensibility-decision</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ROW 2: PIPELINE ENGINE ═══ -->
+    <div style="display:grid;grid-template-columns:1fr 148px 148px;gap:8px;min-height:0">
+
+      <!-- LEFT: Pipeline phases -->
+      <div style="display:flex;flex-direction:column;gap:5px;overflow:hidden">
+
+        <!-- Phase A -->
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:6px 10px">
+          <div style="font-size:.58rem;font-weight:700;letter-spacing:.1em;color:#a78bfa;text-transform:uppercase;margin-bottom:4px">Phase A — Discovery &amp; Proposal</div>
+          <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S1</span> <b>Intake</b> <span style="color:#60a5fa;font-size:.55rem">DelivLead/Sonnet</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S2</span> <b>Solution Proposal</b> <span style="color:#a78bfa;font-size:.55rem">Arch/Opus</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S3</span> <b>Release Verdicts</b> <span style="color:#a78bfa;font-size:.55rem">Arch/Opus</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1a0e3a;border:1px solid #7c3aed;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#a78bfa">🔒 GATE 1</span> <b>Release Check</b> <span style="color:#f87171;font-size:.55rem">Reviewer/Opus</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1c1007;border:1px solid #d97706;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#fcd34d">✋ CP1</span> <b>Soln Approval</b> <span style="color:#94a3b8;font-size:.55rem">Human</span></div>
+          </div>
+        </div>
+
+        <!-- Phase B -->
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:6px 10px">
+          <div style="font-size:.58rem;font-weight:700;letter-spacing:.1em;color:#60a5fa;text-transform:uppercase;margin-bottom:4px">Phase B — Build (from approved proposal + locked naming contract)</div>
+          <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S4</span> <b>Custom-Object Names Locked</b></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S5</span> <b>Build Code</b> <span style="color:#60a5fa;font-size:.55rem">Developer/Sonnet</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1a0e3a;border:1px solid #7c3aed;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#a78bfa">🔒 GATE 2</span> <b>Code Review</b> <span style="color:#f87171;font-size:.55rem">Reviewer/Opus</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1c1007;border:1px solid #d97706;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#fcd34d">✋ CP2</span> <b>Code Approval</b> <span style="color:#94a3b8;font-size:.55rem">Human</span></div>
+          </div>
+        </div>
+
+        <!-- Phase C -->
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:6px 10px">
+          <div style="font-size:.58rem;font-weight:700;letter-spacing:.1em;color:#f87171;text-transform:uppercase;margin-bottom:4px">Phase C — Review, Tests &amp; Technical Design</div>
+          <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S6</span> <b>ABAP Cloud Lint</b> <span style="color:#f87171;font-size:.55rem">Reviewer/Opus</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S7</span> <b>Unit Tests</b> <span style="color:#60a5fa;font-size:.55rem">Test/Sonnet</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1e293b;border:1px solid #475569;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S8</span> <b>Tech Design</b> <span style="color:#60a5fa;font-size:.55rem">Developer/Sonnet</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1a0e3a;border:1px solid #7c3aed;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#a78bfa">🔒 GATE 3</span> <b>Peer Review</b> <span style="color:#f87171;font-size:.55rem">Challenger/Opus</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#1c1007;border:1px solid #d97706;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#fcd34d">✋ CP3</span> <b>Acceptance</b> <span style="color:#94a3b8;font-size:.55rem">Human</span></div>
+          </div>
+        </div>
+
+        <!-- Phase D -->
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:6px 10px">
+          <div style="font-size:.58rem;font-weight:700;letter-spacing:.1em;color:#86efac;text-transform:uppercase;margin-bottom:4px">Phase D — Package</div>
+          <div style="display:flex;gap:5px;align-items:center">
+            <div style="background:#052e16;border:1px solid #16a34a;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S9</span> <b>Package</b> <span style="color:#86efac;font-size:.55rem">DelivLead/Sonnet</span></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#052e16;border:1px solid #16a34a;border-radius:5px;padding:3px 8px;font-size:.6rem">📋 <b>Lint report + Release table + Tenant checklist + 12 deliverable files</b></div>
+          </div>
+        </div>
+
+        <!-- Phase E (BTP) -->
+        <div style="background:#0f172a;border:1px dashed #475569;border-radius:8px;padding:6px 10px">
+          <div style="font-size:.58rem;font-weight:700;letter-spacing:.1em;color:#94a3b8;text-transform:uppercase;margin-bottom:4px">Phase E — BTP Deploy (side-by-side only)</div>
+          <div style="display:flex;gap:5px;align-items:center">
+            <div style="background:#0c1445;border:1px solid #2563eb;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S10</span> <b>Prereq check</b></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#0c1445;border:1px solid #2563eb;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S11</span> <b>mbt build</b></div>
+            <div style="color:#475569;font-size:.7rem">→</div>
+            <div style="background:#0c1445;border:1px solid #2563eb;border-radius:5px;padding:3px 7px;font-size:.6rem"><span style="color:#94a3b8">S12</span> <b>cf deploy (MTA)</b> <span style="color:#60a5fa;font-size:.55rem">SSO passcode auth</span></div>
+          </div>
+        </div>
+
+        <!-- Output paths -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+          <div style="background:#052e16;border:1px solid #16a34a;border-radius:7px;padding:6px 8px;text-align:center">
+            <div style="font-size:.65rem;font-weight:700;color:#86efac">Key User</div>
+            <div style="font-size:.58rem;color:#94a3b8;margin-top:2px">Custom Fields &amp; Logic</div>
+            <div style="font-size:.58rem;color:#94a3b8">Adapt UI · BAdIs</div>
+            <div style="font-size:.58rem;color:#94a3b8">Adobe Forms · Flex WF</div>
+            <div style="background:#14532d;border-radius:4px;margin-top:4px;padding:2px 4px;font-size:.58rem;color:#86efac">In-tenant config · no deploy</div>
+          </div>
+          <div style="background:#1a0e3a;border:1px solid #7c3aed;border-radius:7px;padding:6px 8px;text-align:center">
+            <div style="font-size:.65rem;font-weight:700;color:#c4b5fd">Developer (ABAP Cloud)</div>
+            <div style="font-size:.58rem;color:#94a3b8;margin-top:2px">RAP Business Objects</div>
+            <div style="font-size:.58rem;color:#94a3b8">CDS Views · BAdIs</div>
+            <div style="font-size:.58rem;color:#94a3b8">Application Jobs</div>
+            <div style="background:#4c1d95;border-radius:4px;margin-top:4px;padding:2px 4px;font-size:.58rem;color:#c4b5fd">git push → ADT → ABAP repo</div>
+          </div>
+          <div style="background:#0c1445;border:1px solid #2563eb;border-radius:7px;padding:6px 8px;text-align:center">
+            <div style="font-size:.65rem;font-weight:700;color:#93c5fd">Side-by-Side (BTP)</div>
+            <div style="font-size:.58rem;color:#94a3b8;margin-top:2px">CAP Node.js + UI5</div>
+            <div style="font-size:.58rem;color:#94a3b8">Integration Suite</div>
+            <div style="font-size:.58rem;color:#94a3b8">SBPA · ABAP Env</div>
+            <div style="background:#1e3a8a;border-radius:4px;margin-top:4px;padding:2px 4px;font-size:.58rem;color:#93c5fd">cf deploy → Cloud Foundry runtime</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: Shared state + Agent pool -->
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="background:#0f172a;border:1.5px solid #475569;border-radius:8px;padding:8px;flex:1">
+          <div style="font-size:.6rem;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;text-align:center">SHARED STATE</div>
+          <div style="background:#1e293b;border-radius:6px;padding:6px 8px;margin-bottom:5px;font-size:.6rem">
+            <div style="color:#fcd34d;font-weight:700">run.json</div>
+            <div style="color:#94a3b8">status, phase, step</div>
+            <div style="color:#94a3b8">gate_verdicts</div>
+            <div style="color:#94a3b8">human_approvals</div>
+            <div style="color:#94a3b8">release_table</div>
+            <div style="color:#94a3b8">quality_score</div>
+            <div style="color:#94a3b8">naming_contract</div>
+          </div>
+          <div style="background:#1e293b;border-radius:6px;padding:6px 8px;font-size:.6rem">
+            <div style="color:#86efac;font-weight:700">output/&lt;RUN-ID&gt;/</div>
+            <div style="color:#94a3b8">01-FD-analysis.md</div>
+            <div style="color:#94a3b8">02-solution-proposal.md</div>
+            <div style="color:#94a3b8">03-release-verdicts.md</div>
+            <div style="color:#94a3b8">04-code/ (src files)</div>
+            <div style="color:#94a3b8">05-lint-report.md</div>
+            <div style="color:#94a3b8">06-unit-tests.md</div>
+            <div style="color:#94a3b8">07-tech-design.md</div>
+            <div style="color:#94a3b8">08-peer-review.md</div>
+            <div style="color:#94a3b8">09-package-summary.md</div>
+          </div>
+        </div>
+        <div style="background:#1a0e3a;border:1.5px solid #7c3aed;border-radius:8px;padding:7px;text-align:center">
+          <div style="font-size:.58rem;font-weight:700;color:#a78bfa;margin-bottom:4px">AGENT POOL</div>
+          <div style="font-size:.58rem;color:#94a3b8;line-height:1.8">
+            DelivLead <span style="color:#60a5fa">Sonnet</span><br>
+            Architect <span style="color:#c4b5fd">Opus</span><br>
+            Developer <span style="color:#60a5fa">Sonnet</span><br>
+            Reviewer <span style="color:#c4b5fd">Opus</span><br>
+            Test Agent <span style="color:#60a5fa">Sonnet</span><br>
+            Challenger <span style="color:#c4b5fd">Opus</span>
+          </div>
+          <div style="margin-top:5px;font-size:.55rem;color:#64748b">Each = headless<br>Claude Code subprocess<br>-p &lt;prompt&gt; --output-format<br>stream-json</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: MCP Server -->
+      <div style="background:#0f172a;border:1.5px solid #dc2626;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:.62rem;font-weight:700;color:#f87171;letter-spacing:.08em;text-transform:uppercase;text-align:center;margin-bottom:2px">s4pc MCP SERVER</div>
+        <div style="font-size:.55rem;color:#94a3b8;text-align:center;margin-bottom:4px">Python 3.9 stdlib · offline-first · stdio transport · zero LLM calls</div>
+        <div style="background:#1c0a0a;border-radius:5px;padding:5px 7px;font-size:.58rem">
+          <div style="color:#fca5a5;font-weight:700;margin-bottom:2px">Governance Tools</div>
+          <div style="color:#94a3b8;line-height:1.7">check_object_release_state<br>abap_cloud_lint (20 rules)<br>extensibility_advisor<br>search_released_apis<br>search_released_badis<br>get_reference_links<br>query_experience<br>record_experience</div>
+        </div>
+        <div style="background:#1c0a0a;border-radius:5px;padding:5px 7px;font-size:.58rem">
+          <div style="color:#fca5a5;font-weight:700;margin-bottom:2px">Local Catalog (SQLite)</div>
+          <div style="color:#94a3b8;line-height:1.7">catalog.db<br>74 APIs · 8,928 CDS Views<br>1,734 BAdIs · 20 lint rules<br>experience entries<br>Hub-synced via sync_hub.py</div>
+        </div>
+        <div style="background:#1c0a0a;border-radius:5px;padding:5px 7px;font-size:.58rem">
+          <div style="color:#fca5a5;font-weight:700;margin-bottom:2px">Live Mode (optional)</div>
+          <div style="color:#94a3b8;line-height:1.7">odata_get_metadata<br>odata_query (read-only)<br>rate-limited · audited</div>
+        </div>
+        <div style="background:#0c1445;border-radius:5px;padding:5px 7px;font-size:.58rem;margin-top:2px">
+          <div style="color:#93c5fd;font-weight:700;margin-bottom:2px">Audit Trail</div>
+          <div style="color:#94a3b8">mcp-server/logs/audit.jsonl<br>Every tool call logged:<br>timestamp · args · verdict</div>
+        </div>
+        <div style="background:#1c0a0a;border-radius:5px;padding:4px 7px;font-size:.55rem;text-align:center;margin-top:2px">
+          <div style="color:#f87171">Registered in .mcp.json</div>
+          <div style="color:#94a3b8">Available to ALL agents</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ROW 3: TWO CHANNELS LEGEND + RUNTIME STRIP ═══ -->
+    <div style="display:flex;gap:8px">
+
+      <!-- Channel legend -->
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:260px">
+        <div style="background:#0c1a0c;border:1.5px solid #16a34a;border-radius:8px;padding:7px 10px">
+          <div style="font-size:.62rem;font-weight:700;color:#86efac;margin-bottom:3px">Channel A — MCP (AI governance)</div>
+          <div style="font-size:.58rem;color:#94a3b8;line-height:1.6">
+            <b style="color:#e2e8f0">Who calls it:</b> Claude Code (the AI agent)<br>
+            <b style="color:#e2e8f0">Protocol:</b> JSON-RPC over stdio (MCP spec)<br>
+            <b style="color:#e2e8f0">What:</b> SAP facts — release checks, lint, BAdIs<br>
+            <b style="color:#e2e8f0">Network:</b> <span style="color:#86efac">OFFLINE</span> — local SQLite catalog only<br>
+            <b style="color:#e2e8f0">Registered:</b> .mcp.json → Claude Code reads it
+          </div>
+        </div>
+        <div style="background:#0c1445;border:1.5px solid #2563eb;border-radius:8px;padding:7px 10px">
+          <div style="font-size:.62rem;font-weight:700;color:#93c5fd;margin-bottom:3px">Channel B — HTTP REST (BTP deploy)</div>
+          <div style="font-size:.58rem;color:#94a3b8;line-height:1.6">
+            <b style="color:#e2e8f0">Who calls it:</b> Developer (clicks "Deploy" in UI)<br>
+            <b style="color:#e2e8f0">Protocol:</b> HTTP POST browser → Python webapp<br>
+            <b style="color:#e2e8f0">What:</b> CF CLI + mbt subprocesses → BTP CF API<br>
+            <b style="color:#e2e8f0">Network:</b> <span style="color:#f87171">ONLINE</span> — api.cf.eu10-005.hana.ondemand.com<br>
+            <b style="color:#e2e8f0">Note:</b> Claude does NOT trigger this — human does
+          </div>
+        </div>
+      </div>
+
+      <!-- BTP runtime strip -->
+      <div style="flex:1;background:#0c1445;border:1px solid #1d4ed8;border-radius:8px;padding:7px 14px;display:flex;flex-direction:column;justify-content:center;gap:5px">
+        <div style="font-size:.6rem;font-weight:700;color:#60a5fa;letter-spacing:.08em;text-transform:uppercase">Channel B runtime — after cf deploy (BTP Cloud Foundry)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:.62rem;flex-wrap:wrap">
+          <div style="background:#1e3a8a;border-radius:5px;padding:3px 8px;color:#93c5fd">👤 End user browser</div>
+          <div style="color:#60a5fa;font-weight:700">→</div>
+          <div style="background:#1e3a8a;border-radius:5px;padding:3px 8px;color:#93c5fd">XSUAA + IdP Trust<br><span style="font-size:.52rem;color:#64748b">JWT issued</span></div>
+          <div style="color:#60a5fa;font-weight:700">→</div>
+          <div style="background:#1e3a8a;border-radius:5px;padding:3px 8px;color:#93c5fd">Approuter<br><span style="font-size:.52rem;color:#64748b">auth gate · role check</span></div>
+          <div style="color:#60a5fa;font-weight:700">→</div>
+          <div style="background:#1e3a8a;border-radius:5px;padding:3px 8px;color:#93c5fd">CAP Service<br><span style="font-size:.52rem;color:#64748b">OData v4 · server filters</span></div>
+          <div style="color:#60a5fa;font-weight:700">→</div>
+          <div style="background:#1e3a8a;border-radius:5px;padding:3px 8px;color:#93c5fd">Destination Svc<br><span style="font-size:.52rem;color:#64748b">resolves S4HC_PO_API</span></div>
+          <div style="color:#60a5fa;font-weight:700">→</div>
+          <div style="background:#1e3a8a;border-radius:5px;padding:3px 8px;color:#93c5fd">S/4HANA Cloud<br><span style="font-size:.52rem;color:#64748b">OData v2 · comm user</span></div>
+        </div>
+        <div style="font-size:.55rem;color:#64748b">↑ This is NOT MCP. It is the deployed app serving real users — completely separate from the pipeline that built it. → full detail on next slide</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SLIDE 17: BTP APP RUNTIME ARCHITECTURE -->
+<div class="slide slide-content" style="padding:32px 48px">
+  <div class="slide-header">BTP CAP App — Runtime Architecture</div>
+  <div class="slide-sub">What every component does and what the developer must configure after cf deploy</div>
+
+  <!-- Component diagram row -->
+  <div style="display:flex;align-items:stretch;gap:0;margin-bottom:18px;flex:0 0 auto">
+
+    <!-- User -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:72px">
+      <div style="background:#1a0e3a;border:1.5px solid #7c3aed;border-radius:10px;padding:10px 8px;text-align:center;font-size:.7rem;width:72px">
+        <div style="font-size:1.4rem">👤</div>
+        <div style="font-weight:700;color:#c4b5fd;margin-top:2px">User</div>
+        <div style="color:#94a3b8;font-size:.58rem">Browser</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;padding:0 4px;color:#7c3aed;font-size:1rem;font-weight:700">HTTPS →</div>
+
+    <!-- XSUAA / IdP column -->
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:90px">
+      <div style="background:#1a0e3a;border:1.5px solid #7c3aed;border-radius:10px;padding:8px;text-align:center;font-size:.68rem">
+        <div style="color:#a78bfa;font-weight:700">XSUAA</div>
+        <div style="color:#94a3b8;font-size:.58rem">OAuth2 server</div>
+        <div style="color:#94a3b8;font-size:.58rem">issues JWT</div>
+      </div>
+      <div style="background:#0c1445;border:1.5px solid #2563eb;border-radius:10px;padding:8px;text-align:center;font-size:.68rem">
+        <div style="color:#93c5fd;font-weight:700">IdP</div>
+        <div style="color:#94a3b8;font-size:.58rem">Azure AD / SAML</div>
+        <div style="color:#94a3b8;font-size:.58rem">Trust Config</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;padding:0 4px;color:#7c3aed;font-size:.8rem;font-weight:700">←→</div>
+
+    <!-- Approuter -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:88px">
+      <div style="background:#052e16;border:1.5px solid #16a34a;border-radius:10px;padding:10px 8px;text-align:center;font-size:.7rem;width:88px">
+        <div style="color:#86efac;font-weight:700;font-size:.72rem">Approuter</div>
+        <div style="color:#94a3b8;font-size:.58rem">po-viewer-app</div>
+        <div style="margin-top:4px;color:#94a3b8;font-size:.58rem">Auth gate</div>
+        <div style="color:#94a3b8;font-size:.58rem">Reverse proxy</div>
+        <div style="color:#94a3b8;font-size:.58rem">Token exchange</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;padding:0 4px;color:#16a34a;font-size:.8rem;font-weight:700">JWT →</div>
+
+    <!-- CAP Service -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:96px">
+      <div style="background:#1c1007;border:1.5px solid #d97706;border-radius:10px;padding:10px 8px;text-align:center;font-size:.7rem;width:96px">
+        <div style="color:#fcd34d;font-weight:700;font-size:.72rem">CAP Service</div>
+        <div style="color:#94a3b8;font-size:.58rem">po-viewer-srv</div>
+        <div style="margin-top:4px;color:#94a3b8;font-size:.58rem">OData v4</div>
+        <div style="color:#94a3b8;font-size:.58rem">Auth: xssec</div>
+        <div style="color:#94a3b8;font-size:.58rem">Filter: status=B</div>
+        <div style="color:#94a3b8;font-size:.58rem">Row cap: 500</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;padding:0 4px;color:#d97706;font-size:.8rem;font-weight:700">lookup →</div>
+
+    <!-- Destination Service -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:92px">
+      <div style="background:#0c1445;border:1.5px solid #2563eb;border-radius:10px;padding:10px 8px;text-align:center;font-size:.7rem;width:92px">
+        <div style="color:#93c5fd;font-weight:700;font-size:.72rem">Destination Svc</div>
+        <div style="color:#94a3b8;font-size:.58rem">po-viewer-destination</div>
+        <div style="margin-top:4px;background:#1e3a8a;border-radius:4px;padding:2px 4px">
+          <div style="color:#bfdbfe;font-size:.6rem;font-weight:700">S4HC_PO_API</div>
+          <div style="color:#94a3b8;font-size:.55rem">URL + credentials</div>
+          <div style="color:#f87171;font-size:.55rem">⚠ manual config</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;padding:0 4px;color:#2563eb;font-size:.8rem;font-weight:700">OData v2 →</div>
+
+    <!-- S/4HANA Cloud -->
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:88px">
+      <div style="background:#0f172a;border:1.5px solid #94a3b8;border-radius:10px;padding:10px 8px;text-align:center;font-size:.7rem;width:88px">
+        <div style="color:#e2e8f0;font-weight:700;font-size:.72rem">S/4HANA Cloud</div>
+        <div style="color:#94a3b8;font-size:.58rem">Public Edition</div>
+        <div style="margin-top:4px;color:#94a3b8;font-size:.58rem">API_PURCHASEORDER</div>
+        <div style="color:#94a3b8;font-size:.58rem">_PROCESS_SRV</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth flow + Data flow side by side -->
+  <div class="grid2" style="gap:16px;flex:1">
+
+    <!-- Left: Authentication flow -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="label" style="color:#a78bfa">Authentication Flow (happens on first request)</div>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:1">
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#1a0e3a;border:1px solid #7c3aed;border-radius:8px;padding:9px 12px">
+          <span style="background:#7c3aed;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">1</span>
+          <div><div style="font-size:.76rem;font-weight:700">User opens approuter URL</div><div style="font-size:.68rem;color:#94a3b8">Approuter checks session cookie — none found → initiates OAuth2 flow</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#0c1445;border:1px solid #2563eb;border-radius:8px;padding:9px 12px">
+          <span style="background:#2563eb;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">2</span>
+          <div><div style="font-size:.76rem;font-weight:700">Redirect to XSUAA → redirect to IdP</div><div style="font-size:.68rem;color:#94a3b8">XSUAA sends user to Azure AD (or custom SAML IdP) for login. <b>Requires: Trust Configuration in BTP Cockpit (manual).</b></div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#1a0e3a;border:1px solid #7c3aed;border-radius:8px;padding:9px 12px">
+          <span style="background:#7c3aed;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">3</span>
+          <div><div style="font-size:.76rem;font-weight:700">IdP issues SAML assertion → XSUAA exchanges for JWT</div><div style="font-size:.68rem;color:#94a3b8">JWT contains user email, IdP groups, and granted scopes from role collections</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:9px 12px">
+          <span style="background:#16a34a;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">4</span>
+          <div><div style="font-size:.76rem;font-weight:700">Approuter checks Role Collections</div><div style="font-size:.68rem;color:#94a3b8">Checks JWT for required scope. <b>Requires: Role Collection assigned to user in BTP Cockpit (manual).</b> No role = 403.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:9px 12px">
+          <span style="background:#16a34a;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">5</span>
+          <div><div style="font-size:.76rem;font-weight:700">Request proxied to CAP with JWT</div><div style="font-size:.68rem;color:#94a3b8">Approuter forwards request to po-viewer-srv. CAP validates JWT via @sap/xssec + passport. Session established.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Data flow + post-deploy checklist -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="label" style="color:#fcd34d">Data Flow (every OData request)</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#1c1007;border:1px solid #d97706;border-radius:8px;padding:9px 12px">
+          <span style="background:#d97706;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">6</span>
+          <div><div style="font-size:.76rem;font-weight:700">CAP handler enforces server-side rules</div><div style="font-size:.68rem;color:#94a3b8">Adds <code>PurchaseOrderStatus = 'B'</code> filter + 500-row cap. Client cannot override these — security by design.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#0c1445;border:1px solid #2563eb;border-radius:8px;padding:9px 12px">
+          <span style="background:#2563eb;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">7</span>
+          <div><div style="font-size:.76rem;font-weight:700">Destination service resolves S4HC_PO_API</div><div style="font-size:.68rem;color:#94a3b8">CAP calls Destination REST API → gets S/4HC URL + credentials. <b>Requires: destination named S4HC_PO_API manually created in BTP Cockpit.</b></div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#0f172a;border:1px solid #94a3b8;border-radius:8px;padding:9px 12px">
+          <span style="background:#475569;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">8</span>
+          <div><div style="font-size:.76rem;font-weight:700">OData v2 call to S/4HANA Cloud</div><div style="font-size:.68rem;color:#94a3b8">CAP issues GET to API_PURCHASEORDER_PROCESS_SRV with comm-user credentials. Response: JSON with PO list.</div></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start;background:#052e16;border:1px solid #16a34a;border-radius:8px;padding:9px 12px">
+          <span style="background:#16a34a;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0">9</span>
+          <div><div style="font-size:.76rem;font-weight:700">CAP transforms v2 → v4, returns to browser</div><div style="font-size:.68rem;color:#94a3b8">CAP auto-converts OData v2 response to v4 JSON format. Approuter adds security headers. Browser renders data.</div></div>
+        </div>
+      </div>
+
+      <div class="label" style="color:#f87171">Post-deploy manual steps (what blocks users)</div>
+      <div style="background:#1c0a0a;border:1px solid #b91c1c;border-radius:8px;padding:10px 14px">
+        <table style="width:100%;font-size:.68rem">
+          <thead><tr><th style="color:#fca5a5;padding:3px 8px;text-align:left">Step</th><th style="color:#fca5a5;padding:3px 8px;text-align:left">Where</th><th style="color:#fca5a5;padding:3px 8px;text-align:left">Failure if skipped</th></tr></thead>
+          <tbody>
+            <tr><td style="padding:3px 8px;color:#e2e8f0">Create destination <code>S4HC_PO_API</code></td><td style="padding:3px 8px;color:#94a3b8">BTP → Connectivity → Destinations</td><td style="padding:3px 8px;color:#f87171">500 on data load</td></tr>
+            <tr style="border-top:1px solid #450a0a"><td style="padding:3px 8px;color:#e2e8f0">Assign Role Collections to users</td><td style="padding:3px 8px;color:#94a3b8">BTP → Security → Role Collections</td><td style="padding:3px 8px;color:#f87171">403 after login</td></tr>
+            <tr style="border-top:1px solid #450a0a"><td style="padding:3px 8px;color:#e2e8f0">Configure IdP trust</td><td style="padding:3px 8px;color:#94a3b8">BTP → Security → Trust Configuration</td><td style="padding:3px 8px;color:#f87171">Can't log in</td></tr>
+            <tr style="border-top:1px solid #450a0a"><td style="padding:3px 8px;color:#e2e8f0">Verify app is running</td><td style="padding:3px 8px;color:#94a3b8"><code>cf apps</code> / <code>cf logs</code></td><td style="padding:3px 8px;color:#f87171">502 Bad Gateway</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<button class="index-btn" id="index-btn" onclick="goIndex()" title="Slide Index (I)">⊞ Index</button>
+<div class="nav">
+  <button onclick="go(-1)">← Prev</button>
+  <span class="slide-title" id="nav-title"></span>
+  <span class="counter" id="counter"></span>
+  <button onclick="go(1)">Next →</button>
+</div>
+
+<script>
+const slides=[...document.querySelectorAll('.slide')];
+let cur=0;
+
+// Per-slide index descriptions (indexed by position in slides array)
+const DESC=[
+  'Overview & value proposition',
+  'Jump to any topic in one click',
+  'Pain points in S/4HANA Cloud delivery',
+  'What the tool is and isn\'t',
+  '14 governed steps, 3 quality gates',
+  '6 AI roles and their responsibilities',
+  'How agents share context via run.json',
+  'Real code, real artifacts — not diagrams',
+  '4 playbooks that drive agent behaviour',
+  'Offline SAP governance layer',
+  'How the pipeline adapts per RICEFW type',
+  'CP1 fork: Key User / Developer / BTP',
+  'Token cost breakdown per pipeline step',
+  '6 strategies that cut token spend',
+  'Languages, frameworks, and patterns used',
+  'The web interface and its capabilities',
+  'Secrets hygiene and access controls',
+  'Linear pipeline vs. super-agent approach',
+  'Outcomes, ROI, and call to action',
+  'End-to-end system component view',
+  'BTP Cloud Foundry app runtime detail',
+];
+
+function buildIndex(){
+  const grid=document.getElementById('index-grid');
+  if(!grid)return;
+  slides.forEach((s,i)=>{
+    if(s.classList.contains('slide-index'))return;
+    const hEl=s.querySelector('.slide-header,.logo');
+    const title=hEl?hEl.textContent.trim():'Slide '+(i+1);
+    const desc=DESC[i]||'';
+    const card=document.createElement('div');
+    card.className='idx-card';
+    card.innerHTML=`<div class="idx-num">Slide ${i+1}</div><div class="idx-title">${title}</div><div class="idx-desc">${desc}</div>`;
+    card.addEventListener('click',()=>show(i));
+    grid.appendChild(card);
+  });
+}
+
+function getTitle(n){
+  const s=slides[n];
+  if(!s)return'';
+  const h=s.querySelector('.slide-header,.logo');
+  return h?h.textContent.trim():'';
+}
+
+function show(n){
+  slides[cur].classList.remove('active');
+  cur=Math.max(0,Math.min(n,slides.length-1));
+  slides[cur].classList.add('active');
+  document.getElementById('counter').textContent=(cur+1)+' / '+slides.length;
+  document.getElementById('nav-title').textContent=getTitle(cur);
+  document.getElementById('prog').style.width=((cur+1)/slides.length*100)+'%';
+  const isIdx=slides[cur].classList.contains('slide-index');
+  document.getElementById('index-btn').textContent=isIdx?'✕ Close':'⊞ Index';
+}
+
+function go(d){show(cur+d)}
+
+function goIndex(){
+  const idx=slides.findIndex(s=>s.classList.contains('slide-index'));
+  if(idx===-1)return;
+  if(cur===idx){show(0);return;}
+  show(idx);
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' ')go(1);
+  else if(e.key==='ArrowLeft'||e.key==='ArrowUp')go(-1);
+  else if(e.key==='Home')show(0);
+  else if(e.key==='End')show(slides.length-1);
+  else if(e.key==='i'||e.key==='I')goIndex();
+});
+
+buildIndex();
+show(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "$comment": "Project-level Claude Code settings for the S4PC Catalyst. The hook below is a non-blocking clean-core guard — it logs ABAP code writes and flags classical / non-released patterns, but never blocks. macOS/Linux users: change 'python' to 'python3' if that is your interpreter.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/clean_core_guard.py" }
+        ]
+      }
+    ]
+  }
+}

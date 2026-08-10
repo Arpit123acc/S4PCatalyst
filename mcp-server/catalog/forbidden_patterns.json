@@ -1,0 +1,128 @@
+{
+  "_meta": {
+    "description": "Static lint rules for ABAP Cloud (ABAP language version 5, 'ABAP for Cloud Development') as enforced in S/4HANA Cloud Public Edition developer extensibility. These mirror what ATC with check variant SAP_CP_READINESS / ABAP_CLOUD_DEVELOPMENT would reject.",
+    "note": "This lint is a fast local pre-check, not a replacement for ATC in the tenant. Anything flagged 'error' will not activate or will fail ATC in Public Cloud."
+  },
+  "rules": [
+    {
+      "id": "PC-001", "severity": "error",
+      "pattern": "(?i)\\bCALL\\s+FUNCTION\\s+'BAPI_",
+      "message": "BAPIs are not released in S/4HANA Cloud Public Edition and cannot be called from custom code.",
+      "alternative": "Use the released OData/SOAP API for this object (search_released_apis tool), or a released BAdI for in-transaction logic."
+    },
+    {
+      "id": "PC-002", "severity": "error",
+      "pattern": "(?i)\\bCALL\\s+TRANSACTION\\b",
+      "message": "CALL TRANSACTION is not available in ABAP for Cloud Development (no SAP GUI, no dynpro).",
+      "alternative": "Use a released API or RAP behavior implementation."
+    },
+    {
+      "id": "PC-003", "severity": "error",
+      "pattern": "(?i)^\\s*SUBMIT\\b",
+      "message": "SUBMIT (classical reports) is not available in ABAP Cloud.",
+      "alternative": "Use Application Jobs (released job catalog entries/templates) or a RAP action."
+    },
+    {
+      "id": "PC-004", "severity": "error",
+      "pattern": "(?i)^\\s*REPORT\\b",
+      "message": "Classical reports (REPORT programs) cannot be created in Public Cloud developer extensibility.",
+      "alternative": "Build a RAP-based Fiori list report or an ABAP class run as an application job."
+    },
+    {
+      "id": "PC-005", "severity": "error",
+      "pattern": "(?i)^\\s*(FORM|PERFORM)\\b",
+      "message": "FORM/PERFORM subroutines are obsolete and forbidden in ABAP Cloud.",
+      "alternative": "Use class methods."
+    },
+    {
+      "id": "PC-006", "severity": "error",
+      "pattern": "(?i)^\\s*TABLES\\b",
+      "message": "TABLES statement is forbidden in ABAP Cloud.",
+      "alternative": "Use typed data declarations against released CDS views."
+    },
+    {
+      "id": "PC-007", "severity": "error",
+      "pattern": "(?i)\\bEXEC\\s+SQL\\b",
+      "message": "Native SQL (EXEC SQL) is not allowed in ABAP Cloud.",
+      "alternative": "Use ABAP SQL on released CDS views; for HANA-native needs use AMDP only where the used objects are released."
+    },
+    {
+      "id": "PC-008", "severity": "error",
+      "pattern": "(?i)^\\s*(WRITE|ULINE|SKIP)\\b[:\\s]",
+      "message": "Classical list output (WRITE) does not exist in ABAP Cloud.",
+      "alternative": "Return data via RAP/OData and display in Fiori; for developer diagnostics use application log (BALI released APIs) or console (if_oo_adt_classrun)."
+    },
+    {
+      "id": "PC-009", "severity": "error",
+      "pattern": "(?i)^\\s*(SELECTION-SCREEN|PARAMETERS|SELECT-OPTIONS)\\b",
+      "message": "Selection screens are dynpro-based and not available in ABAP Cloud.",
+      "alternative": "Model filters as OData query options on a RAP service, or application job parameters."
+    },
+    {
+      "id": "PC-010", "severity": "error",
+      "pattern": "(?i)\\b(OPEN|READ|TRANSFER|CLOSE)\\s+DATASET\\b",
+      "message": "Direct file system access is not available in Public Cloud.",
+      "alternative": "Use released XCO library (XCO_CP_*) capabilities, document management APIs, or file-based integration via BTP/CPI."
+    },
+    {
+      "id": "PC-011", "severity": "error",
+      "pattern": "(?i)\\bCALL\\s+'",
+      "message": "Kernel calls are forbidden.",
+      "alternative": "Use released APIs only."
+    },
+    {
+      "id": "PC-012", "severity": "error",
+      "pattern": "(?i)\\b(INSERT|UPDATE|MODIFY|DELETE)\\s+(FROM\\s+)?(bkpf|bseg|acdoca|mara|marc|makt|vbak|vbap|vbrk|vbrp|ekko|ekpo|likp|lips|mseg|kna1|lfa1|but000|t001|t001w)\\b",
+      "message": "Direct DML on SAP standard tables is strictly forbidden (and these tables are not even readable in Public Cloud custom code).",
+      "alternative": "Use the released API or BAdI for the business object."
+    },
+    {
+      "id": "PC-013", "severity": "warning",
+      "pattern": "(?i)\\bSELECT\\b[^.]*\\bFROM\\s+(bkpf|bseg|acdoca|mara|marc|makt|vbak|vbap|vbrk|vbrp|ekko|ekpo|likp|lips|mseg|kna1|lfa1|but000|t001|t001w)\\b",
+      "message": "Classical SAP tables are not released for Public Cloud custom code — this SELECT will not compile.",
+      "alternative": "Use the released CDS interface view instead (check_object_release_state tool maps table -> I_* view)."
+    },
+    {
+      "id": "PC-014", "severity": "error",
+      "pattern": "(?i)\\bCALL\\s+SCREEN\\b|\\bMODULE\\b.*\\b(INPUT|OUTPUT)\\b|^\\s*PROCESS\\s+(BEFORE|AFTER)\\b",
+      "message": "Dynpro/module pool technology does not exist in Public Cloud.",
+      "alternative": "Build a Fiori Elements app on a RAP service."
+    },
+    {
+      "id": "PC-015", "severity": "error",
+      "pattern": "(?i)\\bGENERATE\\s+(SUBROUTINE|REPORT)\\b|\\bINSERT\\s+REPORT\\b",
+      "message": "Dynamic program generation is forbidden.",
+      "alternative": "Not permitted in Public Cloud at all."
+    },
+    {
+      "id": "PC-016", "severity": "warning",
+      "pattern": "(?i)\\bCALL\\s+FUNCTION\\s+'(?!BAPI_)",
+      "message": "Function modules are generally not released in Public Cloud (very few exceptions).",
+      "alternative": "Verify the FM has release contract C1 in ADT Released Objects; otherwise use a released class/API."
+    },
+    {
+      "id": "PC-017", "severity": "warning",
+      "pattern": "(?i)\\bSY-(UNAME|DATUM|UZEIT)\\b",
+      "message": "Several sy- fields are restricted/deprecated in ABAP Cloud (time zone correctness, testability).",
+      "alternative": "Use XCO library: xco_cp=>sy->user( ), xco_cp_time=>moment( ) etc., or cl_abap_context_info."
+    },
+    {
+      "id": "PC-018", "severity": "warning",
+      "pattern": "(?i)\\bWAIT\\s+UP\\s+TO\\b",
+      "message": "WAIT UP TO is discouraged and often forbidden in cloud ATC variants.",
+      "alternative": "Redesign; for async patterns use RAP actions + events or application jobs."
+    },
+    {
+      "id": "PC-019", "severity": "error",
+      "pattern": "(?i)\\bCALL\\s+METHOD\\s+cl_gui_",
+      "message": "GUI control framework (cl_gui_*) does not exist in Public Cloud.",
+      "alternative": "Fiori/UI5 frontend on a RAP service."
+    },
+    {
+      "id": "PC-020", "severity": "warning",
+      "pattern": "(?i)\\bENHANCEMENT\\b|\\bENHANCEMENT-POINT\\b|\\bENHANCEMENT-SECTION\\b",
+      "message": "Implicit/explicit enhancements do not exist in Public Cloud — extensibility is only via released BAdIs, key user tools, or side-by-side.",
+      "alternative": "search_released_badis tool, or side-by-side extension on BTP."
+    }
+  ]
+}

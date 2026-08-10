@@ -1,0 +1,1994 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S4PC Catalyst — Public Cloud</title>
+<style>
+:root{
+  --purple:#6d28d9; --purple-dark:#4c1d95; --purple-deep:#3b0f80; --purple-bg:#f6f4fb;
+  --ink:#1d1b26; --muted:#6b6880; --line:#e6e3f0; --card:#ffffff;
+  --green:#0f9d58; --amber:#c77700; --red:#c5221f; --blue:#1a73e8;
+  --radius:12px; --sidebar-w:230px;
+  font-size:15px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#fafafa;display:flex;min-height:100vh}
+a{color:var(--purple);text-decoration:none}
+/* ---------- sidebar ---------- */
+#sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,var(--purple-deep),var(--purple-dark));color:#fff;position:fixed;top:0;bottom:0;left:0;overflow-y:auto;padding:14px 10px;z-index:10}
+#sidebar .brand{display:flex;align-items:center;gap:8px;padding:6px 10px 16px}
+#sidebar .brand .logo{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:17px}
+#sidebar .brand b{font-size:.95rem;display:block}
+#sidebar .brand small{opacity:.65;font-size:.7rem}
+#sidebar .sect{font-size:.62rem;letter-spacing:.12em;opacity:.55;padding:14px 12px 4px;text-transform:uppercase}
+#sidebar a.nav{display:flex;align-items:center;gap:9px;color:#eee;padding:7px 12px;border-radius:8px;font-size:.86rem;margin:1px 0}
+#sidebar a.nav:hover{background:rgba(255,255,255,.10)}
+#sidebar a.nav.active{background:rgba(255,255,255,.18);font-weight:600}
+#sidebar a.nav .ic{width:18px;text-align:center;opacity:.85}
+/* ---------- layout ---------- */
+#main{margin-left:var(--sidebar-w);flex:1;min-width:0}
+.page{display:none;padding:34px 44px;max-width:1200px;margin:0 auto}
+.page.visible{display:block}
+h1.pgtitle{font-size:1.45rem;margin-bottom:4px}
+p.pgsub{color:var(--muted);font-size:.86rem;margin-bottom:26px}
+.grid{display:grid;gap:14px}
+.grid.c2{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+.grid.c3{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.grid.c4{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.card.click{cursor:pointer;transition:box-shadow .15s,transform .15s}
+.card.click:hover{box-shadow:0 6px 20px rgba(76,29,149,.12);transform:translateY(-1px)}
+.card h3{font-size:.95rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.card p{font-size:.8rem;color:var(--muted);line-height:1.45}
+.chip{display:inline-block;font-size:.66rem;font-weight:600;padding:2.5px 9px;border-radius:99px;margin:2px 4px 0 0}
+.chip.purple{background:#ede9fe;color:var(--purple-dark)}
+.chip.green{background:#e6f4ea;color:var(--green)}
+.chip.amber{background:#fef3e2;color:var(--amber)}
+.chip.red{background:#fce8e6;color:var(--red)}
+.chip.blue{background:#e8f0fe;color:var(--blue)}
+.chip.gray{background:#f0eff5;color:var(--muted)}
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 16px;font-size:.82rem;cursor:pointer;color:var(--ink);display:flex;gap:7px;align-items:center}
+.tabs button.on{background:var(--purple);border-color:var(--purple);color:#fff;font-weight:600}
+input[type=text],textarea,select{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:.85rem;font-family:inherit;background:#fff;color:var(--ink)}
+textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;min-height:150px}
+input:focus,textarea:focus{outline:2px solid #c4b5fd;border-color:var(--purple)}
+.btn{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:9px 20px;font-size:.85rem;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--purple-dark)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:#fce8e6;color:var(--red)}
+.searchbar{max-width:420px;margin-bottom:18px}
+table.tbl{width:100%;border-collapse:collapse;font-size:.8rem}
+table.tbl th{text-align:left;color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line)}
+table.tbl td{padding:8px 10px;border-bottom:1px solid #f1eff8;vertical-align:top}
+.stat{display:flex;flex-direction:column;gap:4px}
+.stat .num{font-size:1.7rem;font-weight:700;color:var(--purple-dark)}
+.stat .lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.notice{border:1px solid var(--line);background:#fff;border-left:4px solid var(--purple);border-radius:10px;padding:12px 16px;font-size:.8rem;color:var(--muted);margin-bottom:22px}
+.notice.warn{border-left-color:var(--amber);background:#fffaf2}
+.bar-row{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:.76rem}
+.bar-row .lbl{width:220px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-row .bar{flex:1;background:#f0eff5;border-radius:6px;height:16px;overflow:hidden}
+.bar-row .bar i{display:block;height:100%;background:linear-gradient(90deg,#8b5cf6,#6d28d9);border-radius:6px}
+.bar-row .val{width:56px;text-align:right;font-weight:600}
+details.faq{border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:10px;padding:0 16px}
+details.faq summary{padding:13px 0;font-size:.87rem;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.faq summary::after{content:"▾";color:var(--muted);font-size:.8rem}
+details.faq[open] summary::after{content:"▴"}
+details.faq .body{padding:0 0 14px;font-size:.82rem;color:var(--muted);line-height:1.55}
+pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-size:.75rem;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.5}
+.verdict{font-size:1rem;font-weight:700;padding:6px 16px;border-radius:9px;display:inline-block}
+.verdict.PASS,.verdict.SHIP,.verdict.LIKELY_RELEASED{background:#e6f4ea;color:var(--green)}
+.verdict.FAIL,.verdict.NOT_AVAILABLE{background:#fce8e6;color:var(--red)}
+.verdict.WARN,.verdict.NOT_VERIFIED{background:#fef3e2;color:var(--amber)}
+/* modal */
+#modal{display:none;position:fixed;inset:0;background:rgba(20,14,40,.45);z-index:50;align-items:flex-start;justify-content:center;padding:5vh 20px}
+#modal.open{display:flex}
+#modal .box{background:#fff;border-radius:14px;max-width:860px;width:100%;max-height:88vh;overflow-y:auto;padding:28px 32px;position:relative}
+#modal .close{position:sticky;top:0;float:right;background:#f0eff5;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.9rem}
+.md h1{font-size:1.25rem;margin:14px 0 8px}.md h2{font-size:1.02rem;margin:16px 0 6px}.md h3{font-size:.9rem;margin:12px 0 4px}
+.md p,.md li{font-size:.83rem;line-height:1.55;color:#333}.md ul,.md ol{padding-left:22px;margin:6px 0}
+.md code{background:#f0eff5;border-radius:4px;padding:1px 5px;font-size:.78rem;font-family:ui-monospace,Menlo,Consolas,monospace}
+.md table{border-collapse:collapse;margin:10px 0;font-size:.78rem}.md th,.md td{border:1px solid var(--line);padding:6px 10px;text-align:left}
+.md blockquote{border-left:3px solid var(--purple);padding-left:12px;color:var(--muted);margin:8px 0}
+.hero{background:linear-gradient(120deg,var(--purple-deep),var(--purple));border-radius:16px;color:#fff;padding:38px 40px;text-align:center;margin-bottom:26px}
+.hero h1{font-size:1.6rem;margin-bottom:6px}
+.hero p{opacity:.85;font-size:.86rem;margin-bottom:22px}
+.hero .stats{display:flex;justify-content:center;gap:44px;flex-wrap:wrap}
+.hero .stats b{font-size:1.7rem;display:block}
+.hero .stats span{font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;opacity:.8}
+.modecard{border:2px solid var(--line);border-radius:14px;padding:18px;background:#fff;cursor:pointer}
+.modecard.sel{border-color:var(--purple);box-shadow:0 6px 20px rgba(76,29,149,.14)}
+.modecard .tag{font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--purple)}
+.modecard h3{margin:6px 0 4px;font-size:1rem}
+.modecard p{font-size:.76rem;color:var(--muted)}
+.kv{display:flex;justify-content:space-between;font-size:.82rem;padding:8px 0;border-bottom:1px solid #f1eff8}
+.kv b{font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:99px;margin-right:6px}
+.dot.g{background:var(--green)}.dot.r{background:var(--red)}.dot.a{background:var(--amber)}
+.result-box{margin-top:18px}
+.foot{color:var(--muted);font-size:.72rem;text-align:center;padding:26px}
+@media(max-width:900px){#sidebar{width:64px}#sidebar .brand b,#sidebar .brand small,#sidebar .sect,#sidebar a.nav .txt{display:none}#main{margin-left:64px}.page{padding:22px}}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="brand"><div class="logo">✦</div><div><b>S4PC Catalyst</b><small>Public Cloud Edition</small></div></div>
+  <div class="sect">Workspace</div>
+  <a class="nav" href="#home"><span class="ic">⌂</span><span class="txt">Home</span></a>
+  <a class="nav" href="#intake"><span class="ic">⇥</span><span class="txt">FD Intake</span></a>
+  <a class="nav" href="#workflows"><span class="ic">⎌</span><span class="txt">Workflows</span></a>
+  <a class="nav" href="#playground"><span class="ic">▶</span><span class="txt">Playground</span></a>
+  <div class="sect">Enablement</div>
+  <a class="nav" href="#catalyst"><span class="ic">♦</span><span class="txt">Catalyst</span></a>
+  <a class="nav" href="#agentflow"><span class="ic">⇶</span><span class="txt">Agent Workflow</span></a>
+  <a class="nav" href="#explorer"><span class="ic">⌁</span><span class="txt">Workflow Explorer</span></a>
+  <div class="sect">Reference</div>
+  <a class="nav" href="#settings"><span class="ic">⚙</span><span class="txt">Settings</span></a>
+  <a class="nav" href="#reference"><span class="ic">▤</span><span class="txt">Reference</span></a>
+  <a class="nav" href="#help"><span class="ic">?</span><span class="txt">Help</span></a>
+  <a class="nav" href="#admin"><span class="ic">▦</span><span class="txt">Admin</span></a>
+  <a class="nav" href="#usage"><span class="ic">⏱</span><span class="txt">Usage</span></a>
+</nav>
+
+<div id="main">
+
+<!-- ================= HOME ================= -->
+<section class="page" id="page-home">
+  <div style="display:flex;gap:14px;align-items:center;margin-bottom:6px">
+    <div style="width:46px;height:46px;border-radius:12px;background:var(--purple);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px">✦</div>
+    <div><h1 class="pgtitle">S4PC Catalyst — Public Cloud</h1>
+    <p class="pgsub" style="margin:0">Localhost Catalyst — your single-user S/4HANA <b>Public Cloud</b> development workstation. Pick a workspace below.</p></div>
+  </div>
+  <div style="height:22px"></div>
+  <div class="sect-h" style="font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">MAIN FEATURES <span style="font-weight:400">· day-to-day clean-core work</span></div>
+  <div class="grid c2" style="margin-bottom:28px">
+    <div class="card click" onclick="location.hash='intake'"><h3>⇥ FD Intake</h3><p>Start here: drop a Functional Design, get a clean-core solution proposal (key user / developer / side-by-side — or mixed), and approve at three human checkpoints.</p></div>
+    <div class="card click" onclick="location.hash='workflows'"><h3>⎌ Workflows</h3><p>RICEFW pipelines adapted for Public Cloud — enhancement, report, interface, conversion, form, workflow + clean-core review.</p></div>
+    <div class="card click" onclick="location.hash='playground'"><h3>▶ Playground</h3><p>Run the clean-core gates live: release-state check, ABAP Cloud lint, extensibility advisor, released API/BAdI search — powered by the s4pc MCP server.</p></div>
+    <div class="card click" onclick="location.hash='explorer'"><h3>⌁ Workflow Explorer</h3><p>Interactive RICEFW pipeline visualization — quality score, gates, findings inventory and deliverables of every pipeline run in output/.</p></div>
+  </div>
+  <div class="sect-h" style="font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">REFERENCE &amp; SETUP <span style="font-weight:400">· configuration, identity, and help</span></div>
+  <div class="grid c3">
+    <div class="card click" onclick="location.hash='settings'"><h3>🔗 Connectivity</h3><p>SAP tenant connection status, mode (offline/live), guardrails and allowlist.</p></div>
+    <div class="card click" onclick="location.hash='settings-catalyst'"><h3>▣ Catalyst</h3><p>Runtime info, install path, platform, power controls.</p></div>
+    <div class="card click" onclick="location.hash='reference-mcp'"><h3>⌗ MCP servers</h3><p>Inventory of the SAP MCP servers wired into the agent.</p></div>
+    <div class="card click" onclick="location.hash='reference-skills'"><h3>▤ Skills</h3><p>Browse the SAP skill library the agent can route to.</p></div>
+    <div class="card click" onclick="location.hash='reference-agents'"><h3>◉ Agents</h3><p>Available agents + their roles in the orchestrator.</p></div>
+    <div class="card click" onclick="location.hash='help'"><h3>? Help</h3><p>FAQ, quality gates, known limitations, connection testing.</p></div>
+  </div>
+  <p class="foot">No LLM API keys — Claude Code is the runtime · Zero-dependency Python (macOS &amp; Windows) · Clean core enforced by tooling</p>
+</section>
+
+<!-- ================= CATALYST ================= -->
+<section class="page" id="page-catalyst">
+  <div class="hero">
+    <h1>♦ S4PC Catalyst</h1>
+    <p>From specification to clean-core code — for S/4HANA Cloud, Public Edition. Agentic Build &amp; Deploy · Release-gated · Upgrade-safe</p>
+    <div class="stats" id="hero-stats"></div>
+  </div>
+  <h2 style="font-size:1.1rem;margin-bottom:4px">Three Modes of Public Cloud Extensibility</h2>
+  <p class="pgsub">Click a mode — the pipeline adapts to it. Clean core isn't a preference in Public Cloud, it's the platform.</p>
+  <div class="grid c3" id="mode-cards"></div>
+  <div class="card" style="margin-top:16px" id="mode-detail"></div>
+  <h2 style="font-size:1.1rem;margin:30px 0 4px">What clean core changes in Public Cloud</h2>
+  <div class="grid c2" style="margin-top:12px">
+    <div class="card"><h3 style="color:var(--red)">✕ Gone in Public Cloud</h3><p>BAPIs · function modules · user exits · enhancement points · modifications · classical reports (SE38/ALV) · dynpros &amp; module pools · Smart Forms/SAPscript · custom RFC/IDoc · direct table access (BSEG, VBAK…) · SM37 jobs</p></div>
+    <div class="card"><h3 style="color:var(--green)">✓ The Public Cloud way</h3><p>Released OData/SOAP APIs · released BAdIs (Custom Logic) · RAP + CDS + Fiori Elements · key-user tools (Custom Fields &amp; Logic, Adapt UI) · Application Jobs · business events + Integration Suite · Migrate Your Data · flexible workflow</p></div>
+  </div>
+</section>
+
+<!-- ================= AGENT WORKFLOW ================= -->
+<section class="page" id="page-agentflow">
+  <h1 class="pgtitle">Agent Workflow <span class="chip purple">Simplified View</span></h1>
+  <p class="pgsub">How the agent team collaborates to deliver clean-core RICEFW — every phase gated by the s4pc MCP server.</p>
+  <div class="grid c3">
+    <div class="card" style="border-top:4px solid #8b5cf6"><h3>⚙ Propose &amp; Build</h3><p><b>Extensibility Architect + Developer</b></p><p style="margin-top:8px">FD analysis → extensibility decision → object inventory + <b>Custom-Object Naming Contract</b> → <b>GATE 1: release verdicts</b> → ✋ CP1 solution approval (names locked) → <b>build from the approved proposal</b> → lint</p><p style="margin-top:8px"><span class="chip green">Gate 1: every object released</span></p></div>
+    <div class="card" style="border-top:4px solid #3b82f6"><h3>🔍 Review &amp; Test</h3><p><b>Clean-Core Reviewer + Test Agent</b></p><p style="margin-top:8px"><b>GATE 2: code review</b> (clean-core + security) → ✋ CP2 code approval (per-file comments) → ABAP Unit / API tests → $metadata-grounded field checks → Technical Design (documentation, authored after tests)</p><p style="margin-top:8px"><span class="chip green">Gate 2: code review PASS + tests green</span></p></div>
+    <div class="card" style="border-top:4px solid #f59e0b"><h3>🛡 Challenge &amp; Ship</h3><p><b>Adversarial audit + deliverable pack</b></p><p style="margin-top:8px">Peer review → upgrade-safety challenge → verdict SHIP/FIX/REDESIGN → package + tenant verification checklist → ✋ CP3 acceptance → <b>optional BTP deploy</b> (prereq-checklist gate)</p><p style="margin-top:8px"><span class="chip green">Gate 3: challenger PASS</span></p></div>
+  </div>
+  <div class="card" style="margin-top:16px;background:linear-gradient(120deg,#2a1065,#4c1d95);border:none;color:#fff">
+    <h3 style="color:#fff">✦ Powered by the s4pc governance layer</h3>
+    <div id="agentflow-chips" style="margin-top:6px"></div>
+  </div>
+  <h2 style="font-size:1rem;margin:26px 0 10px">Deliverables per object</h2>
+  <div class="grid c4" id="deliverables"></div>
+</section>
+
+<!-- ================= FD INTAKE ================= -->
+<section class="page" id="page-intake">
+  <h1 class="pgtitle">FD Intake — start a pipeline run</h1>
+  <p class="pgsub">Drop a Functional Design here, then run the pipeline in Claude Code. The pipeline proposes a clean-core solution (key user / developer / side-by-side — or a mix, driven by the requirement) and <b>stops at three checkpoints for your decision</b>.</p>
+  <div class="grid c3" style="margin-bottom:18px">
+    <div class="card" style="border-top:4px solid #8b5cf6"><h3>✋ Checkpoint 1 · Solution</h3><p>After the release gate: capability-by-capability mode split, objects + verdicts, and the <b>Custom-Object Naming Contract</b>. You approve/adjust/reject the approach and <b>lock the object names</b> before any code is built.</p></div>
+    <div class="card" style="border-top:4px solid #3b82f6"><h3>✋ Checkpoint 2 · Code</h3><p>After the build + code review (Gate 2): the built code <b>file by file</b> with review findings. Comment on any file to request changes, or approve as-is — build happens first, the TD is documented afterward.</p></div>
+    <div class="card" style="border-top:4px solid #f59e0b"><h3>✋ Checkpoint 3 · Acceptance</h3><p>After peer review + challenger: the full package (and, for side-by-side, the BTP prerequisite checklist before deploy). You accept or send specific items back for rework.</p></div>
+  </div>
+  <div class="grid c2">
+    <div class="card">
+      <h3>Add an FD document</h3>
+      <p style="margin-bottom:10px">Pick a file (<b>.docx / .pdf / .txt / .md</b>) or paste the FD text below. Word/PDF are read as binary and the text is extracted on the server — no more corrupted uploads.</p>
+      <input type="file" id="fd-file" accept=".md,.txt,.docx,.pdf,.doc" style="font-size:.8rem;margin-bottom:10px">
+      <input type="text" id="fd-name" placeholder="File name, e.g. FD-SD-EXT-0002.md" style="margin-bottom:10px">
+      <textarea id="fd-content" style="min-height:170px" placeholder="# FD — <title>&#10;&#10;## Business context ...&#10;## Requirements (numbered, testable) ...&#10;## Acceptance criteria ..."></textarea>
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button class="btn" onclick="uploadFD()">Save to input/</button><span id="fd-msg" style="font-size:.78rem;color:var(--muted)"></span></div>
+    </div>
+    <div class="card">
+      <h3>Queued FDs <a onclick="loadInputs()" style="font-size:.72rem;font-weight:400">⟳ refresh</a></h3>
+      <div id="fd-list" style="margin-top:8px"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h3>⚙ Pipeline engine <span id="engine-status"></span> <a onclick="loadJobs()" style="font-size:.72rem;font-weight:400">⟳ refresh</a></h3>
+    <p style="margin-bottom:8px">"Run pipeline" spawns <code>claude -p</code> headlessly (your logged-in Claude Code session — still no API keys). The run pauses at each ✋ checkpoint; you decide in the Workflow Explorer and it resumes automatically.</p>
+    <div id="jobs-list"></div>
+  </div>
+</section>
+
+<!-- ================= WORKFLOW EXPLORER ================= -->
+<section class="page" id="page-explorer">
+  <style>
+    @keyframes s4pcPulse{0%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}70%{box-shadow:0 0 0 9px rgba(37,99,235,0)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
+    .s4pc-live{animation:s4pcPulse 1.6s infinite;border-color:var(--blue)!important}
+    @keyframes s4pcPulseA{0%{box-shadow:0 0 0 0 rgba(245,158,11,.55)}70%{box-shadow:0 0 0 9px rgba(245,158,11,0)}100%{box-shadow:0 0 0 0 rgba(245,158,11,0)}}
+    .s4pc-liveA{animation:s4pcPulseA 1.6s infinite;border-color:var(--amber)!important}
+    @keyframes s4pcBlink{0%,100%{opacity:1}50%{opacity:.3}}
+    .s4pc-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);animation:s4pcBlink 1s infinite;margin-right:7px;vertical-align:middle}
+    #ex-steps > div[onclick]{cursor:pointer;transition:transform .1s}
+    #ex-steps > div[onclick]:hover{transform:translateY(-2px)}
+  </style>
+  <h1 class="pgtitle">Workflow Explorer</h1>
+  <p class="pgsub">Interactive visualization of pipeline runs. Runs are read from <code>output/&lt;ID&gt;/run.json</code> — written automatically by the <b>s4pc-ricefw-pipeline</b> skill on every execution, nothing here is hardcoded.</p>
+  <div class="card" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px">
+    <span style="font-size:.68rem;letter-spacing:.08em;color:var(--muted)">WORKFLOW TYPE</span>
+    <select id="ex-type" style="width:auto;min-width:230px" onchange="renderRunChips()"></select>
+    <span id="ex-type-hint" style="font-size:.72rem;color:var(--muted)"></span>
+  </div>
+  <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:20px">
+    <span style="font-size:.68rem;letter-spacing:.08em;color:var(--muted)">LOAD RUN:</span>
+    <span id="ex-chips"></span>
+  </div>
+  <div id="ex-empty" style="text-align:center;padding:70px 20px;color:var(--muted)">
+    <div style="font-size:2.2rem;margin-bottom:10px">📊</div>
+    <b style="color:var(--ink)">Pick a workflow type and a run to begin</b>
+    <p style="font-size:.8rem;margin-top:6px">No runs yet? Ask Claude Code: <i>"Run the s4pc-ricefw-pipeline for &lt;your requirement&gt;"</i> —<br>the run appears here automatically once <code>output/&lt;ID&gt;/run.json</code> is written.</p>
+  </div>
+  <div id="ex-dash" style="display:none">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px">
+      <h2 id="ex-run-title" style="font-size:1.1rem"></h2><span id="ex-run-chips"></span>
+      <button id="ex-rerun" class="btn ghost" style="font-size:.72rem;padding:5px 12px;margin-left:auto;align-self:center;white-space:nowrap" onclick="rerunPipeline(this)" title="Run a NEW version of this pipeline on the same FD — previous runs and their files are kept">↻ Re-run (new version)</button>
+      <button id="ex-delete" class="btn ghost" style="font-size:.72rem;padding:5px 12px;align-self:center;white-space:nowrap;color:var(--red);border-color:var(--red)" onclick="deleteRun(this)" title="Delete this run and all its generated files">🗑 Delete</button>
+    </div>
+    <div id="ex-checkpoint"></div>
+    <div id="ex-live" style="margin-bottom:14px"></div>
+    <div id="btp-deploy-panel" style="display:none;margin-bottom:14px"></div>
+    <div class="grid c4" style="margin-bottom:18px" id="ex-stats"></div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:4px">Pipeline steps <span style="font-size:.7rem;font-weight:400;color:var(--muted)">— click any step for its details · ✋ = human checkpoint</span></h3>
+      <div id="ex-steps" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;padding-top:8px"></div>
+      <div style="font-size:.67rem;color:var(--muted);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap">
+        <span>🟩 Step pass</span><span>🟢 Gate pass</span><span>🟥 Failed</span><span>🟨 Awaiting approval</span><span>🔵 Running</span><span>⬜ Pending</span>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">Gate results</h3><div id="ex-gates" style="display:flex;gap:10px;flex-wrap:wrap"></div></div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">✋ Human-in-the-loop decisions</h3><div id="ex-approvals"></div></div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">Findings inventory</h3>
+      <div class="tabs" id="ex-sev-tabs" style="margin-bottom:12px"></div>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ID</th><th>Severity</th><th>Source</th><th>Description</th><th>Resolution</th><th>Status</th></tr></thead><tbody id="ex-findings"></tbody></table></div></div>
+    <div class="card"><h3 style="margin-bottom:10px">Deliverables (click to read)</h3><div class="grid c4" id="ex-files"></div></div>
+  </div>
+</section>
+
+<!-- ================= WORKFLOWS ================= -->
+<section class="page" id="page-workflows">
+  <h1 class="pgtitle">Workflows</h1>
+  <p class="pgsub">RICEFW + process workflows, adapted for S/4HANA Cloud Public Edition. Click a card to read it — or run it in Claude Code with the matching skill.</p>
+  <div class="tabs" id="wf-tabs"></div>
+  <div class="searchbar"><input type="text" id="wf-search" placeholder="Search workflows by code, name, or description…"></div>
+  <div class="grid c3" id="wf-grid"></div>
+</section>
+
+<!-- ================= REFERENCE ================= -->
+<section class="page" id="page-reference">
+  <h1 class="pgtitle">Reference</h1>
+  <p class="pgsub">Skills, workflows, MCP servers and agents available in this Catalyst.</p>
+  <div class="tabs">
+    <button data-rtab="skills" class="on">▤ Skills</button>
+    <button data-rtab="workflows">⎌ Workflows</button>
+    <button data-rtab="mcp">⌗ MCP Servers</button>
+    <button data-rtab="agents">◉ Agents</button>
+    <button data-rtab="catalog">🗂 Catalogs</button>
+    <button data-rtab="experience">🧠 Experience</button>
+    <button data-rtab="brain">✦ Digital Brain</button>
+  </div>
+  <div id="rtab-skills"><div class="grid c3" id="skills-grid"></div></div>
+  <div id="rtab-workflows" style="display:none"><div class="grid c3" id="ref-wf-grid"></div></div>
+  <div id="rtab-mcp" style="display:none"><div id="mcp-list"></div></div>
+  <div id="rtab-agents" style="display:none"><div class="grid c3" id="agents-grid"></div></div>
+  <div id="rtab-catalog" style="display:none"><div id="catalog-area"></div></div>
+  <div id="rtab-experience" style="display:none">
+    <div class="notice">🧠 <b>Experience database</b> — team delivery lessons for Public Cloud. Grows with every pipeline run (the package step records new lessons via <code>record_experience</code>). Searchable semantically via <code>find_similar_delivery</code> (Layer 3 — Digital Brain). References: <a href="https://api.sap.com/products/SAPS4HANACloud/apis/all" target="_blank">SAP Business Accelerator Hub</a> (APIs/CDS) · <a href="https://discovery-center.cloud.sap/viewServices" target="_blank">SAP Discovery Center</a> (BTP services + pricing).</div>
+    <div class="tabs" id="exp-cat-tabs"></div>
+    <div class="grid c2" id="experience-grid"></div>
+  </div>
+  <div id="rtab-brain" style="display:none">
+    <div class="notice">✦ <b>Digital Brain — three knowledge layers</b> built into the pipeline. After catalog changes or completed runs: <code>python mcp-server/vector/build_index.py</code> &amp; <code>python mcp-server/graph/build_graph.py</code> — or call <code>rebuild_vector_index</code> / <code>sync_object_graph</code> from the Playground.</div>
+    <div class="grid c3">
+      <div class="card">
+        <h3>Layer 1 · Live Object Graph</h3>
+        <p>10,736 nodes · 137,843 cross-type edges · 33 business areas. Links released APIs, CDS views and BAdIs by shared business-concept name fragments — handles SAP's three naming conventions (CamelCase CDS, fused API, 3-char BAdI abbreviations). Rebuilt automatically on every catalog sync.</p>
+        <p style="margin-top:10px;font-size:.75rem"><b>Tools:</b></p>
+        <p style="font-size:.75rem"><code>get_object_graph</code> — given one object, return all related objects<br><code>get_area_map</code> — full released-object landscape for a business area<br><code>sync_object_graph</code> — rebuild graph (+ live $metadata enrichment)</p>
+        <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Graph: mcp-server/graph/graph.json</p>
+      </div>
+      <div class="card">
+        <h3>Layer 2 · SAP Knowledge Vectors</h3>
+        <p>10,767 documents (74 APIs + 8,928 CDS views + 1,734 BAdIs + 29 experience entries + past runs) indexed with BM25 TF-IDF. Finds released objects by <em>meaning</em>, not just token match — useful when the requirement is vague or the exact object name is unknown. Rebuilt automatically on every catalog sync.</p>
+        <p style="margin-top:10px;font-size:.75rem"><b>Tools:</b></p>
+        <p style="font-size:.75rem"><code>semantic_search</code> — natural-language search, optional type filter<br><code>rebuild_vector_index</code> — rebuild after catalog or run changes</p>
+        <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Index: mcp-server/vector/index.json · ~5 MB (grows with catalog syncs)</p>
+      </div>
+      <div class="card">
+        <h3>Layer 3 · Experience Graph</h3>
+        <p>Indexes every completed pipeline run (<code>output/*/run.json</code>) and finds the most similar past delivery to a new requirement — surfacing proven extensibility approaches, known BAdIs, and past pitfalls before the agent starts designing.</p>
+        <p style="margin-top:10px;font-size:.75rem"><b>Tools:</b></p>
+        <p style="font-size:.75rem"><code>find_similar_delivery</code> — match new requirement to past runs<br><code>rebuild_vector_index</code> — picks up new runs automatically</p>
+        <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Grows with every completed pipeline run.</p>
+      </div>
+    </div>
+    <div class="grid c3" style="margin-top:16px">
+      <div class="card">
+        <h3 style="font-size:.85rem">Recommended intake sequence</h3>
+        <ol style="font-size:.78rem;padding-left:18px;line-height:1.9;margin:6px 0">
+          <li><code>find_similar_delivery</code> — check past runs for proven patterns</li>
+          <li><code>semantic_search</code> — find candidate released objects by meaning</li>
+          <li><code>get_object_graph</code> — expand to the full related-object landscape</li>
+          <li><code>get_area_map</code> — see every object in the business area</li>
+          <li><code>check_object_release_state</code> — verify each candidate</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3 style="font-size:.85rem">Rebuild commands</h3>
+        <p style="font-size:.78rem;margin-bottom:8px">Run after catalog changes or each completed pipeline run:</p>
+        <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:10px;border-radius:4px;line-height:1.7">python mcp-server/vector/build_index.py
+python mcp-server/graph/build_graph.py</pre>
+        <p style="font-size:.73rem;color:var(--muted);margin-top:8px">Or call <code>rebuild_vector_index</code> / <code>sync_object_graph</code> from the MCP server directly.</p>
+      </div>
+      <div class="card">
+        <h3 style="font-size:.85rem">Zero-dependency design</h3>
+        <p style="font-size:.78rem">Both engine modules use pure Python 3.9+ stdlib — no pip installs, no API keys, no network access in offline mode. Works on any machine running the Catalyst.</p>
+        <p style="font-size:.73rem;color:var(--muted);margin-top:8px"><b>Layer 2:</b> BM25 TF-IDF cosine similarity · <b>Layer 1:</b> adjacency-list BFS with name-prefix edge matching · <b>Live mode:</b> Layer 1 sync can enrich API nodes with actual OData entity/field names via <code>sync_object_graph(live_enrich=true)</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PLAYGROUND ================= -->
+<section class="page" id="page-playground">
+  <h1 class="pgtitle">Playground — clean-core gates, live</h1>
+  <p class="pgsub">These run the real s4pc MCP server tools (same code Claude uses). Every call is audited — check Admin afterwards.</p>
+  <div class="tabs" id="pg-tabs">
+    <button data-pg="release" class="on">🔎 Release Check</button>
+    <button data-pg="lint">🧹 ABAP Cloud Lint</button>
+    <button data-pg="advisor">🧭 Extensibility Advisor</button>
+    <button data-pg="apis">🔌 API Search</button>
+    <button data-pg="badis">🧩 BAdI Search</button>
+    <button data-pg="brain">✦ Digital Brain</button>
+  </div>
+  <div class="card" id="pg-release">
+    <h3>Is this object usable in Public Cloud custom code?</h3>
+    <p style="margin-bottom:10px">Try: <a onclick="pgRelease('BAPI_SALESORDER_CREATEFROMDAT2')">BAPI_SALESORDER_CREATEFROMDAT2</a> · <a onclick="pgRelease('BSEG')">BSEG</a> · <a onclick="pgRelease('I_SalesDocument')">I_SalesDocument</a> · <a onclick="pgRelease('API_BUSINESS_PARTNER')">API_BUSINESS_PARTNER</a></p>
+    <div style="display:flex;gap:10px"><input type="text" id="rel-input" placeholder="Object name, e.g. BAPI_PO_CREATE1 or VBAK"><button class="btn" onclick="pgRelease()">Check</button></div>
+    <div class="result-box" id="rel-result"></div>
+  </div>
+  <div class="card" id="pg-lint" style="display:none">
+    <h3>Paste ABAP — get the clean-core verdict</h3>
+    <p style="margin-bottom:10px"><a onclick="lintSample()">Load a classical-ABAP sample</a> to see it fail.</p>
+    <textarea id="lint-input" placeholder="Paste ABAP code…"></textarea>
+    <div style="margin-top:10px"><button class="btn" onclick="pgLint()">Run lint</button></div>
+    <div class="result-box" id="lint-result"></div>
+  </div>
+  <div class="card" id="pg-advisor" style="display:none">
+    <h3>Which extensibility mode fits this requirement?</h3>
+    <textarea id="adv-input" style="min-height:90px" placeholder="e.g. Block saving a purchase order when our custom priority field is empty, and notify a third-party system when the PO is created."></textarea>
+    <div style="margin-top:10px"><button class="btn" onclick="pgAdvisor()">Advise</button></div>
+    <div class="result-box" id="adv-result"></div>
+  </div>
+  <div class="card" id="pg-apis" style="display:none">
+    <h3>Search released APIs</h3>
+    <div style="display:flex;gap:10px"><input type="text" id="api-input" placeholder="e.g. sales order, journal entry, business partner"><button class="btn" onclick="pgApis()">Search</button></div>
+    <div class="result-box" id="api-result"></div>
+  </div>
+  <div class="card" id="pg-badis" style="display:none">
+    <h3>Search released BAdIs</h3>
+    <div style="display:flex;gap:10px"><input type="text" id="badi-input" placeholder="e.g. purchase order check, sales header"><button class="btn" onclick="pgBadis()">Search</button></div>
+    <div class="result-box" id="badi-result"></div>
+  </div>
+  <div id="pg-brain" style="display:none">
+    <div class="grid c2">
+      <div class="card">
+        <h3>Layer 2 · Semantic Search</h3>
+        <p style="margin-bottom:10px;font-size:.8rem">Try: <a onclick="pgBrainSearch('goods movement validation')">goods movement validation</a> · <a onclick="pgBrainSearch('supplier invoice posting badi')">supplier invoice posting badi</a> · <a onclick="pgBrainSearch('sales order pricing')">sales order pricing</a></p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input type="text" id="brain-q" placeholder="e.g. purchase order approval workflow" style="flex:1;min-width:200px">
+          <select id="brain-type" style="width:120px"><option value="">All types</option><option value="api">API</option><option value="cds_view">CDS view</option><option value="badi">BAdI</option><option value="experience">Experience</option></select>
+          <button class="btn" onclick="pgBrainSearch()">Search</button>
+        </div>
+        <div class="result-box" id="brain-result"></div>
+      </div>
+      <div class="card">
+        <h3>Layer 1 · Object Graph</h3>
+        <p style="margin-bottom:10px;font-size:.8rem">Try: <a onclick="pgBrainGraph('I_PurchaseOrderAPI01')">I_PurchaseOrderAPI01</a> · <a onclick="pgBrainGraph('MB_GOODS_MOVEMENT_CHECK')">MB_GOODS_MOVEMENT_CHECK</a> · <a onclick="pgBrainGraph('API_BUSINESS_PARTNER')">API_BUSINESS_PARTNER</a></p>
+        <div style="display:flex;gap:10px">
+          <input type="text" id="graph-q" placeholder="Object name, e.g. I_SalesDocument" style="flex:1">
+          <button class="btn" onclick="pgBrainGraph()">Expand</button>
+        </div>
+        <div class="result-box" id="graph-result"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:0">
+      <h3>Area Map</h3>
+      <p style="margin-bottom:10px;font-size:.8rem">Try: <a onclick="pgBrainArea('Procurement')">Procurement</a> · <a onclick="pgBrainArea('Finance')">Finance</a> · <a onclick="pgBrainArea('Sales')">Sales</a> · <a onclick="pgBrainArea('Inventory')">Inventory</a> · <a onclick="pgBrainArea('Plant Maintenance')">Plant Maintenance</a> · <a onclick="pgBrainArea('')">List all areas</a></p>
+      <div style="display:flex;gap:10px">
+        <input type="text" id="area-q" placeholder="Business area, e.g. Procurement (leave blank for all areas)" style="flex:1">
+        <button class="btn" onclick="pgBrainArea()">Map</button>
+      </div>
+      <div class="result-box" id="area-result"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section class="page" id="page-settings">
+  <h1 class="pgtitle">Settings</h1>
+  <div class="tabs">
+    <button data-stab="conn" class="on">🔗 Connectivity</button>
+    <button data-stab="cart">▣ Catalyst</button>
+  </div>
+  <div id="stab-conn">
+    <div class="notice">Authentication: <b>no LLM API keys</b> — Claude Code (your session) is the runtime. SAP connectivity (optional, live mode) uses a <b>communication user via environment variables</b> — nothing is stored in files.</div>
+    <div class="grid c2">
+      <div class="card"><h3>Mode &amp; guardrails</h3><div id="conn-mode"></div></div>
+      <div class="card"><h3>SAP tenant credentials (env)</h3><div id="conn-env"></div>
+        <p style="margin-top:10px;font-size:.75rem">To enable live mode set <code>S4PC_MODE=live</code>, <code>SAP_BASE_URL</code>, <code>SAP_COMM_USER</code>, <code>SAP_COMM_PASSWORD</code> and restart. Live mode is read-only, allowlisted &amp; audited.</p></div>
+      <div class="card"><h3>OData service allowlist</h3><div id="conn-allow"></div><p style="margin-top:8px;font-size:.73rem">Extend in <code>mcp-server/config.json</code> — a deliberate human-in-the-loop step.</p></div>
+      <div class="card"><h3>Test connection</h3><p>Verifies tenant reachability + communication user via the gateway catalog service. In offline mode this demonstrates the guardrail block.</p>
+        <div style="margin-top:12px"><button class="btn" onclick="testConn()">Test SAP connection</button></div>
+        <div class="result-box" id="conn-test-result"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px;border-left:4px solid #3b82f6">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <h3 style="margin:0">🚀 BTP deploy connections (side-by-side)</h3>
+        <button class="btn" onclick="btpShowForm()">+ Add system</button>
+      </div>
+      <p style="font-size:.78rem;color:var(--muted);margin-bottom:8px">Cloud Foundry targets for the optional BTP deploy step. Non-secret fields are saved to disk; <b>all credentials are kept in memory for this session only</b> (never written to a file). Needs the <code>cf</code> CLI + multiapps plugin and <code>mbt</code> installed on this machine.</p>
+      <div id="btp-tool-status" style="font-size:.73rem;color:var(--muted);margin-bottom:10px"></div>
+      <details style="margin:0 0 12px;font-size:.75rem;border:1px solid var(--border,#e2e8f0);border-radius:6px;background:#f8fafc">
+        <summary style="cursor:pointer;padding:8px 11px;font-weight:600;color:#3b82f6">🧭 New machine / teammate? Connection setup help</summary>
+        <div style="padding:2px 14px 12px;color:var(--muted);line-height:1.55">
+          <p style="margin:8px 0 4px"><b>Each person connects their OWN BTP account on their OWN machine</b> — sessions are isolated per OS user, so teammates never collide.</p>
+          <p style="margin:8px 0 2px"><b>1. Install tools (once per machine)</b> — then open a <b>new</b> terminal:</p>
+          <pre style="margin:2px 0;padding:8px 10px;background:#0f172a;color:#e2e8f0;border-radius:5px;overflow:auto;font-size:.72rem">Windows:  winget install --id CloudFoundry.CLI.v8
+          cf install-plugin multiapps -f
+          npm install -g mbt
+macOS:    brew install cloudfoundry/tap/cf-cli@8
+          cf install-plugin multiapps -f
+          npm install -g mbt</pre>
+          <p style="margin:8px 0 2px"><b>2. For SSO / trial accounts</b> — log in once in a terminal, then leave password/token blank in the panel (session reuse):</p>
+          <pre style="margin:2px 0;padding:8px 10px;background:#0f172a;color:#e2e8f0;border-radius:5px;overflow:auto;font-size:.72rem">cf login --sso -a &lt;YOUR-API-ENDPOINT&gt;    # open the passcode URL, paste code, pick org/space
+cf target                                # verify logged in</pre>
+          <p style="margin:8px 0 2px"><b>3. Click "+ Add system"</b>, fill in API endpoint + credentials, click <b>Load orgs</b>, pick org + space, save.</p>
+          <p style="margin:10px 0 2px">🔒 <b>Never paste a real secret into an AI chat</b> — type it into this panel only. Full guide: <code>docs/btp-onboarding.md</code>.</p>
+        </div>
+      </details>
+      <!-- Connections list -->
+      <div id="btp-conns-list"></div>
+      <!-- Add/Edit form -->
+      <div id="btp-form" style="display:none;margin-top:14px;padding:14px 16px;border:1px solid #3b82f6;border-radius:8px;background:#f0f7ff">
+        <h4 style="margin:0 0 12px;font-size:.9rem" id="btp-form-title">Add BTP system</h4>
+        <input type="hidden" id="btp-f-id">
+        <div class="grid c2">
+          <label style="font-size:.76rem;grid-column:1/-1">CF API endpoint<input id="btp-f-api" style="width:100%" placeholder="https://api.cf.eu10.hana.ondemand.com" oninput="btpClearOrgs()"></label>
+          <label style="font-size:.76rem">CF user<input id="btp-f-user" style="width:100%" autocomplete="off" placeholder="user@example.com"></label>
+          <label style="font-size:.76rem">Password<input id="btp-f-pass" type="password" style="width:100%" autocomplete="new-password"></label>
+          <label style="font-size:.76rem;grid-column:1/-1">Bearer token (UAA access token — alternative to password)<input id="btp-f-token" type="password" style="width:100%" autocomplete="new-password" placeholder="eyJ… (leave blank for session reuse or password auth)"></label>
+          <div style="grid-column:1/-1;background:#f0f9ff;border:1px solid #3b82f6;border-radius:6px;padding:10px 12px;margin-top:2px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <span style="font-size:.78rem;font-weight:700;color:#1d4ed8">🔑 CF SSO Passcode (recommended for deployments)</span>
+              <button class="btn ghost" style="font-size:.72rem;padding:3px 10px" onclick="btpOpenPasscodeUrl()" id="btp-get-passcode-btn">Get Passcode ↗</button>
+            </div>
+            <input id="btp-f-passcode" type="password" style="width:100%;margin-bottom:4px" autocomplete="new-password" placeholder="Paste one-time passcode here">
+            <p style="font-size:.7rem;color:#475569;margin:0">A one-time passcode creates a full OAuth session (access + refresh token) so <code>cf deploy</code> survives the 15-20 min build. Get a fresh one immediately before deploying. Bearer token alone will fail if staging takes &gt;1 h.</p>
+          </div>
+        </div>
+        <div style="margin:10px 0 4px;display:flex;align-items:center;gap:10px">
+          <button class="btn ghost" style="font-size:.8rem;padding:5px 14px" onclick="btpLoadOrgs()">Load orgs →</button>
+          <span id="btp-orgs-status" style="font-size:.73rem;color:var(--muted)"></span>
+        </div>
+        <div class="grid c2" id="btp-org-space-row" style="display:none;margin-top:6px">
+          <label style="font-size:.76rem">Org
+            <select id="btp-f-org" style="width:100%;padding:6px 8px;border:1px solid var(--border,#e2e8f0);border-radius:6px" onchange="btpLoadSpaces()">
+              <option value="">-- select org --</option>
+            </select>
+          </label>
+          <label style="font-size:.76rem">Space (dev/test only)
+            <select id="btp-f-space" style="width:100%;padding:6px 8px;border:1px solid var(--border,#e2e8f0);border-radius:6px">
+              <option value="">-- select space --</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-top:10px">
+          <label style="font-size:.76rem">Label (friendly name — optional)<input id="btp-f-label" style="width:100%;max-width:360px" placeholder="e.g. Client Trial (ap21)"></label>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.82rem"><input type="checkbox" id="btp-f-enable"> Enable for pipeline deploy (pipeline will use this system)</label>
+        <p style="font-size:.73rem;margin:10px 0 0;padding:7px 10px;background:#eef6ff;border-left:3px solid #3b82f6;border-radius:4px">🔒 Password and token are session-only — never written to disk, git, or logs. Wiped on restart.</p>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn" onclick="btpSaveConn()">Save system</button>
+          <button class="btn ghost" onclick="btpTestInForm()">Test connection</button>
+          <button class="btn ghost" onclick="btpCancelForm()">Cancel</button>
+          <span id="btp-form-msg" style="font-size:.74rem;color:var(--muted)"></span>
+        </div>
+        <div id="btp-form-test-result" style="margin-top:8px"></div>
+      </div>
+      <div class="result-box" id="btp-conn-result" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div id="stab-cart" style="display:none">
+    <div class="grid c2">
+      <div class="card"><h3>Catalyst version</h3><div id="cart-info"></div></div>
+      <div class="card"><h3>Power</h3><p>Stop the Catalyst from here — no command window needed. Restart by running the START script again.</p>
+        <div style="margin-top:12px;display:flex;gap:10px"><button class="btn danger" onclick="shutdown()">Shut down</button></div>
+        <div id="power-msg" style="margin-top:10px;font-size:.8rem;color:var(--muted)"></div></div>
+      <div class="card"><h3>Components</h3>
+        <div class="kv"><span>MCP server (s4pc-mcp)</span><b><span class="dot g"></span>installed</b></div>
+        <div class="kv"><span>Seed catalogs (APIs / BAdIs / CDS / lint)</span><b><span class="dot g"></span>installed</b></div>
+        <div class="kv"><span>Skills (.claude/skills)</span><b><span class="dot g"></span>installed</b></div>
+        <div class="kv"><span>Workflows library</span><b><span class="dot g"></span>installed</b></div>
+        <div class="kv"><span>Live tenant connectivity</span><b id="comp-live"><span class="dot a"></span>optional — off</b></div></div>
+      <div class="card"><h3>What's new · 1.0</h3><p>Public Cloud Catalyst: zero-dependency MCP server, <b>22 governed tools</b> (incl. Digital Brain: Layer 1 Live Object Graph, Layer 2 SAP Knowledge Vectors, Layer 3 Experience Graph), 20 lint rules, release-verdict gate, a <b>build-first pipeline</b> with the Custom-Object Naming Contract + a per-file code-review checkpoint, optional BTP deploy, 4 skills, 7 workflows, this UI. Runs on macOS &amp; Windows with no installs.</p></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Catalog Sync — SAP Business Accelerator Hub</h3>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">Pulls released <b>APIs, Business Events, CDS Views, and BAdIs</b> for S/4HANA Cloud Public Edition from <b>api.sap.com</b> into the local catalog, then rebuilds the vector index and object graph automatically. Your API key is used only for this request and is never stored anywhere.<br>Get your free key: <b>api.sap.com → log in → click your name → Show API Key</b></p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input id="hub-api-key" type="password" placeholder="Paste your api.sap.com API key here"
+               style="flex:1;min-width:260px;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--fg);font-size:.85rem">
+        <button class="btn" onclick="runCatalogSync(false)">Dry Run</button>
+        <button class="btn primary" onclick="runCatalogSync(true)">Sync + Rebuild Index &amp; Graph</button>
+        <button class="btn" style="background:transparent;border:none;color:var(--muted);font-size:.8rem;cursor:pointer" onclick="document.getElementById('hub-api-key').value='';document.getElementById('sync-out').textContent=''" title="Clear key and output">✕ Clear</button>
+      </div>
+      <div id="sync-status" style="font-size:.8rem;color:var(--muted);margin-bottom:6px"></div>
+      <pre id="sync-out" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:.75rem;max-height:220px;overflow-y:auto;white-space:pre-wrap;display:none"></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ADMIN ================= -->
+<section class="page" id="page-admin">
+  <h1 class="pgtitle">Admin</h1>
+  <p class="pgsub">Usage, audit and health of the Catalyst. <a onclick="loadAdmin()">⟳ Refresh</a></p>
+  <div class="grid c4" id="admin-stats" style="margin-bottom:18px"></div>
+  <div class="grid c2">
+    <div class="card"><h3>Tool calls (MCP + UI)</h3><div id="admin-bars"></div></div>
+    <div class="card"><h3>Runtime</h3><div id="admin-runtime"></div></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <h3>Pipeline token consumption <span style="font-size:.7rem;font-weight:400;color:var(--muted)">— tokens per pipeline run (input / output / cache) with estimated cost, for leadership cost tracking</span></h3>
+    <div id="usage-summary" style="margin:8px 0 12px"></div>
+    <div style="overflow-x:auto"><table class="tbl" id="usage-table"><thead><tr><th>Run</th><th>FD</th><th>Jobs</th><th>Input</th><th>Output</th><th>Cache read</th><th>Total tokens</th><th>Est. cost (USD)</th><th>Reported (USD)</th><th>Duration</th></tr></thead><tbody></tbody></table></div>
+    <p id="usage-note" style="font-size:.68rem;color:var(--muted);margin-top:8px"></p>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Audit events (latest first)</h3>
+    <div style="overflow-x:auto"><table class="tbl" id="audit-table"><thead><tr><th>Time</th><th>Event</th><th>Tool</th><th>OK</th><th>ms</th><th>Detail</th></tr></thead><tbody></tbody></table></div>
+    <p style="margin-top:8px;font-size:.72rem">Full log: <code>mcp-server/logs/audit.jsonl</code> · secrets are redacted before logging.</p></div>
+</section>
+
+<!-- ================= HELP ================= -->
+<section class="page" id="page-help">
+  <h1 class="pgtitle">Help &amp; Documentation</h1>
+  <div class="notice warn">ⓘ This platform uses AI (Claude by Anthropic) to generate all outputs. Outputs should be reviewed by a qualified professional before use.</div>
+  <h2 style="font-size:1rem;margin-bottom:12px">FAQ</h2>
+  <div id="faq"></div>
+  <p class="foot">S4PC Catalyst · S/4HANA Cloud Public Edition Catalyst · no API keys · zero dependencies</p>
+</section>
+
+<!-- ================= USAGE ================= -->
+<section class="page" id="page-usage">
+  <h1 class="pgtitle">Token Usage</h1>
+  <p class="pgsub">Token consumption per pipeline run with estimated costs. <a onclick="loadUsage()" style="cursor:pointer">⟳ Refresh</a></p>
+  <div id="usage-tab-totals" style="margin-bottom:16px"></div>
+  <div style="overflow-x:auto"><table class="tbl" id="usage-tab-table">
+    <thead><tr><th>Run ID</th><th>Title</th><th>Status</th><th>Input tokens</th><th>Output tokens</th><th>Est. cost (USD)</th></tr></thead>
+    <tbody id="usage-tab-body"></tbody>
+  </table></div>
+</section>
+
+</div><!-- /main -->
+
+<div id="modal"><div class="box"><button class="close" onclick="closeModal()">✕</button><div class="md" id="modal-body"></div></div></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function api(p,opt){const r=await fetch(p,opt);return r.json()}
+async function runTool(tool,args){return api("/api/tool",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tool,arguments:args})})}
+
+/* ---------- tiny markdown renderer ---------- */
+function md(src){
+  let out=[],lines=src.split("\n"),inCode=false,inList=null,inTable=false,buf=[];
+  const flushList=()=>{if(inList){out.push("</"+inList+">");inList=null}};
+  const inline=t=>esc(t).replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/\*([^*]+)\*/g,"<i>$1</i>").replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>');
+  for(const line of lines){
+    if(line.startsWith("```")){if(inCode){out.push("<pre class='code'>"+esc(buf.join("\n"))+"</pre>");buf=[]}inCode=!inCode;continue}
+    if(inCode){buf.push(line);continue}
+    if(/^\|/.test(line)){if(/^\|[\s:-]+\|/.test(line.replace(/[^|:\-\s]/g,"")))continue;
+      if(!inTable){out.push("<table>");inTable=true}
+      const cells=line.split("|").slice(1,-1);out.push("<tr>"+cells.map(c=>"<td>"+inline(c.trim())+"</td>").join("")+"</tr>");continue}
+    else if(inTable){out.push("</table>");inTable=false}
+    if(/^---/.test(line)){continue}
+    let m;
+    if(m=line.match(/^(#{1,3})\s+(.*)/)){flushList();out.push("<h"+m[1].length+">"+inline(m[2])+"</h"+m[1].length+">")}
+    else if(m=line.match(/^\s*[-*]\s+(.*)/)){if(inList!=="ul"){flushList();out.push("<ul>");inList="ul"}out.push("<li>"+inline(m[1])+"</li>")}
+    else if(m=line.match(/^\s*\d+\.\s+(.*)/)){if(inList!=="ol"){flushList();out.push("<ol>");inList="ol"}out.push("<li>"+inline(m[1])+"</li>")}
+    else if(m=line.match(/^>\s?(.*)/)){flushList();out.push("<blockquote>"+inline(m[1])+"</blockquote>")}
+    else if(line.trim()===""){flushList()}
+    else{flushList();out.push("<p>"+inline(line)+"</p>")}
+  }
+  flushList();if(inTable)out.push("</table>");
+  return out.join("\n");
+}
+function openModal(markdown){$("#modal-body").innerHTML=md(markdown);$("#modal").classList.add("open")}
+function closeModal(){$("#modal").classList.remove("open")}
+$("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+
+/* ---------- routing ---------- */
+const PAGES=["home","intake","catalyst","agentflow","explorer","workflows","reference","playground","settings","admin","help","usage"];
+function route(){
+  let h=(location.hash||"#home").slice(1);
+  let sub=null;
+  if(h.startsWith("reference-")){sub=h.split("-")[1];h="reference"}
+  if(h.startsWith("settings-")){sub=h.split("-")[1];h="settings"}
+  if(!PAGES.includes(h))h="home";
+  PAGES.forEach(p=>$("#page-"+p).classList.toggle("visible",p===h));
+  $$("#sidebar a.nav").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#"+h));
+  if(h==="reference"&&sub)showRTab(sub==="mcp"?"mcp":sub);
+  if(h==="settings"&&sub==="catalyst")showSTab("cart");
+  if(h==="admin")loadAdmin();
+}
+window.addEventListener("hashchange",route);
+
+/* ---------- reference tabs ---------- */
+function showRTab(name){
+  ["skills","workflows","mcp","agents","catalog","experience","brain"].forEach(t=>{$("#rtab-"+t).style.display=t===name?"":"none"});
+  $$("[data-rtab]").forEach(b=>b.classList.toggle("on",b.dataset.rtab===name));
+}
+$$("[data-rtab]").forEach(b=>b.onclick=()=>showRTab(b.dataset.rtab));
+function showSTab(name){
+  ["conn","cart"].forEach(t=>{$("#stab-"+t).style.display=t===name?"":"none"});
+  $$("[data-stab]").forEach(b=>b.classList.toggle("on",b.dataset.stab===name));
+}
+$$("[data-stab]").forEach(b=>b.onclick=()=>showSTab(b.dataset.stab));
+$$("#pg-tabs button").forEach(b=>b.onclick=()=>{
+  $$("#pg-tabs button").forEach(x=>x.classList.toggle("on",x===b));
+  ["release","lint","advisor","apis","badis","brain"].forEach(t=>$("#pg-"+t).style.display=t===b.dataset.pg?"":"none");
+});
+
+/* ---------- data loads ---------- */
+let WORKFLOWS=[],SKILLS=[];
+async function boot(){
+  const s=await api("/api/summary");
+  $("#hero-stats").innerHTML=[["skills",s.skills],["workflows",s.workflows],["agents",s.agents],["mcp tools",s.tools],["lint rules",s.catalog.lint_rules],["lessons",s.experience||0]]
+    .map(([l,v])=>"<div><b>"+v+"</b><span>"+l+"</span></div>").join("");
+  renderModes();renderAgentflow();
+  const wf=await api("/api/workflows");WORKFLOWS=wf.workflows;renderWF("All");
+  const sk=await api("/api/skills");SKILLS=sk.skills;renderSkills();
+  renderRefWF();loadMCP();loadAgents();loadCatalogs();loadSettings();renderFAQ();loadRuns();loadInputs();loadJobs();loadExperience();loadUsage();
+}
+
+/* ---------- fd intake ---------- */
+let INPUTS=[];
+function _fdIsBtp(f){
+  // For FDs that have already been run: trust the pipeline's actual extensibility_mode decision
+  if(f.linked_runs&&f.linked_runs.length){
+    return f.linked_runs.some(function(rid){
+      var r=(RUNS||[]).find(function(x){return x.id===rid;});
+      return r&&(r.extensibility_mode||"").toLowerCase().includes("side");
+    });
+  }
+  // Fresh FD (no runs yet): only flag if the text explicitly describes a side-by-side need
+  // — avoids false positives from "BTP" or "CAP" appearing in any business context
+  return /side[- ]by[- ]side|Integration Suite|Cloud Foundry|SAP BTP/i.test(f.content||"");
+}
+async function loadInputs(){
+  const d=await api("/api/inputs");INPUTS=d.inputs||[];
+  const btpReady=_btpConns.some(c=>c.enabled);
+  $("#fd-list").innerHTML=INPUTS.map(f=>{
+    const isBtp=_fdIsBtp(f);
+    const hasRuns=!!(f.linked_runs&&f.linked_runs.length);
+    const btpTitle=hasRuns
+      ?(btpReady?"BTP solution — connection ready":"BTP solution — no BTP connection configured")
+      :"FD suggests BTP may be needed — will be confirmed by the pipeline";
+    const btpBadge=isBtp?"<span class='chip "+(btpReady?"green":"gray")+"' title='"+btpTitle+"' style='cursor:default'>BTP</span>":"";
+    return "<div class='card' style='padding:11px 14px;margin-bottom:8px'><b style='font-size:.82rem'>"+esc(f.title)+"</b>"+btpBadge+
+    "<p style='font-size:.72rem'><code>"+esc(f.path)+"</code> · "+f.size_kb+" KB</p>"+
+    "<div style='margin-top:7px;display:flex;gap:6px;flex-wrap:wrap'>"+
+    "<button class='btn' style='font-size:.7rem;padding:5px 12px' onclick='runPipeline(this,\""+esc(f.path)+"\")'>▶ Run pipeline</button>"+
+    "<button class='btn ghost' style='font-size:.7rem;padding:5px 10px' onclick='viewInput(\""+esc(f.file)+"\")'>View</button>"+
+    "<button class='btn ghost' style='font-size:.7rem;padding:5px 10px' onclick='copyCmd(this,\""+esc(f.path)+"\")'>Copy command (manual)</button>"+
+    f.linked_runs.map(id=>"<button class='btn ghost' style='font-size:.7rem;padding:5px 10px;color:var(--green)' onclick='location.hash=\"explorer\";pickRun(\""+esc(id)+"\")'>▶ run: "+esc(id)+"</button>").join("")+
+    "</div></div>";
+  }).join("")||"<p style='font-size:.78rem;color:var(--muted)'>No FDs queued yet.</p>";
+}
+function viewInput(file){const f=INPUTS.find(x=>x.file===file);if(f)openModal(f.content)}
+function copyCmd(btn,path){
+  const cmd="Run the s4pc-ricefw-pipeline on "+path+" — propose the clean-core solution (key user / developer / side-by-side or mixed) and stop at every human checkpoint for my decision.";
+  (navigator.clipboard?navigator.clipboard.writeText(cmd):Promise.reject()).then(()=>{btn.textContent="✓ Copied";setTimeout(()=>btn.textContent="Copy pipeline command",1600)}).catch(()=>prompt("Copy this command:",cmd));
+}
+let FD_BIN=null;   // staged binary upload {name,b64} for .docx/.pdf/.doc
+$("#fd-file").addEventListener("change",e=>{
+  const file=e.target.files[0];if(!file)return;
+  $("#fd-name").value=file.name;
+  const ext=(file.name.split(".").pop()||"").toLowerCase();
+  FD_BIN=null;
+  if(ext==="md"||ext==="txt"){                       // text: preview + edit in place
+    const rd=new FileReader();rd.onload=()=>{$("#fd-content").value=rd.result};rd.readAsText(file);
+  }else{                                             // binary: base64, extract on server
+    const rd=new FileReader();
+    rd.onload=()=>{
+      FD_BIN={name:file.name,b64:(rd.result.split(",",2)[1]||"")};
+      $("#fd-content").value="";
+      $("#fd-msg").innerHTML="📎 <b>"+esc(file.name)+"</b> ready ("+Math.round(file.size/1024)+" KB) — click <b>Save</b> to extract text & queue. (Or paste text to override.)";
+    };
+    rd.readAsDataURL(file);
+  }
+});
+async function uploadFD(){
+  const name=$("#fd-name").value.trim(),content=$("#fd-content").value;
+  if(FD_BIN&&!content.trim()){                        // send binary for server-side extraction
+    $("#fd-msg").textContent="Extracting text from "+FD_BIN.name+"…";
+    const r=await fetch("/api/fd-upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name||FD_BIN.name,data_b64:FD_BIN.b64})}).then(x=>x.json());
+    if(r.ok){$("#fd-msg").innerHTML="✓ Saved <code>"+esc(r.path)+"</code> — extracted <b>"+(r.chars||0)+"</b> chars"+(r.note?" <span style='color:var(--muted)'>("+esc(r.note)+")</span>":"")+". Run it from the queue →";FD_BIN=null;$("#fd-name").value="";$("#fd-content").value="";$("#fd-file").value="";loadInputs()}
+    else $("#fd-msg").textContent="✕ "+(r.error||"Extraction failed");
+    return;
+  }
+  if(!name||!content.trim()){$("#fd-msg").textContent="Provide a file name and FD content (or pick a .docx/.pdf/.txt file).";return}
+  const r=await fetch("/api/fd-upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,content})}).then(x=>x.json());
+  if(r.ok){$("#fd-msg").innerHTML="✓ Saved <code>"+esc(r.path)+"</code> — now run it from the queue or Claude Code.";$("#fd-name").value="";$("#fd-content").value="";$("#fd-file").value="";loadInputs()}
+  else $("#fd-msg").textContent="✕ "+(r.error||"Upload failed");
+}
+
+/* ---------- pipeline engine ---------- */
+let JOBS=[], LOG_POLLS={};
+async function runPipeline(btn,path){
+  btn.disabled=true;btn.textContent="Starting…";
+  const r=await fetch("/api/pipeline/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fd:path})}).then(x=>x.json());
+  btn.disabled=false;btn.textContent="▶ Run pipeline";
+  if(r.ok){
+    $("#fd-msg").innerHTML="✓ "+esc(r.message)+" — opening Workflow Explorer…";
+    loadJobs();
+    EX_FOLLOW=true;                 // auto-follow the run that is about to appear
+    EX_RUN=null;                    // don't stay pinned to a previous run
+    location.hash="explorer";       // jump the user straight to the live view
+    await loadRuns();               // refresh now; the 3s poll then auto-selects the new run
+  } else $("#fd-msg").innerHTML="✕ "+esc(r.error||"Failed to start");
+}
+async function loadJobs(){
+  const d=await api("/api/pipeline/jobs");JOBS=d.jobs||[];
+  $("#engine-status").innerHTML=d.engine?"<span class='chip green'>claude CLI found</span>":"<span class='chip amber'>claude CLI not found — use manual command</span>";
+  $("#jobs-list").innerHTML=JOBS.map(j=>{
+    const running=j.status==="running";
+    return "<div class='kv' style='flex-direction:column;align-items:flex-start;gap:4px'>"+
+    "<div style='display:flex;width:100%;justify-content:space-between;align-items:center'>"+
+    "<span>"+(running?"<span class='dot a'></span>":j.status==="done"?"<span class='dot g'></span>":"<span class='dot r'></span>")+
+    esc(j.kind)+" · "+esc(j.fd)+" <span style='color:var(--muted)'>("+esc(j.started.replace("T"," "))+")</span></span>"+
+    "<b style='display:flex;gap:8px;align-items:center'>"+esc(j.status)+
+    " <button class='btn ghost' style='font-size:.66rem;padding:3px 8px' onclick='toggleJobLog(\""+esc(j.job)+"\")'>View log</button></b></div>"+
+    "<pre id='log-"+esc(j.job)+"' style='display:none;max-height:280px;overflow-y:auto;width:100%;background:#14101f;color:#e8e3f5;border-radius:8px;padding:10px;font-size:.68rem;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;margin-top:4px'></pre>"+
+    "</div>";
+  }).join("")||"<p style='font-size:.78rem;color:var(--muted)'>No pipeline jobs yet this session.</p>";
+}
+function toggleJobLog(jobId){
+  const pre=document.getElementById("log-"+jobId);if(!pre)return;
+  const visible=pre.style.display!=="none";
+  pre.style.display=visible?"none":"";
+  if(!visible){
+    refreshJobLog(jobId);
+    const j=JOBS.find(x=>x.job===jobId);
+    if(j&&j.status==="running"&&!LOG_POLLS[jobId])
+      LOG_POLLS[jobId]=setInterval(()=>refreshJobLog(jobId),3000);
+  }else{
+    if(LOG_POLLS[jobId]){clearInterval(LOG_POLLS[jobId]);delete LOG_POLLS[jobId];}
+  }
+}
+async function refreshJobLog(jobId){
+  const pre=document.getElementById("log-"+jobId);
+  if(!pre||pre.style.display==="none")return;
+  try{
+    const r=await fetch("/api/pipeline/log/"+jobId);
+    if(r.ok){
+      const text=await r.text();
+      const atBottom=pre.scrollHeight-pre.scrollTop<=pre.clientHeight+30;
+      pre.textContent=text;
+      if(atBottom)pre.scrollTop=pre.scrollHeight;
+    }
+  }catch(e){}
+  const j=JOBS.find(x=>x.job===jobId);
+  if(j&&j.status!=="running"&&LOG_POLLS[jobId]){clearInterval(LOG_POLLS[jobId]);delete LOG_POLLS[jobId];}
+}
+function renderApproachOptions(approaches){
+  if(!approaches||!approaches.length)return"";
+  const cards=approaches.map(function(a){
+    const recBadge=a.recommended?"<span class='chip green' style='font-size:.6rem'>Recommended</span>":"";
+    const btpBadge=a.is_btp?"<span class='chip amber' style='font-size:.6rem'>BTP cost</span>":"<span class='chip' style='font-size:.6rem'>Included</span>";
+    const sbpaBadge=a.is_sbpa?"<span style='background:#6f42c1;color:#fff;border-radius:4px;padding:1px 7px;font-size:.65rem;font-weight:700;margin-left:4px'>SBPA</span>":"";
+    const modeBadge="<span class='chip' style='font-size:.6rem'>"+esc(a.mode||"")+"</span>";
+    const pros=(a.pros||[]).map(function(p){return"<li>"+esc(p)+"</li>"}).join("");
+    const cons=(a.cons||[]).map(function(c){return"<li style='color:var(--red)'>"+esc(c)+"</li>"}).join("");
+    const whyNot=a.why_not?"<p style='font-size:.72rem;color:var(--muted);margin-top:6px'><b>Why not recommended:</b> "+esc(a.why_not)+"</p>":"";
+    const checked=a.recommended?"checked":"";
+    return"<label style='display:block;cursor:pointer;border:2px solid "+(a.recommended?"#7c3aed":"#e2e8f0")+";border-radius:10px;padding:12px 14px;margin-bottom:8px;background:"+(a.recommended?"#f5f0ff":"#fff")+"'>"+
+      "<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px'>"+
+      "<input type='radio' name='approach-select' value='"+esc(a.id)+"' "+checked+" style='accent-color:#7c3aed'>"+
+      "<b style='font-size:.85rem;color:var(--ink)'>"+esc(a.label)+"</b>"+recBadge+modeBadge+btpBadge+sbpaBadge+
+      "</div>"+
+      "<p style='font-size:.76rem;color:var(--muted);margin-bottom:6px'>"+esc(a.summary||"")+"</p>"+
+      "<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.72rem'>"+
+      "<div><b style='color:var(--ink)'>Pros</b><ul style='margin:4px 0 0 14px;padding:0;color:var(--muted)'>"+pros+"</ul></div>"+
+      "<div><b style='color:var(--ink)'>Cons</b><ul style='margin:4px 0 0 14px;padding:0;color:var(--muted)'>"+cons+"</ul></div>"+
+      "</div>"+whyNot+
+      "</label>";
+  }).join("");
+  return"<div style='margin-bottom:14px'><p style='font-size:.8rem;font-weight:600;margin-bottom:8px;color:var(--ink)'>Select the approach to build:</p>"+cards+"</div>";
+}
+async function submitDecision(runId){
+  const cp=EX_RUN.checkpoint_request||{};
+  const decision=document.querySelector("input[name=cp-decision]:checked");
+  if(!decision){$("#cp-msg").textContent="Pick a decision.";return}
+  if(decision.value==="rejected"){showRevisePanel(runId,cp);return;}
+  const selApproach=document.querySelector("input[name=approach-select]:checked");
+  const selectedApproach=selApproach?selApproach.value:"";
+  if((cp.approach_options||[]).length&&!selectedApproach){$("#cp-msg").textContent="Please select an approach before approving.";return;}
+  $("#cp-msg").textContent="Recording decision + resuming pipeline…";
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,checkpoint:cp.checkpoint||"CP",decision:decision.value,notes:$("#cp-notes").value,selected_approach:selectedApproach})}).then(x=>x.json());
+  $("#cp-msg").textContent=r.ok?"✓ "+r.message:"✕ "+(r.error||"failed");
+  loadJobs();
+}
+function showRevisePanel(runId,cp){
+  const existing=document.getElementById("revise-panel");if(existing)existing.remove();
+  const notes=(document.getElementById("cp-notes")||{}).value||"";
+  const checkpoint=esc(cp.checkpoint||"CP");
+  const panel=document.createElement("div");panel.id="revise-panel";
+  panel.style.cssText="margin-top:12px;border:2px solid var(--red);border-radius:10px;padding:14px;background:#fdf2f2";
+  panel.innerHTML=
+    "<p style='font-size:.82rem;font-weight:600;margin-bottom:8px;color:var(--red)'>✕ Rejected — revise your notes and resume as an adjustment, or keep rejected.</p>"+
+    "<textarea id='revise-notes' style='min-height:80px;margin-bottom:10px'>"+esc(notes)+"</textarea>"+
+    "<div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap'>"+
+    "<button class='btn' onclick='submitRevise(\""+esc(runId)+"\",\""+checkpoint+"\")'>✎ Revise &amp; Resume</button>"+
+    "<button class='btn ghost' style='color:var(--red)' onclick='submitKeepRejected(\""+esc(runId)+"\",\""+checkpoint+"\")'>Keep rejected</button>"+
+    "<span id='revise-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  const cpMsg=document.getElementById("cp-msg");
+  if(cpMsg&&cpMsg.parentNode)cpMsg.parentNode.appendChild(panel);
+}
+async function submitRevise(runId,checkpoint){
+  const notes=(document.getElementById("revise-notes")||{}).value||"";
+  const msg=document.getElementById("revise-msg");if(msg)msg.textContent="Resuming as adjustment…";
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,checkpoint,decision:"adjusted",notes})}).then(x=>x.json());
+  if(msg)msg.textContent=r.ok?"✓ "+(r.message||"resumed"):"✕ "+(r.error||"failed");
+  loadJobs();
+}
+async function submitKeepRejected(runId,checkpoint){
+  const notes=(document.getElementById("revise-notes")||{}).value||"";
+  const msg=document.getElementById("revise-msg");if(msg)msg.textContent="Recording rejection…";
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,checkpoint,decision:"rejected",notes})}).then(x=>x.json());
+  if(msg)msg.textContent=r.ok?"✓ Rejection recorded.":"✕ "+(r.error||"failed");
+}
+function updateFindingsReview(){
+  // Only Critical and Major findings are mandatory — Minor/Info are advisory (optional).
+  var cp=(EX_RUN||{}).checkpoint_request||{};
+  var findings=cp.findings_review||[];
+  var allMandatoryDone=true;
+  var pendingList=[];
+  findings.forEach(function(f,fi){
+    var sev=(f.severity||"").toLowerCase();
+    var isMandatory=(sev==="critical"||sev==="major");
+    if(!isMandatory)return;
+    var sel=document.querySelector("input[name='fr-action-"+fi+"']:checked");
+    if(!sel){allMandatoryDone=false;pendingList.push(f.id||("F-"+(fi+1)));}
+  });
+  var btn=document.getElementById("fr-submit-btn");
+  var msg=document.getElementById("fr-validation-msg");
+  if(btn)btn.disabled=!allMandatoryDone;
+  if(msg){
+    msg.style.display=allMandatoryDone?"none":"";
+    if(!allMandatoryDone)msg.textContent="Action required for: "+pendingList.join(", ")+" (Critical and Major findings must be actioned before you can proceed).";
+  }
+}
+async function submitFindingsReview(runId,checkpoint){
+  var cp=(EX_RUN||{}).checkpoint_request||{};
+  var items=(cp.findings_review||[]).map(function(f,fi){
+    var sel=document.querySelector("input[name='fr-action-"+fi+"']:checked");
+    var notesEl=document.getElementById("fr-notes-"+fi);
+    return{id:f.id,action:sel?sel.value:null,notes:notesEl?notesEl.value:""};
+  });
+  var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Saving findings actions…";
+  await fetch("/api/pipeline/findings-review",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,findings:items})}).catch(function(){});
+  if(msg)msg.textContent="Recording decision + resuming pipeline…";
+  var notes=(document.getElementById("cp-notes")||{}).value||"";
+  var r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes})}).then(function(x){return x.json();});
+  if(msg)msg.textContent=r.ok?"✓ "+(r.message||"resumed"):"✕ "+(r.error||"failed");
+  loadJobs();
+}
+function checkpointHtml(r,cp){
+  const mat=cp.material?"<p style='font-size:.76rem;margin-bottom:8px'>Review material: <a onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(cp.material)+"\")'>"+esc(cp.material)+"</a></p>":"";
+  let h="<div class='card' style='border:2px solid var(--amber);background:#fffaf2;margin-bottom:18px'>"+
+    "<h3>✋ "+esc(cp.checkpoint||"Checkpoint")+" — your decision is needed</h3>"+
+    "<p style='margin:8px 0;color:var(--ink);font-size:.84rem'>"+esc(cp.summary||"")+"</p>"+mat;
+  if(Array.isArray(cp.code_files)&&cp.code_files.length){
+    h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>Review the built code — add a comment against any file you want changed (leave blank to accept), then choose your decision:</p>";
+    h+="<div style='display:flex;flex-direction:column;gap:10px;margin:8px 0'>";
+    cp.code_files.forEach(function(it){var idv=esc(it.id||"");
+      h+="<div style='border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px'>"+
+         "<div style='font-size:.82rem;font-weight:600'>"+esc(it.file||it.id||"")+"</div>"+
+         (it.summary?"<div style='font-size:.72rem;color:var(--muted);margin:2px 0 4px'>"+esc(it.summary)+"</div>":"")+
+         (it.material?"<div style='font-size:.72rem;margin:2px 0 6px'><a onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(it.material)+"\")'>open "+esc(it.material)+"</a></div>":"")+
+         "<textarea class='code-comment' data-id='"+idv+"' data-file='"+esc(it.file||idv)+"' oninput='updateCodeComments()' placeholder='Comment on this file (optional)' style='min-height:38px;font-size:.8rem'>"+esc(it.comment||"")+"</textarea>"+
+         "</div>";});
+    h+="</div>";
+    h+="<div style='display:flex;gap:16px;margin:6px 0;font-size:.84rem'>"+
+       "<label><input type='radio' name='cp-decision' value='approved' checked> ✓ Approve code as-is</label>"+
+       "<label><input type='radio' name='cp-decision' value='adjusted'> ✎ Request changes</label>"+
+       "<label><input type='radio' name='cp-decision' value='rejected'> ✕ Reject</label></div>";
+    h+="<textarea id='cp-notes' style='min-height:40px' placeholder='Overall notes (optional)'></textarea>";
+    h+="<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
+       "<button class='btn' onclick='submitCodeReview(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP2")+"\")'>Submit review &amp; resume</button>"+
+       "<span id='code-count' style='font-size:.78rem;color:var(--muted)'></span>"+
+       "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  }else if(Array.isArray(cp.naming_contract)&&cp.naming_contract.length){
+    h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>Confirm the exact technical name for each custom object — edit to match your tenant conventions, Build uses these verbatim:</p>";
+    h+="<div style='display:flex;flex-direction:column;gap:8px;margin:8px 0'>";
+    cp.naming_contract.forEach(function(it){var idv=esc(it.id||"");
+      h+="<div style='display:flex;gap:10px;align-items:center'>"+
+         "<div style='flex:1;min-width:0'><div style='font-size:.82rem'>"+esc(it.object||"")+"</div>"+
+         "<div style='font-size:.72rem;color:var(--muted)'>"+esc(it.type||"")+(it.created_in?" · "+esc(it.created_in):"")+"</div></div>"+
+         "<input class='name-item' data-id='"+idv+"' value='"+esc(it.name||"")+"' oninput='updateNaming()' spellcheck='false' style='width:220px;font-family:monospace;font-size:.8rem'>"+
+         "<span class='name-ok' id='nok-"+idv+"' style='width:14px;font-weight:700'></span></div>";});
+    h+="</div>";
+    h+="<p style='font-size:.72rem;color:var(--muted);margin:2px 0 6px'>Key-user field names are the <em>intended</em> name — the actual value is verified in <code>$metadata</code> at the step 13 prerequisite check. Use a <code>Z…</code>, <code>Y…</code> or <code>YY1_</code> prefix, no spaces.</p>";
+    h+="<textarea id='cp-notes' style='min-height:44px' placeholder='Optional notes'></textarea>";
+    h+="<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
+       "<button class='btn' onclick='submitNaming(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP")+"\")'>Approve &amp; lock names</button>"+
+       "<span id='naming-count' style='font-size:.78rem;color:var(--muted)'></span>"+
+       "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  }else if(Array.isArray(cp.checklist)&&cp.checklist.length){
+    h+="<p style='font-size:.8rem;font-weight:600;margin:6px 0'>Tick each in-tenant prerequisite you have deployed &amp; activated — the deploy stays blocked until every item is checked:</p>";
+    h+="<div style='display:flex;flex-direction:column;gap:6px;margin:8px 0;font-size:.82rem'>";
+    cp.checklist.forEach(function(item,idx){var lbl=(typeof item==='string')?item:(item.label||item.id||JSON.stringify(item));
+      var chk=(cp.checked&&cp.checked[idx])?" checked":"";
+      h+="<label style='display:flex;gap:8px;align-items:flex-start'><input type='checkbox' class='prereq-item'"+chk+" onchange='updatePrereqBtn()'><span>"+esc(lbl)+"</span></label>";});
+    h+="</div>";
+    h+="<textarea id='cp-notes' style='min-height:44px' placeholder='Optional notes'></textarea>";
+    h+="<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
+       "<button class='btn' id='prereq-btn' onclick='submitChecklist(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP")+"\")'>Approve &amp; deploy</button>"+
+       "<span id='prereq-count' style='font-size:.78rem;color:var(--muted)'></span>"+
+       "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  }else if(Array.isArray(cp.findings_review)&&cp.findings_review.length){
+    var mandatoryCount=cp.findings_review.filter(function(f){var s=(f.severity||"").toLowerCase();return s==="critical"||s==="major";}).length;
+    var advisoryCount=cp.findings_review.length-mandatoryCount;
+    h+="<div style='background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:.8rem;color:var(--ink)'>"+
+       "<b>Action required before pipeline can continue.</b><br>"+
+       "<span style='color:#721c24'>Critical and Major findings ("+mandatoryCount+") must each have a decision — fix or accept.</span>"+
+       (advisoryCount?" Minor findings ("+advisoryCount+") are advisory — no action required.":"")+
+       "</div>";
+    h+="<div style='display:flex;flex-direction:column;gap:10px;margin:8px 0'>";
+    cp.findings_review.forEach(function(f,fi){
+      var sev=(f.severity||"");
+      var sevLow=sev.toLowerCase();
+      var isMandatory=(sevLow==="critical"||sevLow==="major");
+      var sevBg=sevLow==="critical"?"#dc3545":sevLow==="major"?"#fd7e14":"#adb5bd";
+      var sevTextCol=sevLow==="critical"?"#fff":"#000";
+      var borderCol=isMandatory?"#dc3545":"#dee2e6";
+      var fixChk=(f.action==="fix")?" checked":"";
+      var accChk=(f.action==="accept")?" checked":"";
+      var requiredLabel=isMandatory?"<span style='color:#dc3545;font-size:.68rem;font-weight:700;margin-left:6px'>ACTION REQUIRED</span>":"<span style='color:#6c757d;font-size:.68rem;margin-left:6px'>advisory</span>";
+      h+="<div style='border:1.5px solid "+borderCol+";border-radius:9px;padding:12px 14px;background:#fff'>"+
+         "<div style='display:flex;gap:8px;align-items:center;margin-bottom:8px'>"+
+         "<span style='background:"+sevBg+";color:"+sevTextCol+";border-radius:6px;padding:2px 8px;font-size:.68rem;font-weight:700'>"+esc(sev||"")+"</span>"+
+         "<b style='font-size:.82rem'>"+esc(f.id||("F-"+(fi+1)))+"</b>"+requiredLabel+"</div>"+
+         "<p style='font-size:.78rem;margin-bottom:6px'><b>What is wrong:</b> "+esc(f.what_is_wrong||"")+"</p>"+
+         "<p style='font-size:.78rem;margin-bottom:6px'><b>What you need to do:</b> "+esc(f.what_to_do||"")+"</p>"+
+         "<p style='font-size:.78rem;margin-bottom:8px'><b>How to verify:</b> "+esc(f.how_to_verify||"")+"</p>"+
+         "<div style='display:flex;gap:14px;font-size:.78rem;margin-bottom:6px;flex-wrap:wrap'>"+
+         "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='fr-action-"+fi+"' value='fix' onchange='updateFindingsReview()'"+fixChk+"> I will fix this before shipping</label>"+
+         "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='fr-action-"+fi+"' value='accept' onchange='updateFindingsReview()'"+accChk+">"+(isMandatory?"I accept this risk (add justification below)":"I accept / no action needed")+"</label>"+
+         "</div>"+
+         "<input type='text' id='fr-notes-"+fi+"' placeholder='"+(isMandatory?"Justification required if accepting risk":"Notes (optional)")+"' style='font-size:.78rem;padding:5px 8px;width:100%' value='"+esc(f.notes||"")+"'>"+
+         "</div>";
+    });
+    h+="</div>";
+    h+="<p id='fr-validation-msg' style='font-size:.72rem;color:#dc3545;font-weight:600;margin:6px 0'></p>"+
+       "<textarea id='cp-notes' style='min-height:44px' placeholder='Overall notes (optional)'></textarea>"+
+       "<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
+       "<button class='btn' id='fr-submit-btn' onclick='submitFindingsReview(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP3")+"\")' disabled>Submit findings review &amp; resume pipeline</button>"+
+       "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  }else{
+    h+="<div style='display:flex;gap:16px;margin:10px 0;font-size:.84rem'>"+
+       "<label><input type='radio' name='cp-decision' value='approved'> ✓ Approve</label>"+
+       "<label><input type='radio' name='cp-decision' value='adjusted'> ✎ Adjust (explain in notes)</label>"+
+       "<label><input type='radio' name='cp-decision' value='rejected'> ✕ Reject</label></div>"+
+       renderApproachOptions(cp.approach_options)+
+       "<textarea id='cp-notes' style='min-height:60px' placeholder='Notes — required for adjust/reject; e.g. change capability 2 to developer extensibility'></textarea>"+
+       "<div style='margin-top:10px;display:flex;gap:10px;align-items:center'><button class='btn' onclick='submitDecision(\""+esc(r.id)+"\")'>Submit decision & resume pipeline</button><span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  }
+  return h+"</div>";
+}
+function updateCodeComments(){
+  var items=Array.prototype.slice.call(document.querySelectorAll(".code-comment"));
+  var n=0,comments={};
+  items.forEach(function(x){var v=(x.value||"").trim();if(v)n++;comments[x.dataset.id]=x.value;});
+  var cnt=document.getElementById("code-count");
+  if(cnt)cnt.textContent=n?(n+" file(s) commented"):"no comments — approve to accept as-is";
+  var rej=document.querySelector("input[name=cp-decision][value=rejected]");
+  if(n&&!(rej&&rej.checked)){var a=document.querySelector("input[name=cp-decision][value=adjusted]");if(a)a.checked=true;}
+  if(EX_RUN){
+    if(EX_RUN.checkpoint_request&&Array.isArray(EX_RUN.checkpoint_request.code_files))
+      EX_RUN.checkpoint_request.code_files.forEach(function(it){if(comments[it.id]!=null)it.comment=comments[it.id];});
+    fetch("/api/pipeline/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,comments:comments})}).catch(function(){});
+  }
+}
+async function submitCodeReview(runId,checkpoint){
+  var items=Array.prototype.slice.call(document.querySelectorAll(".code-comment"));
+  var comments={},lines=[];
+  items.forEach(function(x){var v=(x.value||"").trim();comments[x.dataset.id]=x.value;if(v)lines.push("- "+(x.dataset.file||x.dataset.id)+": "+v);});
+  var dec=(document.querySelector("input[name=cp-decision]:checked")||{}).value||"approved";
+  var overall=((document.getElementById("cp-notes")||{}).value||"").trim();
+  if(dec==="adjusted"&&!lines.length){alert("Add a comment on at least one file to request changes (or choose Approve).");return;}
+  if(dec==="rejected"&&!overall&&!lines.length){alert("Add a note or a file comment explaining the rejection.");return;}
+  var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Recording review + resuming…";
+  await fetch("/api/pipeline/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,comments:comments})}).catch(function(){});
+  var notes=(dec==="adjusted")?("Code review — changes requested:\n"+lines.join("\n")):(dec==="rejected"?"Code review — rejected.":"Code review — approved as-is."+(lines.length?"\nMinor comments:\n"+lines.join("\n"):""));
+  if(overall)notes+="\nOverall: "+overall;
+  const rr=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:dec,notes:notes})}).then(x=>x.json());
+  if(msg)msg.textContent=rr.ok?"✓ "+(rr.message||"recorded"):"✕ "+(rr.error||"failed");
+  loadJobs();
+}
+function _nameOk(v){return /^(YY1_|[ZY])[A-Za-z0-9_]{2,}$/.test((v||"").trim());}
+function updateNaming(){
+  var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
+  var valid=0,names={};
+  items.forEach(function(x){var ok=_nameOk(x.value);if(ok)valid++;names[x.dataset.id]=x.value;
+    var sp=document.getElementById("nok-"+x.dataset.id);
+    if(sp){sp.textContent=ok?"✓":"⚠";sp.style.color=ok?"var(--green)":"var(--amber)";}});
+  var cnt=document.getElementById("naming-count");
+  if(cnt)cnt.textContent=valid+" / "+items.length+" names valid";
+  if(EX_RUN){
+    if(EX_RUN.checkpoint_request&&Array.isArray(EX_RUN.checkpoint_request.naming_contract))
+      EX_RUN.checkpoint_request.naming_contract.forEach(function(it){if(names[it.id]!=null)it.name=names[it.id];});
+    fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,names:names})});
+  }
+}
+async function submitNaming(runId,checkpoint){
+  var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
+  var bad=items.filter(function(x){return !_nameOk(x.value);}).length;
+  if(bad){alert("Complete the object names first to proceed — "+bad+" still need a valid namespaced name (Z…, Y… or YY1_ prefix, no spaces).");return;}
+  var names={};items.forEach(function(x){names[x.dataset.id]=x.value;});
+  var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Locking names + resuming…";
+  await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,names:names})});
+  var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes})}).then(x=>x.json());
+  if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");
+  loadJobs();
+}
+function updatePrereqBtn(){
+  var items=Array.prototype.slice.call(document.querySelectorAll(".prereq-item"));
+  var done=items.filter(function(x){return x.checked;}).length;
+  var cnt=document.getElementById("prereq-count");
+  if(cnt)cnt.textContent=done+" / "+items.length+" confirmed";
+  var state=items.map(function(x){return x.checked;});
+  if(EX_RUN){
+    if(EX_RUN.checkpoint_request)EX_RUN.checkpoint_request.checked=state;   // keep local copy in sync so the poll never wipes ticks
+    fetch("/api/pipeline/checklist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,checked:state})});
+  }
+}
+async function submitChecklist(runId,checkpoint){
+  var items=Array.prototype.slice.call(document.querySelectorAll(".prereq-item"));
+  var done=items.filter(function(x){return x.checked;}).length;
+  if(done<items.length){
+    alert("Complete the pre-req checklist first to proceed — "+(items.length-done)+" item(s) still unchecked.");
+    return;
+  }
+  var msg=document.getElementById("cp-msg"); if(msg)msg.textContent="Recording approval + resuming…";
+  var notesEl=document.getElementById("cp-notes");
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",checklist_confirmed:true,
+      notes:(notesEl&&notesEl.value)?notesEl.value:("All "+items.length+" BTP prerequisites confirmed deployed & active.")})}).then(x=>x.json());
+  if(msg)msg.textContent=r.ok?"✓ "+r.message:"✕ "+(r.error||"failed");
+  loadJobs();
+}
+const LIVE_STATES=["running","in_progress","awaiting_approval"];
+function activeRun(){
+  const run=RUNS.filter(r=>r.status==="running"||r.status==="in_progress");
+  if(run.length)return run[run.length-1];
+  const aw=RUNS.filter(r=>r.status==="awaiting_approval");
+  return aw.length?aw[aw.length-1]:null;
+}
+// Live poll: always refresh jobs+runs from the server (localhost, cheap) so newly
+// started runs are discovered even if this tab was open before they appeared.
+// (Previous versions gated on the STALE in-memory lists and could get stuck.)
+setInterval(async()=>{
+  if(document.hidden)return;                     // don't poll a backgrounded tab
+  let d;
+  try{ await loadJobs(); d=await api("/api/runs"); }catch(e){ return; }
+  RUNS=d.runs||[];
+  const active=activeRun();
+  if(EX_FOLLOW&&active&&(!EX_RUN||EX_RUN.id!==active.id)){selectRun(active.id);loadInputs();return}
+  if(EX_RUN){const cur=RUNS.find(r=>r.id===EX_RUN.id);if(cur&&JSON.stringify(cur)!==JSON.stringify(EX_RUN)){selectRun(cur.id);loadInputs();return}}
+  renderRunChips();
+},3000);
+
+/* ---------- workflow explorer ---------- */
+let RUNS=[],EX_RUN=null,EX_SEV="All",EX_FOLLOW=true;
+function pickRun(id){EX_FOLLOW=false;EX_SEV="All";selectRun(id)}
+function gateStyle(st){                                  // map the pipeline's gate-verdict vocabulary → colour/icon
+  const s=(st==null?"":String(st)).toUpperCase();
+  if(["PASS","PASSED","SHIP","OK","GREEN","APPROVED","ACCEPTED"].includes(s))return{c:"var(--green)",i:"✓"};
+  if(["CONDITIONAL_PASS","CONDITIONAL","PASS_WITH_CONDITIONS","WARN","WARNING"].includes(s))return{c:"var(--amber)",i:"✓"};
+  if(["FAIL","FAILED","FIX","REDESIGN","BLOCKED","REJECT","REJECTED"].includes(s))return{c:"var(--red)",i:"✕"};
+  return{c:"var(--muted)",i:"•"};                        // unknown/neutral — never a false red ✕
+}
+function currentStepIndex(r){
+  const steps=r.steps||[];
+  const explicit=steps.findIndex(s=>s.status==="RUNNING"||s.status==="AWAITING_APPROVAL");
+  if(explicit>=0)return explicit;
+  if(r.status==="running"||r.status==="in_progress")
+    return steps.findIndex(s=>!["PASS","FAIL","SKIP","SKIPPED","DONE"].includes(s.status));
+  return -1;
+}
+/* ── BTP async deploy panel ── */
+var BTP_DEPLOY_JOB=null, BTP_DEPLOY_POLL=null;
+function renderBtpDeployPanel(r){
+  const el=$("#btp-deploy-panel");if(!el)return;
+  const isBtp=(r.extensibility_mode||"").includes("side");
+  if(!isBtp){el.style.display="none";BTP_DEPLOY_JOB=null;return;}
+  el.style.display="";
+  if(BTP_DEPLOY_JOB)return;  // already has a job — let btpDeployPoll manage the UI
+  el.innerHTML="<div style='border:1.5px solid #7c3aed;border-radius:10px;padding:12px 16px;background:#f5f0ff'>"+
+    "<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap'>"+
+    "<span style='font-size:.85rem;font-weight:700;color:#4c1d95'>BTP Cloud Foundry deploy</span>"+
+    "<button class='btn' style='font-size:.78rem;padding:5px 14px;background:#7c3aed;border-color:#7c3aed' "+
+    "onclick='btpStartDeploy(\""+esc(r.id)+"\",this)'>Deploy to BTP</button>"+
+    "<span id='btp-dp-msg' style='font-size:.75rem;color:var(--muted)'>Uses the enabled connection — skips mbt build if .mtar is &lt; 2 h old.</span>"+
+    "</div></div>";
+}
+async function btpStartDeploy(runId,btn,forceRebuild){
+  if(btn){btn.disabled=true;btn.textContent=forceRebuild?"Rebuilding…":"Starting…"}
+  const r=await fetch("/api/btp/run-deploy",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,force_rebuild:!!forceRebuild})}).then(x=>x.json()).catch(e=>({error:e.message}));
+  if(btn){btn.disabled=false;btn.textContent=forceRebuild?"Force rebuild & redeploy":"Deploy to BTP"}
+  if(r.error){alert("Deploy error: "+r.error);return;}
+  BTP_DEPLOY_JOB=r.job;
+  btpRenderProgress({status:"running",steps:[],skipped_build:r.skipped_build,target:r.target||{}});
+  if(BTP_DEPLOY_POLL)clearInterval(BTP_DEPLOY_POLL);
+  BTP_DEPLOY_POLL=setInterval(()=>btpDeployPoll(r.job),4000);
+}
+async function btpDeployPoll(jobId){
+  const r=await fetch("/api/btp/deploy-status?job="+encodeURIComponent(jobId)).then(x=>x.json()).catch(()=>null);
+  if(!r)return;
+  btpRenderProgress(r);
+  if(r.status==="done"){clearInterval(BTP_DEPLOY_POLL);BTP_DEPLOY_POLL=null;}
+}
+function btpRenderProgress(j){
+  const el=$("#btp-deploy-panel");if(!el)return;
+  const done=j.status==="done";
+  const ok=j.ok===true;
+  const headerColor=done?(ok?"#0f9d58":"#c5221f"):"#4c1d95";
+  const headerBg=done?(ok?"#e6f4ea":"#fce8e6"):"#f5f0ff";
+  const headerBorder=done?(ok?"#0f9d58":"#c5221f"):"#7c3aed";
+  const icon=done?(ok?"✓":"✕"):"⏳";
+  const label=done?(ok?"Deploy complete":"Deploy failed"):"Deploying…";
+  const tgt=j.target||{};
+  const tgtStr=tgt.org?"→ "+tgt.org+" / "+tgt.space:"";
+  const skip=j.skipped_build?"<span style='font-size:.7rem;color:#6b7280;margin-left:8px'>build skipped (fresh .mtar reused)</span>":"";
+  const authBadge=j.auth_mode==="passcode"?"<span style='font-size:.65rem;background:#d1fae5;color:#065f46;border-radius:4px;padding:1px 6px;margin-left:6px'>🔑 SSO passcode</span>":j.auth_mode==="token"?"<span style='font-size:.65rem;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;margin-left:6px'>⚠ bearer token (no refresh)</span>":"";
+  let stepsHtml="";
+  if((j.steps||[]).length){
+    stepsHtml="<div style='margin-top:10px;font-family:monospace;font-size:.73rem;background:#1e1e2e;color:#cdd6f4;border-radius:8px;padding:10px 12px;max-height:260px;overflow-y:auto'>";
+    j.steps.forEach(function(s){
+      var icon2=s.code===0?"<span style='color:#a6e3a1'>✓</span>":s.code===-1?"<span style='color:#fab387'>⏱</span>":"<span style='color:#f38ba8'>✕</span>";
+      stepsHtml+=icon2+" <b>"+esc(s.cmd)+"</b>";
+      if(s.out)stepsHtml+="<br><span style='color:#a6adc8;white-space:pre-wrap'>"+esc(s.out.slice(-600))+"</span>";
+      if(s.err&&s.err!=="timed out")stepsHtml+="<br><span style='color:#f38ba8;white-space:pre-wrap'>"+esc(s.err.slice(-300))+"</span>";
+      stepsHtml+="<br>";
+    });
+    if(!done)stepsHtml+="<span style='color:#cba6f7;animation:blink 1s step-end infinite'>▮</span>";
+    stepsHtml+="</div>";
+  }
+  var errHtml=j.error?"<p style='font-size:.78rem;color:#dc2626;margin-top:6px'>"+esc(j.error)+"</p>":"";
+  var mtar=j.mtar?"<span style='font-size:.7rem;color:#6b7280;margin-left:8px'>"+esc(j.mtar)+"</span>":"";
+  var resetBtn=done?"<button class='btn ghost' style='font-size:.75rem;margin-top:8px' onclick='BTP_DEPLOY_JOB=null;renderBtpDeployPanel(EX_RUN)'>Deploy again</button>":"";
+  var forceBtn=done&&!ok?"<button class='btn' style='font-size:.75rem;margin-top:8px;margin-left:6px;background:#dc2626;border-color:#dc2626' onclick='btpStartDeploy(\""+esc(EX_RUN.id)+"\",this,true)'>Force rebuild &amp; redeploy</button>":"";
+  var logsBtn=done?"<button class='btn ghost' style='font-size:.75rem;margin-top:8px;margin-left:6px' onclick='btpGetLogs(\""+esc(EX_RUN.id)+"\",this)'>Get app logs</button>":"";
+  var btns=done?resetBtn+forceBtn+logsBtn:"";
+  el.innerHTML="<div style='border:1.5px solid "+headerBorder+";border-radius:10px;padding:12px 16px;background:"+headerBg+"'>"+
+    "<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap'>"+
+    "<span style='font-size:.9rem;font-weight:700;color:"+headerColor+"'>"+icon+" "+label+"</span>"+
+    "<span style='font-size:.75rem;color:#6b7280'>"+esc(tgtStr)+"</span>"+mtar+skip+authBadge+
+    (j.started?"<span style='font-size:.7rem;color:#6b7280;margin-left:auto'>"+esc(j.started)+(j.finished?" → "+esc(j.finished):"")+"</span>":"")+
+    "</div>"+errHtml+stepsHtml+btns+"</div>";
+}
+async function btpGetLogs(runId,btn){
+  if(btn){btn.disabled=true;btn.textContent="Fetching logs…"}
+  const r=await fetch("/api/btp/cf-logs?run="+encodeURIComponent(runId)+"&app=po-viewer-srv")
+    .then(x=>x.json()).catch(e=>({error:e.message}));
+  if(btn){btn.disabled=false;btn.textContent="Get app logs"}
+  if(r.error){alert("Log fetch error: "+r.error);return;}
+  openModal("# CF App Logs — po-viewer-srv\n\n```\n"+(r.out||"(no output)")+(r.err?"\n\n--- stderr ---\n"+r.err:"")+"\n```");
+}
+function renderLive(r,curIdx){
+  const el=$("#ex-live");if(!el)return;
+  const t=new Date().toLocaleTimeString();
+  const follow="<button class='btn ghost' style='font-size:.68rem;padding:3px 9px;margin-left:8px' onclick='"+(EX_FOLLOW?"EX_FOLLOW=false;selectRun(EX_RUN.id)":"EX_FOLLOW=true;selectRun((activeRun()||EX_RUN).id)")+"'>"+(EX_FOLLOW?"📌 pin this view":"▶ resume live-follow")+"</button>";
+  const s=(r.steps||[])[curIdx];let html="",border="var(--line)",bg="#fff";
+  if((r.status==="running"||r.status==="in_progress")&&s){
+    border="var(--blue)";bg="#eff6ff";
+    html="<span class='s4pc-dot'></span><b style='color:var(--blue)'>LIVE</b> — Step "+s.n+" · <b>"+esc(s.name)+"</b> — agent <b>"+esc(s.agent||"?")+"</b> is executing…<span style='color:var(--muted);font-size:.72rem'> · updated "+t+" · auto-refresh 3s</span>"+follow;
+  }else if(r.status==="awaiting_approval"){
+    border="var(--amber)";bg="#fffaf2";
+    html="<b style='color:var(--amber)'>⏸ PAUSED</b> — checkpoint reached; your decision is needed below.<span style='color:var(--muted);font-size:.72rem'> · updated "+t+"</span>"+follow;
+  }else if(r.status==="completed"){
+    border="var(--green)";bg="#f2fbf5";
+    const done=(r.steps||[]).filter(x=>["PASS","SKIP","SKIPPED","DONE"].includes(x.status)).length,tot=(r.steps||[]).length;
+    html="<b style='color:var(--green)'>✓ COMPLETED</b> — "+done+"/"+tot+" steps passed"+(r.quality_score!=null?", quality "+r.quality_score+"/100":"")+"."+follow;
+  }else if(r.status==="failed"||(r.steps||[]).some(x=>x.status==="FAIL")){
+    const f=(r.steps||[]).find(x=>x.status==="FAIL");border="var(--red)";bg="#fdf2f2";
+    html="<b style='color:var(--red)'>✕ HALTED</b>"+(f?" at Step "+f.n+" · "+esc(f.name)+" — agent "+esc(f.agent||""):"")+". See findings below."+follow;
+  }else{el.style.display="none";return;}
+  el.style.display="";
+  el.innerHTML="<div style='border:1.5px solid "+border+";background:"+bg+";border-radius:10px;padding:10px 14px;font-size:.82rem'>"+html+"</div>";
+}
+function showStep(i){
+  if(!EX_RUN)return;
+  const s=(EX_RUN.steps||[])[i];if(!s)return;
+  const isHuman=(s.agent||"").toLowerCase()==="human"||/checkpoint/i.test(s.name||"");
+  let m="# Step "+s.n+" · "+s.name+"\n\n";
+  m+="- **Agent:** "+(s.agent||"—")+"\n";
+  m+="- **Status:** "+s.status+(s.iterations>1?"  ("+s.iterations+" iterations)":"")+"\n";
+  if(s.gate)m+="- **Type:** Quality gate — the run cannot pass unless this gate is green\n";
+  if(isHuman)m+="- **Type:** ✋ Human-in-the-loop checkpoint — a developer decision is required here\n";
+  if(s.score!=null&&s.score!=="")m+="- **Score:** "+s.score+"\n";
+  m+="\n## Details\n\n"+((s.detail&&s.detail.trim())?s.detail:"_No details recorded for this step yet — they appear here once the agent runs the step._")+"\n";
+  if(s.status==="AWAITING_APPROVAL")m+="\n> ✋ **This checkpoint is waiting for your decision.** Use the approval panel at the top of the run (Approve / Adjust / Reject) to resume the pipeline.";
+  if(s.status==="PENDING")m+="\n> This step has not started yet. It runs automatically once the previous steps (and any checkpoints) are cleared.";
+  openModal(m);
+}
+function canonWf(label){ // mirror app.py _canon_workflow — collapse free-text pipeline labels to one canonical string per variant
+  var s=(label||"").trim(); if(!s)return "RICEFW Pipeline (12 steps)";
+  var low=s.toLowerCase();
+  if(low.indexOf("ricefw")>-1||low.indexOf("pipeline")>-1)
+    return (low.indexOf("btp")>-1||low.indexOf("deploy")>-1)?"RICEFW Pipeline (14 steps, incl. BTP deploy)":"RICEFW Pipeline (12 steps)";
+  return s;
+}
+async function loadRuns(){
+  const d=await api("/api/runs");RUNS=d.runs||[];
+  const types=["RICEFW Pipeline (12 steps)"];
+  RUNS.forEach(r=>{const w=canonWf(r.workflow);if(w&&!types.includes(w))types.push(w)});
+  const curType=$("#ex-type").value;          // preserve user's current selection across refreshes
+  const active=activeRun();
+  const preferType=active?canonWf(active.workflow):null;
+  $("#ex-type").innerHTML=types.map(t=>"<option>"+esc(t)+"</option>").join("");
+  // priority: keep user's selection if still valid > active run's type > first type
+  if(curType&&types.includes(curType))$("#ex-type").value=curType;
+  else if(preferType&&types.includes(preferType))$("#ex-type").value=preferType;
+  renderRunChips();
+}
+function runsOfType(){const t=$("#ex-type").value;return RUNS.filter(r=>canonWf(r.workflow)===t)}
+function renderRunChips(){
+  const list=runsOfType();
+  $("#ex-type-hint").textContent=list.length? list.length+" run(s) found in output/":"no runs of this type yet";
+  $("#ex-chips").innerHTML=list.map(r=>"<button class='btn ghost' style='font-size:.75rem;padding:6px 12px;margin:2px'"+(EX_RUN&&EX_RUN.id===r.id?" disabled":"")+" onclick='pickRun(\""+esc(r.id)+"\")'>"+
+    (r.bundled_example?"◈ ":"● ")+esc(r.id)+"</button>").join("")||"<span style='font-size:.78rem;color:var(--muted)'>none yet — run the pipeline in Claude Code</span>";
+  const first=list[0];
+  if(first&&(!EX_RUN||!list.some(r=>r.id===EX_RUN.id)))selectRun(first.id);
+  if(!first){EX_RUN=null;$("#ex-dash").style.display="none";$("#ex-empty").style.display=""}
+}
+function selectRun(id){
+  EX_RUN=RUNS.find(r=>r.id===id);if(!EX_RUN)return;
+  $("#ex-empty").style.display="none";$("#ex-dash").style.display="";
+  const r=EX_RUN;
+  {const w=canonWf(r.workflow);if([...$("#ex-type").options].some(o=>o.value===w))$("#ex-type").value=w;}
+  $("#ex-run-title").textContent=r.id+" — "+(r.title||"");
+  $("#ex-run-chips").innerHTML="<span class='chip purple'>"+esc(r.type||"")+"</span>"+
+    "<span class='chip "+(r.status==="completed"?"green":r.status==="awaiting_approval"?"amber":"blue")+"'>"+esc((r.status||"").replace("_"," "))+"</span>"+
+    (r.extensibility_mode?"<span class='chip blue'>"+esc(r.extensibility_mode)+"</span>":"")+
+    (r.fd_source?"<span class='chip gray'>FD: "+esc(r.fd_source)+"</span>":"")+
+    (r.bundled_example?"<span class='chip amber'>bundled example</span>":"")+
+    "<span class='chip gray'>"+(r.files||[]).length+" files</span>"+
+    (r.version>1?"<span class='chip purple'>v"+r.version+"</span>":"")+
+    (r.previous_run?"<span class='chip gray' style='cursor:pointer' onclick='pickRun(\""+esc(r.previous_run)+"\")' title='Open the previous version of this run'>↩ previous: "+esc(r.previous_run)+"</span>":"");
+  let cp=r.checkpoint_request;
+  if(r.status==="awaiting_approval"&&!cp){                 // fallback: never leave an awaiting step unactionable
+    const aw=(r.steps||[]).find(s=>s.status==="AWAITING_APPROVAL");
+    if(aw)cp={checkpoint:aw.name,summary:"This step is awaiting your decision."};
+  }
+  const cpActive=(r.status==="awaiting_approval"&&cp);
+  $("#ex-checkpoint").innerHTML=cpActive?checkpointHtml(r,cp):"";
+  if(cpActive&&Array.isArray(cp.checklist)&&cp.checklist.length)updatePrereqBtn();
+  if(cpActive&&cp&&Array.isArray(cp.naming_contract)&&cp.naming_contract.length)updateNaming();
+  if(cpActive&&cp&&Array.isArray(cp.code_files)&&cp.code_files.length)updateCodeComments();
+  if(cpActive&&cp&&Array.isArray(cp.findings_review)&&cp.findings_review.length)updateFindingsReview();
+  const open=(r.findings||[]).map(normalizeFinding).filter(f=>f.status==="Open").length;
+  $("#ex-stats").innerHTML=[
+    ["Quality Score",(r.quality_score!=null?r.quality_score+"/100":"—"),r.quality_score>=90?"var(--green)":r.quality_score>=75?"var(--amber)":"var(--red)"],
+    ["Gates Passed",r.gates_passed||"—","var(--purple-dark)"],
+    ["Auto-Corrections",r.auto_corrections!=null?r.auto_corrections:"—","var(--purple-dark)"],
+    ["Findings",(r.findings||[]).length+" ("+((r.findings||[]).length-open)+" resolved)","var(--purple-dark)"]]
+    .map(([l,v,c])=>"<div class='card stat'><span class='num' style='color:"+c+"'>"+esc(String(v))+"</span><span class='lbl'>"+l+"</span></div>").join("");
+  const curIdx=currentStepIndex(r);
+  $("#ex-steps").innerHTML=(r.steps||[]).map((s,i)=>{
+    const isHuman=(s.agent||"").toLowerCase()==="human"||/checkpoint/i.test(s.name||"");
+    const awaiting=s.status==="AWAITING_APPROVAL";
+    const exec=(i===curIdx)&&!awaiting;                 // "executing" only when not waiting on a human
+    let stepBg,stepBorder,stepText;
+    if(s.status==="PASS"&&s.gate){stepBg="#0d6e31";stepBorder="#0a5226";stepText="#fff";}
+    else if(s.status==="PASS"){stepBg="#d4edda";stepBorder="#28a745";stepText="#155724";}
+    else if(s.status==="CONDITIONAL_PASS"){stepBg="#c3e6cb";stepBorder="#28a745";stepText="#155724";}
+    else if(s.status==="FAIL"||s.status==="REDESIGN"){stepBg="#f8d7da";stepBorder="#dc3545";stepText="#721c24";}
+    else if(s.status==="AWAITING_APPROVAL"){stepBg="#fff3cd";stepBorder="#ffc107";stepText="#856404";}
+    else if(s.status==="RUNNING"){stepBg="#cce5ff";stepBorder="#004085";stepText="#004085";}
+    else if(s.status==="PENDING"){stepBg="#f8f9fa";stepBorder="#dee2e6";stepText="#6c757d";}
+    else{stepBg="#f8f9fa";stepBorder="#dee2e6";stepText="#6c757d";}
+    const cls=awaiting?"s4pc-liveA":exec?"s4pc-live":"";
+    const topLabelColor=(s.gate&&s.status==="PASS")?"rgba(255,255,255,.8)":(s.gate?"#7c3aed":(isHuman?"#92400e":stepText));
+    const top=s.gate?"<div style='font-size:.56rem;font-weight:700;letter-spacing:.08em;color:"+topLabelColor+"'>GATE</div>"
+      :isHuman?"<div style='font-size:.56rem;font-weight:700;letter-spacing:.05em;color:"+topLabelColor+"'>✋ CHECKPOINT</div>"
+      :"<div style='font-size:.56rem;opacity:.6'>STEP "+s.n+"</div>";
+    const label=awaiting?"⏸ AWAITING YOU":exec?"▶ EXECUTING":esc(s.status);
+    const runDot=s.status==="RUNNING"?"<span class='s4pc-dot' style='width:7px;height:7px;margin-right:3px;vertical-align:middle'></span>":"";
+    const hasDetail=s.detail&&s.detail.trim();
+    return "<div class='"+cls+"' onclick='showStep("+i+")' title='Click for step details' style='min-width:112px;flex:0 0 auto;border:1.5px solid "+stepBorder+";border-radius:10px;padding:9px 10px;background:"+stepBg+";color:"+stepText+"'>"+
+      top+
+      "<div style='font-size:.72rem;font-weight:700;margin:3px 0'>"+esc(s.name)+"</div>"+
+      "<div style='font-size:.62rem;opacity:.7'>"+esc(s.agent||"")+"</div>"+
+      "<div style='font-size:.66rem;font-weight:700;margin-top:5px'>"+runDot+label+(s.iterations>1?" · "+s.iterations+" iter":"")+"</div>"+
+      (s.score?"<div style='font-size:.6rem;opacity:.7'>"+esc(String(s.score))+"</div>":"")+
+      "<div style='font-size:.58rem;opacity:.5;margin-top:4px'>"+(hasDetail?"ⓘ details":"&nbsp;")+"</div>"+"</div>";
+  }).join("<div style='align-self:center;color:var(--line);flex:0 0 auto'>→</div>");
+  renderLive(r,curIdx);
+  if(!BTP_DEPLOY_JOB)renderBtpDeployPanel(r);
+  else if(BTP_DEPLOY_JOB)btpDeployPoll(BTP_DEPLOY_JOB);
+  $("#ex-gates").innerHTML=(r.gate_results||[]).map(function(g,gi){
+    var st=(g.status||g.verdict||"").toUpperCase();
+    var badgeBg=["PASS","CONDITIONAL_PASS","SHIP","OK","PASSED","APPROVED","ACCEPTED"].includes(st)?"var(--green)":["FAIL","FIX","REDESIGN","FAILED","BLOCKED","REJECT","REJECTED"].includes(st)?"var(--red)":"var(--muted)";
+    var detail=g.detail||g.summary||"";
+    var detHtml;
+    if(!detail){detHtml="";}
+    else if(detail.length<=150){detHtml="<p style='color:var(--muted);margin-top:6px;font-size:.72rem'>"+esc(detail)+"</p>";}
+    else{detHtml="<details style='margin-top:6px'><summary style='font-size:.72rem;color:var(--purple);cursor:pointer;list-style:none'>"+esc(detail.slice(0,150))+"… <span style='text-decoration:underline'>show more</span></summary><p style='color:var(--muted);margin-top:4px;font-size:.72rem'>"+esc(detail)+"</p></details>";}
+    return "<div style='border:1px solid var(--line);border-radius:9px;padding:10px 14px;font-size:.72rem;min-width:200px'>"+
+      "<div style='display:flex;align-items:center;gap:8px;margin-bottom:4px'>"+
+      "<b style='font-size:.8rem'>"+esc(g.name||("Gate "+(gi+1)))+"</b>"+
+      "<span style='background:"+badgeBg+";color:#fff;border-radius:6px;padding:2px 8px;font-size:.62rem;font-weight:700'>"+esc(st||"UNKNOWN")+"</span>"+
+      "</div>"+detHtml+"</div>";
+  }).join("");
+  const appr=r.human_approvals||[];
+  const dCol={approved:"green",adjusted:"amber",rejected:"red"};
+  $("#ex-approvals").innerHTML=(appr.length?
+    "<div style='display:flex;gap:10px;flex-wrap:wrap'>"+appr.map(a=>
+      "<div style='border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:.72rem;min-width:220px'><b>"+esc(a.checkpoint)+"</b> <span class='chip "+(dCol[a.decision]||"gray")+"'>"+esc(a.decision)+"</span><br><span style='color:var(--muted)'>"+esc(a.by||"")+" · "+esc(a.date||"")+(a.notes?" — "+esc(a.notes):"")+"</span></div>").join("")+"</div>"
+    :"<p style='font-size:.78rem;color:var(--amber)'>⚠ No human decisions recorded — a run cannot complete without checkpoint approvals.</p>")+
+    ((r.mode_split||[]).length?"<div style='margin-top:10px'><span style='font-size:.68rem;letter-spacing:.08em;color:var(--muted)'>MODE SPLIT</span> "+r.mode_split.map(m=>"<span class='chip blue'>"+esc(m.capability)+" → "+esc(m.mode)+"</span>").join(" ")+"</div>":"");
+  renderFindings();
+  $("#ex-files").innerHTML=(r.files||[]).map(f=>"<div class='card click' style='padding:10px 13px;font-size:.76rem' onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(f)+"\")'>📄 "+esc(f)+"</div>").join("");
+  renderRunChips();
+}
+function normalizeFinding(f){
+  // Severity code → label mapping (handles any variant Claude may write)
+  var SEV_MAP={
+    blocker_for_build:"Critical",critical_open:"Critical",critical_resolved:"Critical",
+    major_open:"Major",major_resolved:"Major",open_question:"Major",
+    minor_open:"Minor",minor_resolved:"Minor",gate2_fix_applied:"Minor",
+    gate_fix_applied:"Minor",lint_fix_applied:"Minor",info:"Info",informational:"Info"
+  };
+  var rawSev=(f.severity||"").toLowerCase().replace(/[\s-]/g,"_");
+  var sev=SEV_MAP[rawSev]||(rawSev.includes("critical")?"Critical":rawSev.includes("major")?"Major":rawSev.includes("minor")?"Minor":rawSev.includes("info")?"Info":f.severity||"");
+  var resolved=(rawSev.includes("resolved")||rawSev.includes("fix_applied")||f.status==="Resolved");
+  return{
+    id:f.id||"",
+    severity:sev,
+    source:f.source||f.capability||f.gate||f.step||"",
+    description:f.description||f.problem||f.summary||f.message||"",
+    resolution:f.resolution||f.action||f.fix||f.recommendation||"",
+    verify:f.verify||f.how_to_verify||"",
+    status:f.status||(resolved?"Resolved":"Open")
+  };
+}
+function renderFindings(){
+  const raw=EX_RUN.findings||[];
+  const all=raw.map(normalizeFinding);
+  const sevs=["All","Critical","Major","Minor","Info"];
+  $("#ex-sev-tabs").innerHTML=sevs.map(s=>{
+    const n=s==="All"?all.length:all.filter(f=>f.severity===s).length;
+    return "<button class='"+(s===EX_SEV?"on":"")+"' onclick='EX_SEV=\""+s+"\";renderFindings()'>"+s+" ("+n+")</button>"}).join("");
+  const sevChip={Critical:"red",Major:"amber",Minor:"amber",Info:"blue"};
+  $("#ex-findings").innerHTML=all.filter(f=>EX_SEV==="All"||f.severity===EX_SEV).map(f=>{
+    var verifyHtml=f.verify?"<div style='font-size:.68rem;color:var(--muted);margin-top:3px'>Verify: "+esc(f.verify)+"</div>":"";
+    return "<tr>"+
+      "<td><b>"+esc(f.id)+"</b></td>"+
+      "<td><span class='chip "+(sevChip[f.severity]||"gray")+"'>"+esc(f.severity||"—")+"</span></td>"+
+      "<td style='white-space:nowrap;font-size:.72rem'>"+esc(f.source)+"</td>"+
+      "<td>"+esc(f.description)+"</td>"+
+      "<td style='color:var(--muted)'>"+esc(f.resolution)+verifyHtml+"</td>"+
+      "<td><span class='chip "+(f.status==="Resolved"?"green":"amber")+"'>"+esc(f.status)+"</span></td>"+
+    "</tr>";}).join("")||"<tr><td colspan='6' style='color:var(--muted)'>No findings in this filter.</td></tr>";
+}
+async function openRunFile(run,f){
+  const d=await api("/api/run-file?run="+encodeURIComponent(run)+"&file="+encodeURIComponent(f));
+  if(d.content!=null)openModal(d.content);
+}
+async function rerunPipeline(btn){
+  if(!EX_RUN||!EX_RUN.fd_source){alert("This run has no source FD to re-run.");return}
+  const id=EX_RUN.id, fd=EX_RUN.fd_source;
+  if(!confirm("Run a NEW version of the pipeline on "+fd+"?\n\nThis creates a fresh run and KEEPS the previous run ("+id+") and its generated files — you can open either from the LOAD RUN list."))return;
+  if(btn){btn.disabled=true;btn.textContent="↻ Re-running…"}
+  const r=await fetch("/api/pipeline/start",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({fd})}).then(x=>x.json()).catch(()=>({error:"network error"}));
+  if(btn){btn.disabled=false;btn.textContent="↻ Re-run pipeline"}
+  if(r.ok){EX_FOLLOW=true;await loadRuns();selectRun(r.run||id);loadJobs()}   // fresh skeleton now shows live
+  else{alert("Re-run could not start: "+(r.error||"unknown")+(r.error&&r.error.indexOf("already running")>=0?"\n\nWait for the current run to finish or reach a checkpoint.":""))}
+}
+async function deleteRun(btn){
+  if(!EX_RUN)return;
+  const id=EX_RUN.id;
+  if(!confirm("Delete run "+id+" and ALL its generated files?\n\nThis cannot be undone. Other runs (including earlier versions) are not affected."))return;
+  if(btn){btn.disabled=true;btn.textContent="🗑 Deleting…"}
+  const r=await fetch("/api/pipeline/delete",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:id})}).then(x=>x.json()).catch(()=>({error:"network error"}));
+  if(btn){btn.disabled=false;btn.textContent="🗑 Delete"}
+  if(r.ok){EX_FOLLOW=false;EX_RUN=null;await loadRuns();loadInputs();}   // renderRunChips picks another run or shows empty state
+  else alert("Delete failed: "+(r.error||"unknown"));
+}
+
+/* ---------- catalyst modes ---------- */
+const MODES=[
+ {tag:"In-App",name:"Key User Extensibility",blurb:"No-code, configuration-based, upgrade-safe.",
+  detail:"<b>Tools:</b> Custom Fields and Logic · Adapt UI · Custom CDS Views · Custom Analytical Queries · form templates · flexible workflow.<br><b>Logic lives in:</b> released BAdIs via the Custom Logic app (browser editor, restricted ABAP).<br><b>Best for:</b> extra fields on standard objects, validations/defaults, simple analytics, output forms.<br><b>Team:</b> functional consultants / key users."},
+ {tag:"ABAP Cloud",name:"Developer Extensibility",blurb:"Embedded Steampunk — real code, released objects only.",
+  detail:"<b>Tools:</b> ADT (Eclipse) against the dev tenant · RAP + CDS + Fiori Elements · developer BAdI implementations · Application Jobs · ABAP Unit.<br><b>Hard rule:</b> every consumed object needs release contract C1 ('Use in Cloud Development'); code must pass cloud ATC.<br><b>Best for:</b> custom business objects/apps on in-tenant data, complex logic, reusable services.<br><b>Team:</b> ABAP Cloud developers."},
+ {tag:"BTP",name:"Side-by-Side Extensibility",blurb:"Own lifecycle, external data, any stack — with consumption cost.",
+  detail:"<b>Tools:</b> CAP + UI5 / ABAP Environment on BTP · released OData/SOAP APIs · business events (Event Mesh) · Integration Suite (CPI) · SAP Build Process Automation (SBPA).<br><b>Best for:</b> integrations with non-SAP systems, apps for external users, heavy/independent workloads, workflow beyond Flexible Workflow scenarios.<br><b>Cost:</b> every BTP service is priced — plans &amp; estimates on the <a href='https://discovery-center.cloud.sap/viewServices' target='_blank'>SAP Discovery Center</a>; put the cost line in every proposal.<br><b>Team:</b> BTP / integration developers."}];
+function renderModes(sel=0){
+  $("#mode-cards").innerHTML=MODES.map((m,i)=>"<div class='modecard"+(i===sel?" sel":"")+"' onclick='renderModes("+i+")'><div class='tag'>"+m.tag+"</div><h3>"+m.name+"</h3><p>"+m.blurb+"</p></div>").join("");
+  $("#mode-detail").innerHTML="<h3>"+MODES[sel].name+"</h3><p style='line-height:1.7'>"+MODES[sel].detail+"</p>";
+}
+function renderAgentflow(){
+  $("#agentflow-chips").innerHTML=["check_object_release_state","abap_cloud_lint","extensibility_advisor","search_released_apis","search_released_badis","odata_get_metadata","audit-log","release-verdict-gate","tenant-verification-checklist"]
+    .map(c=>"<span class='chip' style='background:rgba(255,255,255,.16);color:#fff'>"+c+"</span>").join(" ");
+  $("#deliverables").innerHTML=["FD Analysis","Extensibility Decision","Release Verdicts","Custom-Object Naming Contract","Code (RAP/BAdI/CAP)","Lint Report","Unit Tests","Technical Design","Peer Review","Challenger Review","Deployment Guide","Verification Checklist","Execution Summary"]
+    .map(d=>"<div class='card' style='padding:11px 14px;font-size:.8rem'>☐ "+d+"</div>").join("");
+}
+
+/* ---------- workflows ---------- */
+function renderWF(filter){
+  const q=($("#wf-search").value||"").toLowerCase();
+  const types=["All","RICEFW","Process"];
+  $("#wf-tabs").innerHTML=types.map(t=>{
+    const n=t==="All"?WORKFLOWS.length:WORKFLOWS.filter(w=>w.type===t).length;
+    return "<button class='"+(t===filter?"on":"")+"' onclick='renderWF(\""+t+"\")'>"+t+" ("+n+")</button>"}).join("");
+  const list=WORKFLOWS.filter(w=>(filter==="All"||w.type===filter)&&(!q||(w.title+w.description+w.file).toLowerCase().includes(q)));
+  $("#wf-grid").innerHTML=list.map((w,i)=>"<div class='card click' onclick='openWF(\""+esc(w.file)+"\")'><h3 style='font-size:.85rem'>"+esc(w.title)+"</h3><p>"+esc(w.description)+"</p><div style='margin-top:9px'><span class='chip "+(w.type==="RICEFW"?"purple":"green")+"'>"+w.type+"</span><span class='chip gray'>"+w.size_kb+" KB</span></div></div>").join("")||"<p style='color:var(--muted)'>No matches.</p>";
+}
+$("#wf-search").addEventListener("input",()=>renderWF(document.querySelector("#wf-tabs .on")?.textContent.split(" ")[0]||"All"));
+function openWF(file){const w=WORKFLOWS.find(x=>x.file===file);if(w)openModal(w.content)}
+function renderRefWF(){$("#ref-wf-grid").innerHTML=WORKFLOWS.map(w=>"<div class='card click' onclick='openWF(\""+esc(w.file)+"\")'><h3 style='font-size:.85rem'>"+esc(w.title)+"</h3><p>"+esc(w.description)+"</p><div style='margin-top:9px'><span class='chip "+(w.type==="RICEFW"?"purple":"green")+"'>"+w.type+"</span></div></div>").join("")}
+
+/* ---------- skills / mcp / agents / catalogs ---------- */
+function renderSkills(){
+  $("#skills-grid").innerHTML=SKILLS.map(s=>"<div class='card click' onclick='openSkill(\""+esc(s.name)+"\")'><h3 style='font-size:.85rem'>▤ "+esc(s.name)+"</h3><p>"+esc(s.description)+"</p><div style='margin-top:9px'><span class='chip purple'>SAP Development</span><span class='chip gray'>"+s.size_kb+" KB</span></div></div>").join("");
+}
+function openSkill(name){const s=SKILLS.find(x=>x.name===name);if(s)openModal(s.content.replace(/^---[\s\S]*?---/,""))}
+async function loadMCP(){
+  const d=await api("/api/mcp");
+  $("#mcp-list").innerHTML=d.servers.map(s=>
+   "<div class='card'><h3>⌗ "+esc(s.title)+" <span class='chip purple'>"+s.tool_count+" tools</span><span class='chip "+(s.mode==="live"?"green":"amber")+"'>"+s.mode+"</span></h3>"+
+   "<p>"+esc(s.transport)+" · v"+esc(s.version)+" · "+s.resources+" resources · "+s.prompts+" prompts · no API keys</p>"+
+   "<table class='tbl' style='margin-top:12px'><thead><tr><th>Tool</th><th>Purpose</th><th>Network</th></tr></thead><tbody>"+
+   s.tools.map(t=>"<tr><td><code>"+esc(t.name)+"</code></td><td>"+esc(t.description.split(". ")[0])+".</td><td>"+(t.live_only?"<span class='chip amber'>live only</span>":"<span class='chip green'>offline</span>")+"</td></tr>").join("")+
+   "</tbody></table>"+
+   (s.hidden_tool_count?"<p style='font-size:.7rem;color:var(--muted);margin-top:8px'>+ "+s.hidden_tool_count+" advanced tools hidden (live-only OData tools and offline catalog-search, superseded by the public SAP sources) — they still run for the pipeline, just not shown here.</p>":"")+
+   "</div>").join("");
+}
+async function loadAgents(){
+  const d=await api("/api/agents");
+  $("#agents-grid").innerHTML=(d.agents||[]).map(a=>
+   "<div class='card'><h3 style='font-size:.85rem'><span style='background:#ede9fe;color:var(--purple-dark);border-radius:7px;padding:3px 7px;font-size:.7rem'>"+a.id+"</span> "+esc(a.name)+" <span class='dot g' style='margin-left:auto'></span></h3>"+
+   "<p>"+esc(a.role)+"</p><div style='margin-top:9px'><span class='chip gray'>"+esc(a.tier)+"</span><span class='chip purple'>"+esc(a.skill)+"</span><span class='chip blue'>Claude (session)</span></div></div>").join("");
+}
+let EXP_ENTRIES=[],EXP_CAT="All";
+async function loadExperience(){
+  const d=await api("/api/catalog/experience");EXP_ENTRIES=d.entries||[];renderExperience();
+}
+function renderExperience(){
+  const cats=["All",...Array.from(new Set(EXP_ENTRIES.map(e=>e.category))).sort()];
+  $("#exp-cat-tabs").innerHTML=cats.map(c=>{
+    const n=c==="All"?EXP_ENTRIES.length:EXP_ENTRIES.filter(e=>e.category===c).length;
+    return "<button class='"+(c===EXP_CAT?"on":"")+"' onclick='EXP_CAT=\""+c+"\";renderExperience()'>"+c+" ("+n+")</button>"}).join("");
+  $("#experience-grid").innerHTML=EXP_ENTRIES.filter(e=>EXP_CAT==="All"||e.category===EXP_CAT).map(e=>
+    "<div class='card'><h3 style='font-size:.84rem'>"+esc(e.id)+" · "+esc(e.topic)+"</h3>"+
+    "<p style='margin-top:4px'>"+esc(e.lesson)+"</p>"+
+    (e.impact?"<p style='margin-top:6px;color:var(--green);font-size:.74rem'>▲ "+esc(e.impact)+"</p>":"")+
+    "<div style='margin-top:8px'><span class='chip purple'>"+esc(e.category)+"</span>"+(e.tags||[]).map(t=>"<span class='chip gray'>"+esc(t)+"</span>").join("")+
+    "<span class='chip blue'>"+esc(e.added)+"</span></div>"+
+    "<p style='margin-top:6px;font-size:.66rem;color:var(--muted)'>"+esc(e.source||"")+"</p></div>").join("");
+}
+async function loadCatalogs(){
+  const [a,b,c]=await Promise.all([api("/api/catalog/apis"),api("/api/catalog/badis"),api("/api/catalog/cds")]);
+  const warn="<div class='notice warn'>Seed catalogs — candidates, not truth. Authoritative sources: api.sap.com, the tenant's Custom Logic app, ADT Released Objects.</div>";
+  $("#catalog-area").innerHTML=warn+
+   "<div class='card' style='margin-bottom:14px'><h3>Released APIs ("+a.apis.length+")</h3><div style='overflow-x:auto'><table class='tbl'><thead><tr><th>Name</th><th>Protocol</th><th>Area</th><th>Comm. scenario</th><th>Ops</th></tr></thead><tbody>"+
+   a.apis.map(x=>"<tr><td><code>"+esc(x.name)+"</code><br><span style='color:var(--muted)'>"+esc(x.title)+"</span></td><td>"+esc(x.protocol)+"</td><td>"+esc(x.area)+"</td><td>"+(x.communication_scenario?esc(x.communication_scenario):"<span class='chip amber'>verify in tenant</span>")+"</td><td>"+(x.operations||[]).join(", ")+"</td></tr>").join("")+"</tbody></table></div></div>"+
+   "<div class='card' style='margin-bottom:14px'><h3>Released BAdIs ("+b.badis.length+")</h3><div style='overflow-x:auto'><table class='tbl'><thead><tr><th>Name</th><th>Area</th><th>Business context</th><th>Use case</th><th>Verified</th></tr></thead><tbody>"+
+   b.badis.map(x=>"<tr><td><code>"+esc(x.name)+"</code></td><td>"+esc(x.area)+"</td><td>"+esc(x.business_context)+"</td><td>"+esc(x.use_case)+"</td><td>"+(x.verified_in_tenant?"<span class='chip green'>yes</span>":"<span class='chip amber'>verify in tenant</span>")+"</td></tr>").join("")+"</tbody></table></div></div>"+
+   "<div class='card'><h3>Released CDS views ("+c.views.length+")</h3><div style='overflow-x:auto'><table class='tbl'><thead><tr><th>View</th><th>Replaces (classical)</th><th>Area</th></tr></thead><tbody>"+
+   c.views.map(x=>"<tr><td><code>"+esc(x.name)+"</code></td><td>"+(x.replaces||[]).map(t=>"<span class='chip red'>"+esc(t)+"</span>").join(" ")+"</td><td>"+esc(x.area)+"</td></tr>").join("")+"</tbody></table></div></div>";
+}
+
+/* ---------- playground ---------- */
+function spin(el){$(el).innerHTML="<p style='color:var(--muted)'>Running…</p>"}
+async function pgRelease(name){
+  if(name)$("#rel-input").value=name;
+  const v=$("#rel-input").value.trim();if(!v)return;
+  spin("#rel-result");
+  const r=await runTool("check_object_release_state",{object_name:v});
+  const p=r.result;
+  $("#rel-result").innerHTML=
+   "<div style='display:flex;align-items:center;gap:12px;margin-bottom:10px'><span class='verdict "+esc(p.verdict)+"'>"+esc(p.verdict)+"</span><code>"+esc(p.object_name)+"</code></div>"+
+   "<p style='font-size:.83rem'><b>Reason:</b> "+esc(p.reason||"")+"</p>"+
+   (p.alternative?"<p style='font-size:.83rem;color:var(--green)'><b>✓ Released alternative:</b> "+esc(p.alternative)+"</p>":"")+
+   "<p style='font-size:.73rem;color:var(--muted);margin-top:8px'><b>Source:</b> "+esc(p.source)+" · <b>verified:</b> "+p.verified+"</p>"+
+   (p.how_to_verify?"<div class='notice' style='margin-top:10px'><b>How to verify in tenant:</b><br>"+p.how_to_verify.map(esc).join("<br>")+"</div>":"");
+}
+function lintSample(){$("#lint-input").value="REPORT zfi_custom_posting.\nTABLES: bkpf.\n\nSELECT * FROM bseg INTO TABLE @DATA(lt_items)\n  WHERE bukrs = '1000'.\n\nCALL FUNCTION 'BAPI_ACC_DOCUMENT_POST'\n  EXPORTING\n    documentheader = ls_header.\n\nPERFORM write_log.\nWRITE: / 'Posting complete'."}
+async function pgLint(){
+  const code=$("#lint-input").value;if(!code.trim())return;
+  spin("#lint-result");
+  const r=await runTool("abap_cloud_lint",{code});
+  const p=r.result;
+  $("#lint-result").innerHTML=
+   "<div style='display:flex;align-items:center;gap:12px;margin-bottom:10px'><span class='verdict "+esc(p.verdict)+"'>"+esc(p.verdict)+"</span><span style='font-size:.8rem;color:var(--muted)'>"+p.error_count+" errors · "+p.warning_count+" warnings</span></div>"+
+   (p.findings.length?"<div style='overflow-x:auto'><table class='tbl'><thead><tr><th>Rule</th><th>Sev</th><th>Line</th><th>Finding</th><th>Cloud alternative</th></tr></thead><tbody>"+
+   p.findings.map(f=>"<tr><td>"+esc(f.rule)+"</td><td><span class='chip "+(f.severity==="error"?"red":"amber")+"'>"+f.severity+"</span></td><td>"+f.line+"</td><td><code style='font-size:.7rem'>"+esc(f.code)+"</code><br>"+esc(f.message)+"</td><td style='color:var(--green)'>"+esc(f.alternative||"")+"</td></tr>").join("")+"</tbody></table></div>":"<p style='color:var(--green)'>Clean — no classical-ABAP constructs found.</p>")+
+   "<p style='font-size:.73rem;color:var(--muted);margin-top:8px'>"+esc(p.next_gate)+"</p>";
+}
+async function pgAdvisor(){
+  const req=$("#adv-input").value;if(!req.trim())return;
+  spin("#adv-result");
+  const r=await runTool("extensibility_advisor",{requirement:req});
+  const p=r.result;
+  const profiles=p.mode_profiles||{};
+  const costChip=k=>{const pr=profiles[k];if(!pr)return"";const btp=pr.cost_class.indexOf("BTP")===0;
+    return "<span class='chip "+(btp?"amber":"green")+"'>"+(btp?"BTP cost — see Discovery Center":"cost: included in subscription")+"</span>"};
+  $("#adv-result").innerHTML=
+   "<h3 style='font-size:.85rem;margin-bottom:8px'>Candidate modes</h3>"+
+   p.candidate_modes.map(m=>{
+     const keys=m.mode.split("_or_");
+     return "<div class='card' style='margin-bottom:8px;padding:11px 14px'><b style='font-size:.82rem'>"+esc(m.mode)+"</b> <span class='chip purple'>score "+m.score+"</span> "+keys.map(costChip).join(" ")+
+     "<p style='margin-top:4px'>"+esc(m.rationale)+"</p></div>"}).join("")+
+   "<h3 style='font-size:.85rem;margin:12px 0 6px'>Mode profiles (tooling · skillset · cost)</h3>"+
+   Object.keys(profiles).map(k=>{const pr=profiles[k];
+     return "<div class='card' style='margin-bottom:8px;padding:11px 14px'><b style='font-size:.8rem'>"+esc(pr.label)+"</b>"+
+     "<p style='margin-top:4px'><b>Tooling:</b> "+esc(pr.tooling)+"</p><p><b>Skillset:</b> "+esc(pr.skillset)+"</p>"+
+     "<p><b>Cost:</b> "+esc(pr.cost_class)+"</p></div>"}).join("")+
+   "<h3 style='font-size:.85rem;margin:12px 0 6px'>Decision path</h3><div class='card' style='padding:11px 14px'>"+p.decision_path.map(d=>"<p style='font-size:.78rem;margin:3px 0'>"+esc(d)+"</p>").join("")+"</div>"+
+   "<div class='notice warn' style='margin-top:10px'><b>Hard constraints:</b><br>"+p.hard_constraints.map(esc).join("<br>")+"</div>"+
+   (p.reference_links?"<div class='notice' style='margin-top:10px'><b>Authoritative references:</b><br>"+Object.values(p.reference_links).map(l=>"<a href='"+esc(l.url)+"' target='_blank'>"+esc(l.url)+"</a> — "+esc(l.use_for)).join("<br>")+"</div>":"");
+}
+async function pgApis(){
+  const q=$("#api-input").value;if(!q.trim())return;
+  spin("#api-result");
+  const r=await runTool("search_released_apis",{query:q});const p=r.result;
+  $("#api-result").innerHTML="<p style='font-size:.8rem;margin-bottom:8px'>"+p.count+" hit(s) — seed catalog, verify on api.sap.com</p>"+
+   p.results.map(x=>"<div class='card' style='margin-bottom:8px;padding:11px 14px'><b style='font-size:.82rem'><code>"+esc(x.name)+"</code></b> · "+esc(x.title)+"<p style='margin-top:4px'>"+esc(x.notes||"")+"</p><div style='margin-top:6px'><span class='chip blue'>"+esc(x.protocol)+"</span><span class='chip gray'>"+esc(x.area)+"</span>"+(x.communication_scenario?"<span class='chip green'>"+esc(x.communication_scenario)+"</span>":"<span class='chip amber'>scenario: verify in tenant</span>")+"</div></div>").join("");
+}
+async function pgBadis(){
+  const q=$("#badi-input").value;if(!q.trim())return;
+  spin("#badi-result");
+  const r=await runTool("search_released_badis",{query:q});const p=r.result;
+  $("#badi-result").innerHTML="<p style='font-size:.8rem;margin-bottom:8px'>"+p.count+" hit(s) — availability must be confirmed in the Custom Logic app</p>"+
+   p.results.map(x=>"<div class='card' style='margin-bottom:8px;padding:11px 14px'><b style='font-size:.82rem'><code>"+esc(x.name)+"</code></b> · "+esc(x.title)+"<p style='margin-top:4px'>"+esc(x.use_case)+"</p><div style='margin-top:6px'><span class='chip gray'>"+esc(x.business_context)+"</span><span class='chip amber'>verify in tenant</span></div></div>").join("");
+}
+
+/* ---------- Digital Brain playground ---------- */
+async function pgBrainSearch(preset){
+  if(preset!=null)$("#brain-q").value=preset;
+  const q=$("#brain-q").value;if(!q.trim())return;
+  const typ=$("#brain-type").value||undefined;
+  spin("#brain-result");
+  const args={query:q,top_k:6};if(typ)args.object_type=typ;
+  const r=await runTool("semantic_search",args);const p=r.result;
+  if(p.error){$("#brain-result").innerHTML="<span class='chip red'>"+esc(p.error)+"</span>";return;}
+  const hits=p.results||[];
+  const typeColor={api:"blue",cds_view:"purple",badi:"green",experience:"amber",delivery:"cyan"};
+  $("#brain-result").innerHTML=(hits.length?"<p style='font-size:.78rem;margin-bottom:8px;color:var(--muted)'>"+hits.length+" result(s) · TF-IDF cosine similarity — re-verify on SAP Business Accelerator Hub / Custom Logic app / ADT</p>":"<p style='color:var(--muted)'>No results.</p>")+
+   hits.map(h=>{
+     const m=h.metadata||{};
+     return "<div class='card' style='margin-bottom:8px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start'>"+
+       "<div style='min-width:48px;text-align:center'><b style='font-size:1rem;color:var(--purple)'>"+Math.round(h.score*100)+"%</b><div style='font-size:.65rem;color:var(--muted)'>match</div></div>"+
+       "<div><b style='font-size:.82rem'><code>"+esc(h.id)+"</code></b><span class='chip "+(typeColor[h.type]||"gray")+"' style='margin-left:6px'>"+esc(h.type)+"</span>"+
+       (m.title?"<p style='margin-top:3px;font-size:.78rem'>"+esc(m.title)+"</p>":"")+
+       (m.area?"<span class='chip gray' style='font-size:.67rem'>"+esc(m.area)+"</span>":"")+
+       (m.hub_url?"<a href='"+esc(m.hub_url)+"' target='_blank' style='font-size:.7rem;margin-left:8px'>Hub ↗</a>":"")+
+       "</div></div>";
+   }).join("");
+}
+async function pgBrainGraph(preset){
+  if(preset!=null)$("#graph-q").value=preset;
+  const q=$("#graph-q").value;if(!q.trim())return;
+  spin("#graph-result");
+  const r=await runTool("get_object_graph",{object_name:q,depth:1});const p=r.result;
+  if(p.error){$("#graph-result").innerHTML="<span class='chip red'>"+esc(p.error)+"</span>";return;}
+  const typeColor={api:"blue",cds_view:"purple",badi:"green"};
+  const conn=p.connections||{};
+  const rows=Object.entries(conn).flatMap(([t,items])=>items.map(i=>
+    "<tr><td><code style='font-size:.76rem'>"+esc(i.name)+"</code></td><td><span class='chip "+(typeColor[t]||"gray")+"'>"+esc(t)+"</span></td><td style='font-size:.76rem'>"+esc(i.title||i.use_case||"")+"</td><td style='font-size:.72rem;color:var(--muted)'>"+esc(i.area||"")+"</td></tr>"
+  ));
+  $("#graph-result").innerHTML=
+   "<p style='font-size:.78rem;margin-bottom:8px'><b><code>"+esc(p.object)+"</code></b> · "+esc(p.area)+" · "+p.total_connections+" connections <span class='chip "+(p.edge_mode==="name_match"?"green":"amber")+"'>"+esc(p.edge_mode)+"</span></p>"+
+   (rows.length?"<div style='overflow-x:auto'><table class='tbl'><thead><tr><th>Object</th><th>Type</th><th>Title / Use case</th><th>Area</th></tr></thead><tbody>"+rows.join("")+"</tbody></table></div>":"<p style='color:var(--muted)'>No connections found.</p>");
+}
+async function pgBrainArea(preset){
+  if(preset!=null)$("#area-q").value=preset;
+  const area=$("#area-q").value.trim();
+  spin("#area-result");
+  const r=await runTool("get_area_map",{area:area||undefined});const p=r.result;
+  if(p.error&&!p.areas){$("#area-result").innerHTML="<span class='chip red'>"+esc(p.error)+"</span>";return;}
+  if(p.areas){
+    // listing all areas
+    const rows=Object.entries(p.areas).map(([a,c])=>
+      "<tr><td><a onclick=\"pgBrainArea('"+esc(a)+"')\" style='cursor:pointer'>"+esc(a)+"</a></td><td style='text-align:center'>"+(c.api||0)+"</td><td style='text-align:center'>"+(c.cds_view||0)+"</td><td style='text-align:center'>"+(c.badi||0)+"</td></tr>"
+    ).join("");
+    $("#area-result").innerHTML="<div style='overflow-x:auto'><table class='tbl'><thead><tr><th>Area</th><th>APIs</th><th>CDS views</th><th>BAdIs</th></tr></thead><tbody>"+rows+"</tbody></table></div>";
+    return;
+  }
+  const typeColor={api:"blue",cds_view:"purple",badi:"green"};
+  const renderGroup=(items,t)=>items.map(x=>"<span class='chip "+(typeColor[t]||"gray")+"' style='margin:2px;font-size:.73rem' title='"+esc(x.title||x.use_case||"")+"'>"+esc(x.name)+"</span>").join("");
+  $("#area-result").innerHTML=
+   "<p style='font-size:.78rem;margin-bottom:10px'><b>"+esc(p.area)+"</b> · "+p.total+" objects</p>"+
+   (p.apis.length?"<p style='font-size:.74rem;margin-bottom:4px;color:var(--muted)'>APIs ("+p.apis.length+")</p>"+renderGroup(p.apis,"api")+"<br>":"")+
+   (p.cds_views.length?"<p style='font-size:.74rem;margin:8px 0 4px;color:var(--muted)'>CDS views ("+p.cds_views.length+")</p>"+renderGroup(p.cds_views,"cds_view")+"<br>":"")+
+   (p.badis.length?"<p style='font-size:.74rem;margin:8px 0 4px;color:var(--muted)'>BAdIs ("+p.badis.length+")</p>"+renderGroup(p.badis,"badi"):"");
+}
+
+/* ---------- settings ---------- */
+async function loadSettings(){
+  const s=await api("/api/settings");
+  $("#conn-mode").innerHTML=
+   "<div class='kv'><span>Mode</span><b>"+(s.mode==="live"?"<span class='dot g'></span>live (read-only)":"<span class='dot a'></span>offline")+"</b></div>"+
+   "<div class='kv'><span>Writes to SAP</span><b>"+(s.writes_allowed?"enabled":"<span class='dot g'></span>disabled (double-locked)")+"</b></div>"+
+   "<div class='kv'><span>Rate limit</span><b>"+s.rate_limit+" req/min</b></div>"+
+   "<div class='kv'><span>OData $top cap</span><b>"+s.odata_max_top+"</b></div>"+
+   "<div class='kv'><span>TLS verification</span><b><span class='dot g'></span>always on</b></div>"+
+   "<div class='kv'><span>LLM API key</span><b><span class='dot g'></span>none needed — Claude Code is the runtime</b></div>";
+  $("#conn-env").innerHTML=Object.entries(s.env).map(([k,v])=>"<div class='kv'><span><code>"+k+"</code></span><b>"+(v?"<span class='dot g'></span>set":"<span class='dot a'></span>not set")+"</b></div>").join("");
+  $("#conn-allow").innerHTML=s.allowlist.map(a=>"<span class='chip green'>"+esc(a)+"</span>").join(" ");
+  $("#cart-info").innerHTML=
+   "<div class='kv'><span>Version</span><b>v"+esc(s.server_version)+" · S4PC Public Cloud Catalyst</b></div>"+
+   "<div class='kv'><span>Install path</span><b style='font-size:.7rem'>"+esc(s.install_path)+"</b></div>"+
+   "<div class='kv'><span>Platform</span><b>"+esc(s.platform)+"</b></div>"+
+   "<div class='kv'><span>Python</span><b>"+esc(s.python)+" (stdlib only — no installs)</b></div>"+
+   "<div class='kv'><span>Config</span><b style='font-size:.7rem'>"+esc(s.config_path)+"</b></div>";
+  if(s.mode==="live")$("#comp-live").innerHTML="<span class='dot g'></span>live";
+  loadBtpConns();
+}
+async function testConn(){
+  spin("#conn-test-result");
+  const r=await runTool("sap_connection_test",{});
+  const p=r.result;
+  if(p.guardrail_blocked){
+    $("#conn-test-result").innerHTML="<div class='notice warn'><b>🛡 Guardrail blocked (expected in offline mode):</b><br>"+esc(p.reason)+"</div>";
+  }else if(p.connected){
+    $("#conn-test-result").innerHTML="<div class='notice' style='border-left-color:var(--green)'><b>✓ Connected</b> — gateway catalog reachable (HTTP "+p.http_status+").</div>";
+  }else{
+    $("#conn-test-result").innerHTML="<div class='notice warn'><b>✕ Not connected</b> (HTTP "+p.http_status+"). "+esc(p.hint||"")+"</div>";
+  }
+}
+let _btpConns=[], _btpFormMode="add";
+async function loadBtpConns(){
+  try{
+    const d=await api("/api/btp/connections");
+    _btpConns=d.connections||[];
+    const ti=$("#btp-tool-status");
+    if(ti) ti.textContent=[(d.cf_installed?"✓":"✕")+" cf CLI",(d.mbt_installed?"✓":"✕")+" mbt"].join("  ·  ");
+    renderBtpConns();
+  }catch(e){}
+}
+function renderBtpConns(){
+  const el=$("#btp-conns-list"); if(!el) return;
+  if(!_btpConns.length){
+    el.innerHTML="<p style='color:var(--muted);font-size:.82rem;margin:0 0 8px'>No BTP systems configured yet. Click <b>+ Add system</b> to connect your first BTP account.</p>";
+    return;
+  }
+  el.innerHTML=_btpConns.map(c=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:7px;background:${c.enabled?"#f0f9ff":"#fafafa"}">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <label style="display:flex;gap:5px;align-items:center;margin-top:3px;cursor:pointer;font-size:.78rem;white-space:nowrap"><input type="checkbox" ${c.enabled?"checked":""} onchange="btpToggleEnable('${esc(c.id)}',this.checked)"> Deploy</label>
+      <div>
+        <div style="font-weight:600;font-size:.86rem">${esc(c.label||c.api)}</div>
+        <div style="font-size:.72rem;color:var(--muted)">${esc(c.api)} · <b>${esc(c.org||"—")}</b>/${esc(c.space||"—")}</div>
+        ${c.user?`<div style="font-size:.72rem;color:var(--muted)">${esc(c.user)}</div>`:""}
+        ${c.has_passcode?"<span class='chip green' style='font-size:.68rem;padding:1px 7px'>🔑 passcode ready</span>":c.has_token?"<span class='chip amber' style='font-size:.68rem;padding:1px 7px'>⚠ token only (no refresh)</span>":c.has_creds?"<span class='chip green' style='font-size:.68rem;padding:1px 7px'>creds in memory</span>":"<span class='chip gray' style='font-size:.68rem;padding:1px 7px'>session / no creds</span>"}
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <button class="btn ghost" style="font-size:.74rem;padding:3px 10px" onclick="btpTestOne('${esc(c.id)}')">Test</button>
+      <button class="btn ghost" style="font-size:.74rem;padding:3px 10px" onclick="btpEditConn('${esc(c.id)}')">Edit</button>
+      <button class="btn ghost" style="font-size:.74rem;padding:3px 10px;color:#ef4444" onclick="btpDeleteConn('${esc(c.id)}')">Remove</button>
+    </div>
+  </div>`).join("");
+}
+function btpShowForm(mode="add"){
+  _btpFormMode=mode;
+  $("#btp-form-title").textContent=mode==="edit"?"Edit BTP system":"Add BTP system";
+  if(mode==="add"){
+    ["btp-f-id","btp-f-label","btp-f-api","btp-f-user","btp-f-pass","btp-f-token","btp-f-passcode"].forEach(id=>{const el=$("#"+id);if(el)el.value="";});
+    const org=$("#btp-f-org"), sp=$("#btp-f-space");
+    if(org) org.innerHTML="<option value=''>-- select org --</option>";
+    if(sp)  sp.innerHTML="<option value=''>-- select space --</option>";
+    const row=$("#btp-org-space-row"); if(row) row.style.display="none";
+    const en=$("#btp-f-enable"); if(en) en.checked=false;
+  }
+  const f=$("#btp-form"); if(f) f.style.display="";
+  ["btp-form-msg","btp-orgs-status"].forEach(id=>{const el=$("#"+id);if(el)el.textContent="";});
+}
+function btpEditConn(id){
+  const c=_btpConns.find(x=>x.id===id); if(!c) return;
+  btpShowForm("edit");
+  $("#btp-f-id").value=c.id;
+  $("#btp-f-label").value=c.label||"";
+  $("#btp-f-api").value=c.api||"";
+  $("#btp-f-user").value=c.user||"";
+  $("#btp-f-pass").value=""; $("#btp-f-token").value=""; const pcEl=$("#btp-f-passcode");if(pcEl)pcEl.value="";
+  const tokenEl=$("#btp-f-token");
+  if(tokenEl) tokenEl.placeholder=c.has_token?"token saved in memory — leave blank to reuse stored token":"eyJ… (leave blank for session reuse or password auth)";
+  const passEl=$("#btp-f-pass");
+  if(passEl) passEl.placeholder=c.has_password?"password saved — leave blank to reuse":"";
+  if(pcEl)   pcEl.placeholder=c.has_passcode?"SSO passcode saved — enter fresh one before deploying":"Paste one-time passcode here";
+  const gpBtn=$("#btp-get-passcode-btn");
+  if(gpBtn) gpBtn.dataset.url=c.passcode_url||"";
+  const en=$("#btp-f-enable"); if(en) en.checked=!!c.enabled;
+  if(c.org){
+    const org=$("#btp-f-org"), sp=$("#btp-f-space");
+    if(org){ org.innerHTML=`<option value="${esc(c.org)}">${esc(c.org)}</option>`; org.value=c.org; }
+    if(sp && c.space){ sp.innerHTML=`<option value="${esc(c.space)}">${esc(c.space)}</option>`; sp.value=c.space; }
+    const row=$("#btp-org-space-row"); if(row) row.style.display="";
+  }
+}
+function btpCancelForm(){
+  const f=$("#btp-form"); if(f) f.style.display="none";
+  ["btp-f-pass","btp-f-token","btp-f-passcode"].forEach(id=>{const el=$("#"+id);if(el)el.value="";});
+}
+function btpOpenPasscodeUrl(){
+  const btn=$("#btp-get-passcode-btn");
+  let url=(btn&&btn.dataset.url)||"";
+  if(!url){
+    const api=($("#btp-f-api")||{}).value||"";
+    if(api){
+      try{
+        const h=new URL(api).hostname.replace("api.cf.","login.cf.");
+        url="https://"+h+"/passcode";
+      }catch(e){}
+    }
+  }
+  if(url) window.open(url,"_blank"); else alert("Enter CF API endpoint first, then click Get Passcode.");
+}
+function btpClearOrgs(){
+  const org=$("#btp-f-org"), sp=$("#btp-f-space"), row=$("#btp-org-space-row");
+  if(org) org.innerHTML="<option value=''>-- select org --</option>";
+  if(sp)  sp.innerHTML="<option value=''>-- select space --</option>";
+  if(row) row.style.display="none";
+}
+async function btpLoadOrgs(){
+  const ep=($("#btp-f-api")||{}).value||"", user=($("#btp-f-user")||{}).value||"";
+  const pass=($("#btp-f-pass")||{}).value||"", token=($("#btp-f-token")||{}).value||"";
+  const st=$("#btp-orgs-status");
+  if(!ep){if(st)st.textContent="Enter CF API endpoint first";return;}
+  if(!user&&!token){if(st)st.textContent="Enter CF user+password or a token first";return;}
+  if(st) st.textContent="Loading orgs…";
+  try{
+    const connId=($("#btp-f-id")||{}).value||"";
+    const r=await fetch("/api/btp/orgs",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({api:ep,user,password:pass,token,conn_id:connId})}).then(x=>x.json());
+    if(r.error){if(st)st.textContent="Error: "+r.error;return;}
+    const orgs=r.orgs||[];
+    const org=$("#btp-f-org");
+    if(org) org.innerHTML=["<option value=''>-- select org --</option>",...orgs.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`)].join("");
+    const row=$("#btp-org-space-row"); if(row) row.style.display="";
+    if(st) st.textContent=orgs.length+" org(s) found";
+    if(orgs.length===1&&org){org.value=orgs[0];btpLoadSpaces();}
+  }catch(e){if(st)st.textContent="Failed: "+e.message;}
+}
+async function btpLoadSpaces(){
+  const org=($("#btp-f-org")||{}).value||"";
+  const token=($("#btp-f-token")||{}).value||"";
+  const api_ep=($("#btp-f-api")||{}).value||"";
+  if(!org) return;
+  const sp=$("#btp-f-space");
+  if(sp) sp.innerHTML="<option value=''>Loading…</option>";
+  try{
+    const connId=($("#btp-f-id")||{}).value||"";
+    const r=await fetch("/api/btp/spaces",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({org,token,api:api_ep,conn_id:connId})}).then(x=>x.json());
+    const spaces=r.spaces||[];
+    if(sp) sp.innerHTML=["<option value=''>-- select space --</option>",...spaces.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`)].join("");
+    if(spaces.length===1&&sp) sp.value=spaces[0];
+  }catch(e){if(sp)sp.innerHTML="<option value=''>Error loading spaces</option>";}
+}
+async function btpSaveConn(){
+  const id=($("#btp-f-id")||{}).value||"";
+  const body={label:($("#btp-f-label")||{}).value||"",api:($("#btp-f-api")||{}).value||"",
+    user:($("#btp-f-user")||{}).value||"",password:($("#btp-f-pass")||{}).value||"",
+    token:($("#btp-f-token")||{}).value||"",cf_passcode:($("#btp-f-passcode")||{}).value||"",
+    org:($("#btp-f-org")||{}).value||"",
+    space:($("#btp-f-space")||{}).value||"",enabled:!!(($("#btp-f-enable")||{}).checked)};
+  if(id) body.id=id;
+  const msg=$("#btp-form-msg");
+  if(!body.api){if(msg)msg.textContent="CF API endpoint is required";return;}
+  const url=id?"/api/btp/connections/update":"/api/btp/connections";
+  const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).then(x=>x.json());
+  ["btp-f-pass","btp-f-token","btp-f-passcode"].forEach(fid=>{const el=$("#"+fid);if(el)el.value="";});
+  if(r.error){if(msg)msg.textContent="Error: "+r.error;return;}
+  btpCancelForm(); loadBtpConns();
+}
+function _btpRenderTestResult(box, r, label){
+  if(!box) return;
+  const steps=(r.steps||[]).map(s=>s.cmd+(s.out?"\n  "+s.out:"")+(s.err?"\n  ERR: "+s.err:"")).join("\n\n");
+  if(r.connected){
+    box.innerHTML=`<div class='notice' style='border-left-color:var(--green)'><b>✓ Connected</b> — ${esc(label||"org and space verified")}</div>`;
+  }else{
+    box.innerHTML=`<div class='notice warn'><b>✕ Not connected</b> — ${esc(r.reason||"check details below")}</div>`+
+      (steps?`<pre style='font-size:.7rem;overflow:auto;max-height:180px'>${esc(steps)}</pre>`:"");
+  }
+}
+async function btpTestOne(id){
+  const box=$("#btp-conn-result"); if(box) box.innerHTML="<span style='color:var(--muted)'>Testing…</span>";
+  const r=await fetch("/api/btp/connection/test",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id})}).then(x=>x.json());
+  const c=_btpConns.find(x=>x.id===id);
+  _btpRenderTestResult(box, r, c?.api||id);
+}
+async function btpTestInForm(){
+  const box=$("#btp-form-test-result"); if(box) box.innerHTML="<span style='color:var(--muted)'>Testing…</span>";
+  const body={api:($("#btp-f-api")||{}).value||"",user:($("#btp-f-user")||{}).value||"",
+    password:($("#btp-f-pass")||{}).value||"",token:($("#btp-f-token")||{}).value||"",
+    org:($("#btp-f-org")||{}).value||"",space:($("#btp-f-space")||{}).value||"",
+    conn_id:($("#btp-f-id")||{}).value||""};
+  const r=await fetch("/api/btp/test-credentials",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body)}).then(x=>x.json());
+  _btpRenderTestResult(box, r, body.api);
+}
+async function btpToggleEnable(id,checked){
+  await fetch("/api/btp/connections/update",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id,enabled:checked})}).then(x=>x.json());
+  loadBtpConns();
+}
+async function btpDeleteConn(id){
+  const c=_btpConns.find(x=>x.id===id);
+  if(!confirm("Remove BTP system"+(c?" \""+esc(c.label||c.api)+"\"":"")+"?")) return;
+  await fetch("/api/btp/connections/delete",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({id})}).then(x=>x.json());
+  loadBtpConns();
+}
+async function shutdown(){
+  if(!confirm("Shut the Catalyst down? Run START again to restart."))return;
+  await fetch("/api/shutdown",{method:"POST"});
+  $("#power-msg").textContent="Catalyst stopped. Run START.cmd (Windows) / start.sh (macOS) to use it again.";
+}
+
+/* ---------- catalog sync ---------- */
+async function runCatalogSync(doSync){
+  const keyEl=$("#hub-api-key");
+  const key=(keyEl.value||"").trim();
+  if(!key){keyEl.focus();keyEl.style.borderColor="var(--danger)";setTimeout(()=>keyEl.style.borderColor="",2000);return;}
+  const statusEl=$("#sync-status");
+  const outEl=$("#sync-out");
+  statusEl.textContent=doSync?"Syncing… this may take a minute.":"Running dry run…";
+  outEl.style.display="none";outEl.textContent="";
+  try{
+    const r=await fetch("/api/catalog/sync",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({hub_api_key:key,dry_run:!doSync,rebuild:doSync})});
+    const d=await r.json();
+    outEl.textContent=d.output||d.error||"(no output)";
+    outEl.style.display="block";
+    statusEl.textContent=d.ok?"✓ Done.":("✗ "+(d.error||"Failed — see output below."));
+    statusEl.style.color=d.ok?"var(--green)":"var(--danger)";
+  }catch(e){
+    statusEl.textContent="✗ Request failed: "+e;
+    statusEl.style.color="var(--danger)";
+  }finally{
+    keyEl.value="";  // clear key from input immediately after use
+  }
+}
+
+/* ---------- admin ---------- */
+async function loadAdmin(){
+  const d=await api("/api/admin");
+  const avg=t=>{const c=d.mcp.per_tool[t];return c&&c.count?Math.round(c.total_ms/c.count):0};
+  $("#admin-stats").innerHTML=[
+    ["Total tool calls",d.mcp.total_tool_calls],["Tool errors",d.mcp.total_errors],
+    ["UI requests",d.ui.requests],["Uptime (s)",d.uptime_seconds]]
+    .map(([l,v])=>"<div class='card stat'><span class='num'>"+v+"</span><span class='lbl'>"+l+"</span></div>").join("");
+  const tools=Object.entries(d.mcp.per_tool).sort((a,b)=>b[1].count-a[1].count);
+  const max=Math.max(1,...tools.map(([,c])=>c.count));
+  $("#admin-bars").innerHTML=tools.map(([t,c])=>"<div class='bar-row'><span class='lbl'>"+esc(t)+"</span><span class='bar'><i style='width:"+Math.round(c.count/max*100)+"%'></i></span><span class='val'>"+c.count+"</span></div>").join("")||"<p style='color:var(--muted)'>No calls yet — try the Playground.</p>";
+  $("#admin-runtime").innerHTML=
+   "<div class='kv'><span>MCP metrics since</span><b>"+esc(d.mcp.last_started||"—")+"</b></div>"+
+   "<div class='kv'><span>Rate-limited calls</span><b>"+d.mcp.rate_limited+"</b></div>"+
+   "<div class='kv'><span>UI server started</span><b>"+esc(d.ui.started)+"</b></div>"+
+   "<div class='kv'><span>Audit log</span><b style='font-size:.7rem'>mcp-server/logs/audit.jsonl</b></div>";
+  $("#audit-table tbody").innerHTML=d.audit_tail.map(a=>{
+    const det=a.detail||{};
+    const detStr=det.tool!==undefined?JSON.stringify(det.arguments||{}):JSON.stringify(Object.fromEntries(Object.entries(det).filter(([k])=>!["ok","duration_ms","tool"].includes(k))));
+    return "<tr><td style='white-space:nowrap'>"+esc((a.ts||"").replace("T"," ").slice(0,19))+"</td><td>"+esc(a.event)+"</td><td><code>"+esc(det.tool||"")+"</code></td><td>"+(det.ok===undefined?"":det.ok?"<span class='chip green'>ok</span>":"<span class='chip red'>err</span>")+"</td><td>"+(det.duration_ms??"")+"</td><td style='font-size:.68rem;color:var(--muted);max-width:420px;overflow:hidden;text-overflow:ellipsis' title="+JSON.stringify(detStr)+">"+esc(detStr.slice(0,140))+"</td></tr>"}).join("");
+  // ---- pipeline token consumption ----
+  const pu=d.pipeline_usage||{runs:[],totals:{},rates_usd_per_mtok:{}}, tot=pu.totals||{};
+  const fmt=n=>(n||0).toLocaleString();
+  $("#usage-summary").innerHTML="<span class='chip purple'>"+(tot.runs||0)+" run(s)</span>"+
+    "<span class='chip blue'>"+fmt(tot.total_tokens)+" total tokens</span>"+
+    "<span class='chip green'>est. $"+(tot.est_cost_usd||0).toFixed(2)+"</span>"+
+    (tot.cost_usd?"<span class='chip gray'>CLI-reported $"+(tot.cost_usd||0).toFixed(2)+"</span>":"");
+  $("#usage-table tbody").innerHTML=(pu.runs||[]).map(r=>
+    "<tr><td><b>"+esc(r.run)+"</b></td><td style='font-size:.68rem;color:var(--muted)'>"+esc(r.fd||"")+"</td>"+
+    "<td>"+(r.jobs?r.jobs.length:0)+"</td><td>"+fmt(r.input)+"</td><td>"+fmt(r.output)+"</td><td>"+fmt(r.cache_read)+"</td>"+
+    "<td><b>"+fmt(r.total_tokens)+"</b></td><td>$"+(r.est_cost_usd||0).toFixed(4)+"</td>"+
+    "<td>"+(r.cost_usd?"$"+(r.cost_usd||0).toFixed(4):"—")+"</td><td>"+Math.round((r.duration_ms||0)/1000)+"s</td></tr>").join("")||
+    "<tr><td colspan='10' style='color:var(--muted)'>No pipeline runs recorded yet — run a pipeline and its token usage will appear here.</td></tr>";
+  const rt=pu.rates_usd_per_mtok||{};
+  $("#usage-note").innerHTML="Est. cost uses Claude Sonnet rates (USD / 1M tokens) — input: $"+(rt.input||0)+" | output: $"+(rt.output||0)+" | cache-read: $"+(rt.cache_read||0)+" | cache-write: $"+(rt.cache_write||0)+". Using Opus? Set env S4PC_RATE_IN=15 and S4PC_RATE_OUT=75. The Reported column shows the Claude CLI figure (may show $0 on subscription plans — use Est. Cost instead).";
+}
+
+/* ---------- usage tab ---------- */
+async function loadUsage(){
+  let rows;
+  try{rows=await api("/api/usage");}catch(e){rows=[];}
+  const fmt=n=>(n||0).toLocaleString();
+  let totIn=0,totOut=0,totCost=0;
+  rows.forEach(r=>{totIn+=r.total_input||0;totOut+=r.total_output||0;totCost+=r.total_cost||0;});
+  const stChip=s=>s==="completed"?"<span class='chip green'>"+esc(s)+"</span>":s==="error"||s==="failed"?"<span class='chip red'>"+esc(s)+"</span>":s?("<span class='chip amber'>"+esc(s)+"</span>"):"";
+  $("#usage-tab-totals").innerHTML=rows.length?
+    "<span class='chip purple'>"+rows.length+" run(s)</span>"+
+    "<span class='chip blue'>"+fmt(totIn+totOut)+" total tokens</span>"+
+    "<span class='chip green'>est. $"+(totCost||0).toFixed(2)+"</span>":"<p style='color:var(--muted);font-size:.8rem'>No pipeline runs recorded yet.</p>";
+  $("#usage-tab-body").innerHTML=rows.map(r=>
+    "<tr><td><b>"+esc(r.run_id)+"</b></td>"+
+    "<td style='font-size:.76rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>"+esc(r.title||"")+"</td>"+
+    "<td>"+stChip(r.status)+"</td>"+
+    "<td>"+fmt(r.total_input)+"</td>"+
+    "<td>"+fmt(r.total_output)+"</td>"+
+    "<td><b>$"+(r.total_cost||0).toFixed(4)+"</b></td></tr>").join("")+
+    (rows.length?"<tr style='border-top:2px solid var(--line)'><td colspan='3'><b>Total</b></td>"+
+    "<td><b>"+fmt(totIn)+"</b></td><td><b>"+fmt(totOut)+"</b></td>"+
+    "<td><b>$"+(totCost||0).toFixed(4)+"</b></td></tr>":"");
+}
+
+/* ---------- help ---------- */
+function renderFAQ(){
+  const faqs=[
+   ["What this platform does","The S4PC Catalyst Catalyst is a single-user workstation for building S/4HANA Cloud <b>Public Edition</b> extensions with a <b>multi-agent, agentic pipeline</b>. Every gate is clean-core: no BAPIs, no classical ABAP, only SAP-released BAdIs, APIs, and CDS views. Claude Code is the runtime: the <b>Delivery Lead</b> orchestrates 5 specialist roles (Extensibility Architect, Developer, Clean-Core Reviewer, Test Agent, Challenger) — each running its skill — through a build-first 12-step pipeline (14 with BTP deploy) with 3 hard gates and 3 human checkpoints — build runs from the approved proposal and the locked Custom-Object Naming Contract, with the TD documented afterward — and the s4pc MCP server provides governed, provenance-tagged SAP knowledge."],
+   ["AI models used","Claude by Anthropic, via your Claude Code session. <b>No API keys are configured anywhere in this Catalyst</b> — the MCP server is pure Python tooling and never calls an LLM itself."],
+   ["Quality gates","Three hard gates per object: (1) <b>Release verdict</b> — every referenced SAP object checked via check_object_release_state; NOT_AVAILABLE forces redesign. (2) <b>Code review</b> — clean-core + security review of the built code (Gate 2, feeding the human Code-approval checkpoint), plus abap_cloud_lint PASS and green unit tests. (3) <b>Peer review + challenger</b> — adversarial clean-core review with SHIP/FIX/REDESIGN verdict."],
+   ["How anti-hallucination works","Deterministic tools outrank the model: release checks, lint and the advisor are plain code, not AI. Every tool response carries <code>verified</code> and <code>source</code> fields; unknown objects return NOT_VERIFIED and the model is instructed to surface that verbatim. Seed catalogs always name the authoritative source (api.sap.com, Custom Logic app, ADT Released Objects), and deliverables must separate verified facts from tenant-to-verify items."],
+   ["Known limitations","The catalog (synced from api.sap.com) covers SAP-released objects but still requires tenant verification — BAdI availability varies by release and scope-item activation. APIs returned 0 from the Hub sync in this release (type filter to be confirmed); the 74 curated API entries remain. The lint is a fast local pre-gate, not a replacement for ATC in ADT. Live mode is read-only by design."],
+   ["How to interpret outputs","Green (verified) = confirmed by deterministic tooling or live tenant response. Amber (verify in tenant) = seed data — confirm in the Custom Logic app / ADT / api.sap.com before building. Anything the AI wrote beyond tool outputs is a draft for professional review."],
+   ["Running on Windows","Install nothing. Copy the project folder, double-click <code>START.cmd</code> (uses the bundled Windows Python launcher <code>py</code> or <code>python</code>). Stop with <code>SHUTDOWN.cmd</code> or the Settings → Catalyst → Shut down button. For Claude Code on Windows, set the MCP command to <code>python</code> in <code>.mcp.json</code>."],
+   ["Testing your SAP connection","Settings → Connectivity → Test SAP connection. In offline mode you'll see the guardrail block (by design). For live mode: create a communication user + arrangement in the tenant, export S4PC_MODE=live, SAP_BASE_URL, SAP_COMM_USER, SAP_COMM_PASSWORD, restart, then test again."],
+   ["Sharing with the team","Zip the project folder (logs are excluded via .gitignore if you use git). Teammates need only Python 3.9+ — on Windows that's the standard python.org install. Everything (UI, MCP server, skills, workflows, catalogs) is inside the folder."]];
+  $("#faq").innerHTML=faqs.map(([q,a])=>"<details class='faq'><summary>"+q+"</summary><div class='body'>"+a+"</div></details>").join("");
+}
+
+boot().then(route);
+</script>
+</body>
+</html>

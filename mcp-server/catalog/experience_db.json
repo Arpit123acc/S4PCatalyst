@@ -1,0 +1,426 @@
+{
+  "_meta": {
+    "description": "Experience database — delivery lessons for S/4HANA Cloud Public Edition (clean core). Grows with every pipeline run: the package step records new lessons via the record_experience tool. Compounding institutional knowledge.",
+    "authoritative_docs": {
+      "sap_business_accelerator_hub": "https://api.sap.com/products/SAPS4HANACloud/apis/all",
+      "sap_discovery_center": "https://discovery-center.cloud.sap/viewServices",
+      "sap_help_s4hana_cloud": "https://help.sap.com/docs/SAP_S4HANA_CLOUD",
+      "fiori_apps_library": "https://fioriappslibrary.hana.ondemand.com",
+      "extensibility_explorer": "https://extensibilityexplorer.cfapps.eu10.hana.ondemand.com/"
+    },
+    "note": "Seed entries dated 2026-07-18 come from team delivery experience. Entries added by pipeline runs carry their run id in 'source'."
+  },
+  "entries": [
+    {
+      "id": "EXP-001",
+      "category": "enhancement",
+      "topic": "BAdI availability varies by release",
+      "lesson": "Never sign off an FD on a BAdI name from memory or old projects — S/4HANA Cloud gets 2 major releases a year and the Custom Logic app's BAdI list changes. Verify in the tenant's Custom Logic app before FD sign-off.",
+      "impact": "Avoids redesign after FD approval",
+      "tags": [
+        "badi",
+        "key_user",
+        "release"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-002",
+      "category": "general",
+      "topic": "I_* naming does not equal released",
+      "lesson": "Some I_* CDS views are NOT C1-released for cloud development. Always verify the release contract in ADT Released Objects (or check_object_release_state), never by naming convention.",
+      "impact": "Prevents non-activating code",
+      "tags": [
+        "cds",
+        "developer",
+        "released-objects"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-003",
+      "category": "enhancement",
+      "topic": "Custom field technical names are generated",
+      "lesson": "Custom Fields app generates technical names like YY1_PriorityLevel_PDH per business context. Do not hardcode them in designs before the field exists — reference the label and mark the technical name 'after creation'.",
+      "impact": "Avoids rework in BAdI code and API mappings",
+      "tags": [
+        "custom-fields",
+        "key_user"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-004",
+      "category": "developer",
+      "topic": "Run cloud ATC early, not at transport",
+      "lesson": "ATC with the cloud check variant runs at release of the transport anyway — running it early in ADT (Eclipse) per object saves whole review cycles. Treat abap_cloud_lint as the pre-gate and ATC as the tenant gate.",
+      "impact": "Shorter review loops",
+      "tags": [
+        "atc",
+        "rap",
+        "eclipse"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-005",
+      "category": "developer",
+      "topic": "Transport paths differ per extensibility type",
+      "lesson": "Developer extensibility ships via git-based software components (Manage Software Components app); key-user artifacts ship via Export/Import Software Collection apps. Plan the cutover with BOTH paths — they are separate queues with separate approvers.",
+      "impact": "Cutover plans that actually work",
+      "tags": [
+        "transport",
+        "gcts",
+        "key_user",
+        "developer"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-006",
+      "category": "report",
+      "topic": "Custom Analytical Queries need analytics-released sources",
+      "lesson": "Key-user Custom Analytical Queries only work on analytics-enabled released CDS views (cubes/dimensions). Check the View Browser app for 'released for query' before promising a key-user report.",
+      "impact": "Right mode chosen first time",
+      "tags": [
+        "analytics",
+        "key_user",
+        "cds"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-007",
+      "category": "report",
+      "topic": "Check Fiori Apps Library before building any report",
+      "lesson": "A surprising number of 'custom report' requirements are covered by a standard embedded-analytics app. Check the Fiori Apps Library and in-tenant app finder before proposing custom development — fit-to-standard is rung 1 of the ladder.",
+      "impact": "Zero-cost solutions for ~20% of report FDs",
+      "tags": [
+        "fiori",
+        "fit-to-standard",
+        "report"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-008",
+      "category": "interface",
+      "topic": "Communication scenarios constrain auth methods",
+      "lesson": "Each communication scenario supports specific auth (basic / OAuth / certificate). Verify in the Communication Arrangements app early — middleware teams often assume OAuth where only basic+cert is offered, or vice versa.",
+      "impact": "No late connectivity surprises",
+      "tags": [
+        "api",
+        "communication-arrangement",
+        "auth"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-009",
+      "category": "interface",
+      "topic": "Prefer events + deltas over polling full loads",
+      "lesson": "OData APIs are rate-limited and full extractions hurt tenant performance. Use business events (Event Mesh / Advanced Event Mesh) as triggers and changed-since $filter for deltas. Polling loops are a design smell in Public Cloud.",
+      "impact": "Stable integrations, no throttling incidents",
+      "tags": [
+        "events",
+        "odata",
+        "side_by_side"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-010",
+      "category": "interface",
+      "topic": "FI postings are SOAP, plan mapping effort",
+      "lesson": "Journal entry posting (and several FI scenarios) are SOAP services, not OData. CPI mapping effort for SOAP is typically higher — budget it in the estimate and check the WSDL on the Business Accelerator Hub.",
+      "impact": "Realistic interface estimates",
+      "tags": [
+        "soap",
+        "finance",
+        "cpi"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-011",
+      "category": "form",
+      "topic": "Adobe Forms only — and Designer licensing",
+      "lesson": "Public Cloud output is Adobe Forms via Maintain Form Templates (no Smart Forms, no SAPscript, no print programs). XDP editing requires Adobe LiveCycle Designer — confirm the team has licenses BEFORE the form work starts; it has lead time and cost.",
+      "impact": "No blocked form workstream",
+      "tags": [
+        "adobe-forms",
+        "output",
+        "licensing",
+        "cost"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-012",
+      "category": "workflow",
+      "topic": "Flexible Workflow scenario list is the gate",
+      "lesson": "Flexible Workflow (key user, Manage Workflows app) only exists for SAP-delivered scenarios — check the scenario list in the tenant first. Anything beyond it goes to SAP Build Process Automation on BTP, which has consumption cost (see Discovery Center).",
+      "impact": "Correct mode + cost visibility for workflow FDs",
+      "tags": [
+        "workflow",
+        "sbpa",
+        "btp",
+        "cost"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-013",
+      "category": "enhancement",
+      "topic": "Key-user BAdI ABAP is restricted — heavy logic goes developer",
+      "lesson": "The Custom Logic editor uses a restricted ABAP subset (limited data access, no reuse libraries). Validations/defaults are fine; anything with complex reads, reuse, or performance sensitivity belongs in developer extensibility (RAP/developer BAdI in ADT).",
+      "impact": "No dead-end key-user implementations",
+      "tags": [
+        "badi",
+        "key_user",
+        "developer"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-014",
+      "category": "enhancement",
+      "topic": "Validations fire on ALL channels",
+      "lesson": "A save-time BAdI validation fires for UI, API, and migration loads alike. Always test the API channel explicitly, and consider whether data loads (migration cockpit) should be exempted — they usually can't be, so time validations relative to cutover.",
+      "impact": "No blocked migration loads at cutover",
+      "tags": [
+        "badi",
+        "api",
+        "migration"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-015",
+      "category": "conversion",
+      "topic": "Migration templates change per release",
+      "lesson": "Migrate Your Data staging templates are release-specific. Re-download templates after every tenant upgrade; old mapping sheets silently miss new mandatory fields.",
+      "impact": "Clean loads after upgrades",
+      "tags": [
+        "migration",
+        "conversion",
+        "release"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-016",
+      "category": "side_by_side",
+      "topic": "Estimate BTP consumption before committing",
+      "lesson": "Every BTP service (Integration Suite, Event Mesh, SBPA, Build Work Zone, CAP runtime) has consumption pricing — check SAP Discovery Center service pages for metrics and estimator. Present the cost line in the solution proposal; a 'free' key-user alternative often wins on TCO.",
+      "impact": "Cost-aware architecture decisions",
+      "tags": [
+        "btp",
+        "cost",
+        "discovery-center"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-017",
+      "category": "interface",
+      "topic": "Standard integration content first",
+      "lesson": "Before designing a custom iFlow, search the Business Accelerator Hub integration packs — SAP ships prebuilt integration content for many common third-party scenarios (banks, tax, logistics). Adapting standard content is cheaper and upgrade-safer than custom.",
+      "impact": "Weeks saved per interface",
+      "tags": [
+        "cpi",
+        "integration-content",
+        "hub"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-018",
+      "category": "developer",
+      "topic": "RAP on Eclipse ADT — test doubles are mandatory",
+      "lesson": "Developer extensibility is RAP + CDS in Eclipse ADT against the dev tenant. ABAP Unit with test doubles (CDS test double framework, released-API mocks) is required for the git release pipeline — design testability into the TD, not after.",
+      "impact": "Releases pass first time",
+      "tags": [
+        "rap",
+        "eclipse",
+        "abap-unit",
+        "developer"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-019",
+      "category": "developer",
+      "topic": "No workaround exists for unreleased objects",
+      "lesson": "Embedded Steampunk cannot touch unreleased objects at all — not even read-only, no wrapper tricks. If a required object is unreleased: use a released alternative, request it from SAP via influence/customer request, or move the capability side-by-side over released APIs. Design around this from day one.",
+      "impact": "No dead-end designs",
+      "tags": [
+        "released-objects",
+        "developer",
+        "clean-core"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-020",
+      "category": "report",
+      "topic": "UI5/CAP on BTP is the report escape hatch — at a cost",
+      "lesson": "When key-user analytics and RAP list reports can't meet a UX requirement, a CAP + UI5 app on BTP (Build Work Zone entry) works — but it adds BTP runtime + Work Zone cost and a separate lifecycle. Rate it honestly against the simpler modes in the proposal.",
+      "impact": "Escape hatch used deliberately, not by default",
+      "tags": [
+        "ui5",
+        "cap",
+        "btp",
+        "cost",
+        "report"
+      ],
+      "added": "2026-07-18",
+      "source": "delivery experience — seed"
+    },
+    {
+      "id": "EXP-021",
+      "category": "general",
+      "topic": "RAP custom query + external API for classification filter (GRUPPOTECNICO)",
+      "lesson": "When a Fiori EL List Report needs to filter by SAP classification characteristic values, implement a RAP custom query class (if_rap_query_provider) that calls API_CLFN_PRODUCT_SRV via cl_web_http_client_manager to resolve the characteristic value to a product RANGE, then injects that range as an IN filter in the CDS SELECT. The value-help CDS (reads I_ClfnCharacteristic) handles the F4 help without any HTTP call. Comm scenario ID must be confirmed with Basis. /ui2/cl_json with REF TO data is fragile — prefer typed deserialization.",
+      "impact": "",
+      "tags": [
+        "RAP",
+        "custom-query",
+        "classification",
+        "HTTP",
+        "OData-V4"
+      ],
+      "added": "2026-07-20",
+      "source": "MM-RPT-0001"
+    },
+    {
+      "id": "EXP-022",
+      "category": "general",
+      "topic": "Blocked-stock App2 block-type derivation via config table (ZCORP_105BWART_T)",
+      "lesson": "Movement type to block-type mapping (E/D/L) belongs in a client-dependent config table (delivery class C), not hard-coded in CDS. The RAP query class reads ZCORP_105BWART_T at query time to build a movement-type RANGE, then filters stock rows by InventoryStockType (04=quality/blocked, 07=blocked stock) derived from block type. This makes the mapping configurable without code change. Custom movement types (9C1/9C2) must exist in tenant Customizing before integration testing.",
+      "impact": "",
+      "tags": [
+        "RAP",
+        "blocked-stock",
+        "config-table",
+        "movement-type"
+      ],
+      "added": "2026-07-20",
+      "source": "MM-RPT-0001"
+    },
+    {
+      "id": "EXP-023",
+      "category": "general",
+      "topic": "RAP Custom Query stock aggregation pattern",
+      "lesson": "Move stock aggregation (SUM across InventoryStockTypes) to query class, not CDS join. INNER JOIN on I_MaterialStock_2 for a specific InventoryStockType excludes products that only have stock in other types. Confirmed fix: MRP-only CDS + SELECT SUM in query class with WHERE inventorystocktype IN ('01','02','07').",
+      "impact": "",
+      "tags": [],
+      "added": "2026-07-20",
+      "source": "MM-RPT-0001"
+    },
+    {
+      "id": "EXP-024",
+      "category": "general",
+      "topic": "RAP Custom Query Provider — personnel number for IsAlreadyAssigned",
+      "lesson": "When IF_RAP_QUERY_PROVIDER~SELECT needs the current user's PersonnelNumber (e.g. to derive an IsAlreadyAssigned flag via LEFT OUTER JOIN on I_EngmtProjectTeamMember), resolve it via a workforce-person API call at the top of the SELECT method and catch CX_RAP_BUSINESS_ERROR non-fatally — a failed WA lookup means IsAlreadyAssigned=false for all rows, which is better than aborting the whole query. Extract the resolution logic into a shared helper class (ZCL_SS_WORKFORCE_HELPER pattern) so C2 action and C3 BAdI can reuse the same logic.",
+      "impact": "",
+      "tags": [],
+      "added": "2026-07-21",
+      "source": "SMART-SEARCH-FD"
+    },
+    {
+      "id": "EXP-025",
+      "category": "general",
+      "topic": "BAdI scaffold pattern for TV-9b unknowns — compile-safe skeleton with testable private logic",
+      "lesson": "When a BAdI implementation class cannot be fully coded because the BAdI interface name or method signature is unknown (tenant-verification item), separate the business logic into private methods that are independently compilable and unit-testable. The public BAdI method becomes a one-method scaffold with clear TV-n markers. This lets the rest of the package transport while the BAdI class waits for TV resolution, since it lives in a separate package (Z_SMART_SEARCH_BADI) and can be transported independently.",
+      "impact": "",
+      "tags": [],
+      "added": "2026-07-21",
+      "source": "SMART-SEARCH-FD"
+    },
+    {
+      "id": "EXP-026",
+      "category": "general",
+      "topic": "cl_abap_json field name casing in outbound API payloads",
+      "lesson": "cl_abap_json=>serialize lowercases ABAP component names by default. For outbound API calls where the target API expects PascalCase or specific casing (e.g. API_MANAGE_WORKFORCE_ASSIGNMENT), either rename the ty_payload components to match exactly or pass pretty_name=cl_abap_json=>pretty_mode-none. Always verify field name casing against the SAP Business Accelerator Hub API spec before activating the communication arrangement.",
+      "impact": "",
+      "tags": [
+        "cl_abap_json",
+        "JSON_serialization",
+        "API_casing",
+        "outbound_API"
+      ],
+      "added": "2026-07-21",
+      "source": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-027",
+      "category": "general",
+      "topic": "SELECT SINGLE non-determinism with multiple active Work Agreements",
+      "lesson": "SELECT SINGLE on I_PersonWorkAgreement filtered by date range is non-deterministic when multiple Work Agreements overlap (e.g. role transitions). Use SELECT ... ORDER BY ValidityStartDate DESCENDING UP TO 1 ROWS instead of SELECT SINGLE to guarantee the most-recently-started agreement is returned. This is ABAP Cloud compliant and avoids arbitrary row selection.",
+      "impact": "",
+      "tags": [
+        "SELECT_SINGLE",
+        "I_PersonWorkAgreement",
+        "non-determinism",
+        "RAP",
+        "ABAP_Cloud"
+      ],
+      "added": "2026-07-21",
+      "source": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-028",
+      "category": "developer",
+      "topic": "PBS scope (J12/1Q4) — all key objects are outside the offline catalog; budget pre-build verification",
+      "lesson": "For any FD covering Professional Services / PBS (scope items J12, 1Q4 or similar), assume that the engagement project CDS views, work package CDS views, Work Agreement API, Resource Assignment API, and timesheet BAdI are ALL NOT_VERIFIED in the offline catalog. Add a mandatory pre-build gate: (1) find PBS CDS view names on SAP Help Released CDS Views list, (2) confirm Work Agreement and Resource Assignment APIs on api.sap.com, (3) locate the timesheet BAdI in the SAP Help List of BAdIs under the PBS scope filter. Skipping this causes 4 NOT_VERIFIED findings, 6 open Major transport blockers, and a quality score below 50.",
+      "impact": "Prevents low quality scores and blocked transports on PBS deliverables",
+      "tags": [
+        "PBS",
+        "professional-services",
+        "NOT_VERIFIED",
+        "pre-build",
+        "tenant-verification",
+        "J12",
+        "1Q4"
+      ],
+      "added": "2026-08-06",
+      "source": "SMART-SEARCH-FD-R3"
+    },
+    {
+      "id": "EXP-029",
+      "category": "developer",
+      "topic": "cx_static_check cannot use MESSAGE syntax in ABAP Cloud — use ev_error output parameter instead",
+      "lesson": "RAISE EXCEPTION TYPE cx_static_check MESSAGE ... does not compile in ABAP for Cloud Development because cx_static_check does not implement if_t100_message. Replace with an EXPORTING ev_error TYPE string output parameter: set ev_error = |...| and RETURN on error; callers check IF ev_error IS NOT INITIAL. This pattern is clean-core compliant and testable. Catches this at Gate 2 (Code Review) as a Critical finding if missed.",
+      "impact": "Avoids non-compiling Critical finding in code review",
+      "tags": [
+        "cx_static_check",
+        "exception",
+        "ABAP_Cloud",
+        "error-handling",
+        "RAP"
+      ],
+      "added": "2026-08-06",
+      "source": "SMART-SEARCH-FD-R3"
+    }
+  ]
+}

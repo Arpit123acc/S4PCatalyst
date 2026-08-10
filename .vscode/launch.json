@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "S4PC Catalyst — Start webapp",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/webapp/app.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "S4PC_UI_PORT": "8321",
+        "S4PC_UI_HOST": "127.0.0.1"
+      }
+    },
+    {
+      "name": "S4PC Catalyst — Start webapp (no browser)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/webapp/app.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "S4PC_UI_PORT": "8321",
+        "S4PC_UI_HOST": "127.0.0.1",
+        "S4PC_UI_NO_BROWSER": "1"
+      }
+    },
+    {
+      "name": "S4PC Catalyst — MCP server (offline)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/mcp-server/server.py",
+      "args": ["--tool", "get_reference_links", "{}"],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
