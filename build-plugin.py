@@ -46,7 +46,7 @@ JUNK_DIR = {"__pycache__", "logs"}
 # Generated at runtime on each machine (db.py auto-migrates catalog.db from the JSON seeds;
 # build_index.py / build_graph.py regenerate index.json / graph.json). Ship the engines and the
 # JSON seeds, never the generated data — the plugin rebuilds them on first use.
-JUNK_FILES = {"catalog.db", "index.json", "graph.json"}
+JUNK_FILES = {"catalog.db", "index.json", "index.npy", "graph.json"}
 
 def _ignore(_dir, names):
     return [n for n in names if n in JUNK_DIR or n in JUNK_FILES or n.endswith(JUNK_EXT)]
@@ -145,7 +145,8 @@ _write(os.path.join(MKT_DIR, "marketplace.json"), json.dumps({
 # ---------------------------------------------------------------- 8. teammate docs
 _write(os.path.join(DIST, ".gitignore"),
        "__pycache__/\n*.pyc\nlogs/\n.DS_Store\n"
-       "*.db\nplugins/*/mcp-server/vector/index.json\nplugins/*/mcp-server/graph/graph.json\n")
+       "*.db\nplugins/*/mcp-server/vector/index.json\nplugins/*/mcp-server/vector/index.npy\n"
+       "plugins/*/mcp-server/graph/graph.json\n")
 _write(os.path.join(DIST, "README.md"), """# S4PC Catalyst — S/4HANA Cloud Public Edition clean-core delivery
 
 A Claude Code **plugin**. Run the governed RICEFW pipeline, extensibility decisions,

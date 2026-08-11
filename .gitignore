@@ -8,6 +8,7 @@ webapp/data/btp-connection.json
 webapp/data/btp-connections.json
 mcp-server/logs/
 mcp-server/vector/index.json
+mcp-server/vector/index.npy
 mcp-server/graph/graph.json
 mcp-server/catalog/catalog.db
 *.pyc

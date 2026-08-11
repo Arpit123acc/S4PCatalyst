@@ -3,18 +3,24 @@
 S4PC Digital Brain — index builder.
 
 Reads all catalog JSON files (APIs, CDS views, BAdIs, experience_db) and
-every output/<RUN-ID>/run.json, then builds/rebuilds the TF-IDF index used
+every output/<RUN-ID>/run.json, then builds the semantic search index used
 by semantic_search and find_similar_delivery MCP tools.
+
+Backend (auto-detected):
+  • sentence-transformers installed  →  dense embeddings (all-MiniLM-L6-v2)
+  • not installed                    →  BM25 TF-IDF fallback (pure stdlib)
+
+Install dense backend:
+    pip install sentence-transformers
 
 Usage:
     python mcp-server/vector/build_index.py
 
 Run whenever:
+  - sentence-transformers is installed for the first time
   - catalog files change (new APIs / CDS views / BAdIs added)
   - a new pipeline run completes and you want it in the Experience Graph
-  - first time setup
-
-Zero-dependency — pure Python 3.9+ stdlib only.
+  - first-time setup
 """
 
 import glob
@@ -189,7 +195,11 @@ def build_documents():
 
 
 if __name__ == "__main__":
-    print("S4PC Digital Brain — building semantic search index...")
+    be = engine.backend()
+    print("S4PC Digital Brain — building semantic search index  [backend: %s]" % be)
+    if be == "tfidf":
+        print("  Tip: pip install sentence-transformers  for dense semantic embeddings")
+
     docs = build_documents()
 
     by_type: dict = {}
@@ -203,4 +213,6 @@ if __name__ == "__main__":
 
     count = engine.build_and_save(docs)
     print("Index written: %d documents -> %s" % (count, engine.INDEX_PATH))
+    if be == "dense":
+        print("  Embedding matrix: %s" % engine.EMBED_PATH)
     print("Done. MCP tools semantic_search and find_similar_delivery are now active.")
