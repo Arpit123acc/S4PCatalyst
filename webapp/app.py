@@ -155,23 +155,23 @@ def list_workflows():
                         "size_kb": round(len(text) / 1024, 1), "content": text})
     return out
 
-def _canon_workflow(label, extensibility_mode=""):
+def _canon_workflow(label, extensibility_mode="", is_btp=False):
     """Collapse the engine's free-text pipeline labels into ONE canonical string per variant, so the
     Workflow Explorer dropdown shows a clean, de-duplicated type list (fixes mojibake and the
     '12 steps' / '14 steps incl. BTP deploy' drift). Non-pipeline workflows pass through unchanged.
 
-    extensibility_mode is the authoritative source: only side-by-side runs qualify for the
-    14-step BTP variant — even if the workflow label was incorrectly written as 14-step because
-    an evaluated-but-rejected BTP option existed in the proposal."""
+    A run is the 14-step BTP variant when a side-by-side (BTP) approach was actually SELECTED —
+    signalled by is_btp (the CP1 decision's selected_is_btp, authoritative even for a BTP override of
+    a developer recommendation, and even for a mixed approach whose mode string isn't 'side') or by an
+    extensibility_mode of side-by-side. An evaluated-but-rejected BTP option never triggers it."""
     s = (label or "").strip()
     mode = (extensibility_mode or "").lower()
     if not s:
         return "RICEFW Pipeline (12 steps)"
     low = s.lower()
     if "ricefw" in low or "pipeline" in low:
-        is_btp_workflow = ("btp" in low or "deploy" in low)
-        is_side_by_side = "side" in mode
-        if is_btp_workflow and is_side_by_side:
+        is_side_by_side = bool(is_btp) or ("side" in mode)
+        if is_side_by_side:
             return "RICEFW Pipeline (14 steps, incl. BTP deploy)"
         return "RICEFW Pipeline (12 steps)"
     return s
@@ -187,7 +187,8 @@ def list_runs():
             if not data:
                 continue
             data["folder"] = name
-            data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""))
+            data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""),
+                                                data.get("selected_is_btp", False))
             run_dir_path = os.path.join(out_dir, name)
             data["files"] = sorted(
                 f for f in os.listdir(run_dir_path)
@@ -1315,8 +1316,10 @@ def _phase_d_prompt(rid, fd_path, decision, notes, cp3_slug, selected_is_btp=Fal
              "cp3_slug": cp3_slug, "plain_english": _PLAIN_ENGLISH_RULE} + _sbpa_branch
     _btp_branch = (
         "The approach selected at CP1 IS BTP (side-by-side). Add steps 13 and 14:\n"
-        "  • Set run.json.workflow → 'RICEFW Pipeline (14 steps, incl. BTP deploy)' (ASCII only).\n"
-        "  • Append step 13 (BTP Prerequisite Check, gate=true) and step 14 (Deploy to BTP) to run.json.steps.\n"
+        "  • Ensure run.json.workflow = 'RICEFW Pipeline (14 steps, incl. BTP deploy)' (ASCII only).\n"
+        "  • Ensure steps 13 (BTP Prerequisite Check, gate=true) and 14 (Deploy to BTP) exist in\n"
+        "    run.json.steps — the webapp already seeds them as PENDING when BTP is selected at CP1, so\n"
+        "    UPDATE those entries in place (do NOT append duplicates); add only any that are missing.\n"
         "  • Write step 13 checkpoint_request with checklist of ALL in-tenant prerequisites.\n"
         "  • Write output/" + rid + "/13-btp-prereq-check.md.\n"
         "  • Set status → 'awaiting_approval', step 13 → AWAITING_APPROVAL. THEN EXIT.\n"
@@ -2782,6 +2785,25 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                 data.setdefault("human_approvals", []).append(record)
             if _mode_override:
                 data["mode_override"] = _mode_override
+            # Selecting a side-by-side (BTP) approach at CP1 turns this into the 14-step pipeline
+            # immediately: persist the authoritative flag, switch the workflow label, and reveal the
+            # two BTP deploy steps as PENDING so the Workflow Explorer reflects it right away (the
+            # engine fills them in for real at Phase D / Deploy). SBPA is BTP-cost but produces config
+            # handover (step 12), not a CAP deploy — so it stays 12-step.
+            if selected_is_btp and not selected_is_sbpa:
+                data["selected_is_btp"] = True
+                data["workflow"] = "RICEFW Pipeline (14 steps, incl. BTP deploy)"
+                _have = {str(s.get("n")) for s in data.get("steps", [])}
+                if "13" not in _have:
+                    data.setdefault("steps", []).append(
+                        {"n": 13, "name": "BTP Prerequisite Check", "agent": "Delivery Lead",
+                         "gate": True, "status": "PENDING", "score": None, "iterations": 0,
+                         "detail": "Side-by-side (BTP) approach selected at CP1 — deploy prerequisites gate."})
+                if "14" not in _have:
+                    data.setdefault("steps", []).append(
+                        {"n": 14, "name": "Deploy to BTP (dev)", "agent": "Developer",
+                         "gate": False, "status": "PENDING", "score": None, "iterations": 0,
+                         "detail": "Side-by-side (BTP) approach selected at CP1 — deploy to a dev/test space."})
             data["checkpoint_request"] = None
             for s in data.get("steps", []):
                 if s.get("status") == "AWAITING_APPROVAL":
