@@ -110,7 +110,12 @@ from habit:
   business events — external data, independent lifecycle, non-SAP consumers.
 - **MIXED is normal:** one FD frequently lands in 2–3 modes (e.g. key-user field + developer
   RAP service + side-by-side iFlow). Present the split per capability; never force a single
-  mode onto a requirement that spans modes.
+  mode onto a requirement that spans modes. The overall approach is one of seven —
+  `KEY_USER / DEVELOPER / SIDE_BY_SIDE / KU_DEV / KU_SXS / DEV_SXS / KU_DEV_SXS` — derived from the
+  modes present. Set the **extensibility field contract** (`extensibility_approach`, the
+  `key_user_/developer_/btp_components` arrays, `transport_type`, `dev_entitlement_required`,
+  `btp_services_required`, `clean_core_validated`) per `steering/extensibility-taxonomy.md` §3;
+  build, tests, and the TD all branch on it (§4).
 
 Use `extensibility_advisor` for the first pass, then apply judgment. Every object the
 proposal touches gets `check_object_release_state` — a NOT_AVAILABLE object means redesign
@@ -404,6 +409,10 @@ progress (or one waiting on a human) is visible in the Workflow Explorer UI. Sch
   "auto_corrections": 4,
   "extensibility_mode": "key_user",
   "mode_split": [{"capability": "Priority field", "mode": "key_user"}],
+  "extensibility_approach": "KEY_USER",
+  "key_user_components": ["FLCL"], "developer_components": [], "btp_components": [],
+  "clean_core_validated": true, "transport_type": "IN_SYSTEM",
+  "dev_entitlement_required": false, "btp_services_required": [],
   "steps": [
     {"n": 1, "name": "Intake", "agent": "Orchestrator", "status": "PASS",
      "gate": false, "score": null, "iterations": 1, "detail": "one line"}

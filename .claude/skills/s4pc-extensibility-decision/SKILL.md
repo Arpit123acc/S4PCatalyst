@@ -35,7 +35,13 @@ Produce a defensible, clean-core extensibility decision. Never decide from memor
 6. Consult `query_experience` and cite the EXP-ids that informed the decision.
 7. Deliver a decision document:
    - Decision summary (mode(s) + one-paragraph rationale)
-   - Capability-to-mode table (mixed is normal)
+   - **Extensibility field contract** (see `steering/extensibility-taxonomy.md` §3): set
+     `extensibility_approach` ∈ `KEY_USER|DEVELOPER|SIDE_BY_SIDE|KU_DEV|KU_SXS|DEV_SXS|KU_DEV_SXS`
+     (the union of the modes present in the split), plus `key_user_components` /
+     `developer_components` / `btp_components` (only those in scope), `clean_core_validated` (must be
+     `true`), `transport_type` (`IN_SYSTEM|BTP_MTAR|BOTH|NONE`), `dev_entitlement_required` (`true`
+     whenever developer is in scope — a TD pre-condition), and `btp_services_required`.
+   - Capability-to-mode table (mixed is normal — any of the seven approaches above)
    - **Custom-Object Naming Contract** — a table of every custom object the solution will CREATE
      (custom field, CDS view, CBO/RAP BO, table, CAP/UI5 artifact) with a proposed namespaced
      technical name (`YY1_…` key-user, `Z…`/`Y…` developer). The human locks these names at

@@ -1408,6 +1408,8 @@ function selectRun(id){
   $("#ex-run-chips").innerHTML="<span class='chip purple'>"+esc(r.type||"")+"</span>"+
     "<span class='chip "+(r.status==="completed"?"green":r.status==="awaiting_approval"?"amber":"blue")+"'>"+esc((r.status||"").replace("_"," "))+"</span>"+
     (r.extensibility_mode?"<span class='chip blue'>"+esc(r.extensibility_mode)+"</span>":"")+
+    (r.extensibility_approach?"<span class='chip purple' title='Extensibility approach'>"+esc(r.extensibility_approach)+"</span>":"")+
+    (r.dev_entitlement_required?"<span class='chip amber' title='Developer Extensibility entitlement is a pre-condition'>dev entitlement req.</span>":"")+
     (r.fd_source?"<span class='chip gray'>FD: "+esc(r.fd_source)+"</span>":"")+
     (r.bundled_example?"<span class='chip amber'>bundled example</span>":"")+
     "<span class='chip gray'>"+(r.files||[]).length+" files</span>"+
@@ -1484,7 +1486,12 @@ function selectRun(id){
     "<div style='display:flex;gap:10px;flex-wrap:wrap'>"+appr.map(a=>
       "<div style='border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:.72rem;min-width:220px'><b>"+esc(a.checkpoint)+"</b> <span class='chip "+(dCol[a.decision]||"gray")+"'>"+esc(a.decision)+"</span><br><span style='color:var(--muted)'>"+esc(a.by||"")+" · "+esc(a.date||"")+(a.notes?" — "+esc(a.notes):"")+"</span></div>").join("")+"</div>"
     :"<p style='font-size:.78rem;color:var(--amber)'>⚠ No human decisions recorded — a run cannot complete without checkpoint approvals.</p>")+
-    ((r.mode_split||[]).length?"<div style='margin-top:10px'><span style='font-size:.68rem;letter-spacing:.08em;color:var(--muted)'>MODE SPLIT</span> "+r.mode_split.map(m=>"<span class='chip blue'>"+esc(m.capability)+" → "+esc(m.mode)+"</span>").join(" ")+"</div>":"");
+    ((r.mode_split||[]).length?"<div style='margin-top:10px'><span style='font-size:.68rem;letter-spacing:.08em;color:var(--muted)'>MODE SPLIT</span> "+r.mode_split.map(m=>"<span class='chip blue'>"+esc(m.capability)+" → "+esc(m.mode)+"</span>").join(" ")+"</div>":"")+
+    (function(){var rows=[["KEY USER",r.key_user_components],["DEVELOPER",r.developer_components],["BTP",r.btp_components]].filter(function(x){return (x[1]||[]).length;});
+      var svc=(r.btp_services_required||[]);
+      if(!rows.length&&!svc.length)return"";
+      return "<div style='margin-top:8px;display:flex;flex-direction:column;gap:4px'>"+rows.map(function(x){return "<div><span style='font-size:.68rem;letter-spacing:.08em;color:var(--muted)'>"+x[0]+" COMPONENTS</span> "+x[1].map(function(c){return "<span class='chip gray'>"+esc(c)+"</span>";}).join(" ")+"</div>";}).join("")+
+        (svc.length?"<div><span style='font-size:.68rem;letter-spacing:.08em;color:var(--muted)'>BTP SERVICES (cost)</span> "+svc.map(function(c){return "<span class='chip amber'>"+esc(typeof c==='string'?c:(c.name||JSON.stringify(c)))+"</span>";}).join(" ")+"</div>":"")+"</div>";})();
   renderFindings();
   $("#ex-files").innerHTML=(r.files||[]).map(f=>"<div class='card click' style='padding:10px 13px;font-size:.76rem' onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(f)+"\")'>📄 "+esc(f)+"</div>").join("");
   renderRunChips();

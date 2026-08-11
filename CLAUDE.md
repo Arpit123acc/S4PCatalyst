@@ -96,3 +96,4 @@ technology constraints, and how the project is laid out:
 @.claude/steering/product.md
 @.claude/steering/tech.md
 @.claude/steering/structure.md
+@.claude/steering/extensibility-taxonomy.md
