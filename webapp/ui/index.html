@@ -999,7 +999,10 @@ function checkpointHtml(r,cp){
        "<span id='code-count' style='font-size:.78rem;color:var(--muted)'></span>"+
        "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }else if(Array.isArray(cp.naming_contract)&&cp.naming_contract.length){
+    h+=renderApproachOptions(cp.approach_options);
     h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>Confirm the exact technical name for each custom object — edit to match your tenant conventions, Build uses these verbatim:</p>";
+    if(Array.isArray(cp.approach_options)&&cp.approach_options.length>1)
+      h+="<p style='font-size:.72rem;color:var(--muted);margin:0 0 6px'>The names below correspond to the recommended approach. If you select a different approach above, Build uses that approach's naming contract from the solution proposal — you can leave these as-is.</p>";
     h+="<div style='display:flex;flex-direction:column;gap:8px;margin:8px 0'>";
     cp.naming_contract.forEach(function(it){var idv=esc(it.id||"");
       h+="<div style='display:flex;gap:10px;align-items:center'>"+
@@ -1125,11 +1128,16 @@ async function submitNaming(runId,checkpoint){
   var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
   var bad=items.filter(function(x){return !_nameOk(x.value);}).length;
   if(bad){alert("Complete the object names first to proceed — "+bad+" still need a valid namespaced name (Z…, Y… or YY1_ prefix, no spaces).");return;}
+  var msg=document.getElementById("cp-msg");
+  var sel=document.querySelector("input[name=approach-select]:checked");
+  var selectedApproach=sel?sel.value:"";
+  var opts=(EX_RUN&&EX_RUN.checkpoint_request&&EX_RUN.checkpoint_request.approach_options)||[];
+  if(opts.length&&!selectedApproach){if(msg)msg.textContent="Please select an approach above before locking names.";return;}
   var names={};items.forEach(function(x){names[x.dataset.id]=x.value;});
-  var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Locking names + resuming…";
+  if(msg)msg.textContent="Locking names + resuming…";
   await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,names:names})});
   var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
-  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes})}).then(x=>x.json());
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes,selected_approach:selectedApproach})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");
   loadJobs();
 }
