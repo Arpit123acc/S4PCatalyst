@@ -862,7 +862,8 @@ def _phase_a_prompt(fd_path, rid):
         '        "summary": "<2-3 sentences describing this approach>",\n'
         '        "pros": ["<pro 1>", "<pro 2>"],\n'
         '        "cons": ["<con 1>", "<con 2>"],\n'
-        '        "why_not": null\n'
+        '        "why_not": null,\n'
+        '        "naming_contract": [ {"id":"NCA-01","object":"<obj>","type":"<type>","created_in":"<key_user|developer|side_by_side>","name":"<Z.../YY1_.../CAP name>"} ]\n'
         '      },\n'
         '      {\n'
         '        "id": "B",\n'
@@ -876,7 +877,8 @@ def _phase_a_prompt(fd_path, rid):
         '        "summary": "<description>",\n'
         '        "pros": ["..."],\n'
         '        "cons": ["..."],\n'
-        '        "why_not": "<why this was not recommended>"\n'
+        '        "why_not": "<why this was not recommended>",\n'
+        '        "naming_contract": [ {"id":"NCB-01","object":"<obj>","type":"<type>","created_in":"side_by_side","name":"<CAP entity/service/destination name>"} ]\n'
         '      }\n'
         "    ],\n"
         "SBPA GUIDANCE: If the FD involves workflow automation, approval chains, or process orchestration,\n"
@@ -896,12 +898,14 @@ def _phase_a_prompt(fd_path, rid):
         "    • Author the naming_contract (below) for the MANDATED option so a mandated build is name-locked\n"
         "      from the start; if no mode is mandated, author it for the recommended option.\n"
         "  If NO client constraint is present, set mandated=false + feasible=true on every option normally.\n"
-        "PER-APPROACH NAMING: In 02-solution-proposal.md, give EACH build-viable option its own Custom-Object\n"
-        "  Naming Contract sub-table (mode-appropriate: Z/Y CDS+RAP for developer, YY1_ fields for key user,\n"
-        "  CAP entities/services/destinations for side-by-side) — so a review-time override to a different\n"
-        "  mode still has exact names to build against.\n"
-        '    "naming_contract": [  ← include ONLY if solution creates custom objects; use the mandated\n'
-        "                             option if one is mandated, else the recommended option\n"
+        "PER-APPROACH NAMING (REQUIRED): give EACH build-viable option its own naming contract in TWO places,\n"
+        "  with identical objects/names: (1) structured in that option's approach_options[i].naming_contract\n"
+        "  (shown above), and (2) as a sub-table in 02-solution-proposal.md. Mode-appropriate objects: Z/Y\n"
+        "  CDS+RAP for developer, YY1_ fields for key user, CAP entities/services/destinations for\n"
+        "  side-by-side. The webapp swaps the editable name grid to the SELECTED option's contract, so a\n"
+        "  client-mandated override (e.g. BTP over RAP) never shows the other mode's names.\n"
+        '    "naming_contract": [  ← TOP-LEVEL mirror: copy the DEFAULT option\'s contract here (the mandated\n'
+        "                             option if one is mandated, else the recommended one) for initial display\n"
         '      {"id":"NC-01","object":"<name>","type":"<type>","created_in":"<key_user|developer|side_by_side>","name":"<Z.../YY1_.../CAP name>"}\n'
         "    ]\n"
         "  }\n"
@@ -954,10 +958,10 @@ def _phase_b_prompt(rid, fd_path, decision, notes, fc_txt, cp1_slug,
         "    Developer mode: RAP / CDS / released BAdIs — ABAP for Cloud Development only.\n"
         "    Key user mode: Custom Fields & Logic config steps, BAdI implementation outline.\n"
         "    Side-by-side: CAP Node.js + SAPUI5 (follow cap.cloud.sap, ui5.sap.com docs).\n"
-        "  • NAMING ON OVERRIDE: if the selected approach differs from the mode whose names are in the\n"
-        "    locked checkpoint_request.naming_contract (i.e. the developer overrode the default at CP1),\n"
-        "    build against the naming contract for the SELECTED approach documented in\n"
-        "    02-solution-proposal.md (the per-approach sub-table) — never mix names across modes.\n"
+        "  • NAMING SOURCE OF TRUTH: the decision file decisions/%(cp1_slug)s.json carries the human-locked\n"
+        "    naming_contract for the SELECTED approach — if present and non-empty, build against THOSE exact\n"
+        "    names verbatim. Only if it is absent, fall back to the SELECTED approach's sub-table in\n"
+        "    02-solution-proposal.md. Never mix names across modes (e.g. RAP Z-names on a BTP build).\n"
         "  • Apply any 'adjust' notes from the developer verbatim.\n"
         "Write output/%(rid)s/06-build.md\n"
         "Update run.json: step 6 → PASS, deliverables += '06-build.md'.\n\n"
@@ -986,7 +990,7 @@ def _phase_b_prompt(rid, fd_path, decision, notes, fc_txt, cp1_slug,
         "    ]\n"
         "  }\n"
         "THEN EXIT. Do NOT continue to step 8.\n"
-    ) % {"rid": rid}
+    ) % {"rid": rid, "cp1_slug": cp1_slug}
 
 
 def _phase_c_prompt(rid, fd_path, decision, notes, fc_txt, cp2_slug, is_sbpa=False):
@@ -2434,14 +2438,24 @@ def pipeline_start(fd_path):
     return {"ok": True, "job": job_id, "run": rid,
             "message": "Pipeline started — steps are showing in the Workflow Explorer now."}, 200
 
-_NAMESPACE_RE = re.compile(r'^(YY1_|Z|Y)[A-Za-z0-9_]{2,}$')
-def _naming_ok(n):
-    return bool(_NAMESPACE_RE.match((n or "").strip()))
+_NAMESPACE_RE = re.compile(r'^(YY1_|Z|Y)[A-Za-z0-9_]{2,}$')      # ABAP developer / key-user objects
+_BTP_NAME_RE  = re.compile(r'^[A-Za-z][A-Za-z0-9_./-]{1,}$')      # side-by-side: CAP service/entity, destination, UI5 module
+def _naming_ok(n, created_in=""):
+    v = (n or "").strip()
+    # Side-by-side (BTP/CAP) objects don't use ABAP Z/Y/YY1_ namespaces — validate them with CAP-style rules.
+    if (created_in or "").strip().lower() in ("side_by_side", "side-by-side", "btp", "cap"):
+        return bool(_BTP_NAME_RE.match(v))
+    return bool(_NAMESPACE_RE.match(v))
 
-def pipeline_naming(run_id, names):
+def pipeline_naming(run_id, names, contract=None, selected_approach=None):
     """Persist edited custom-object names into the run's checkpoint_request.naming_contract, so a
     developer's names survive refresh/restart (like the prerequisite checklist). Approval later
-    re-validates them."""
+    re-validates them.
+
+    When the developer selects a different approach at CP1 (e.g. a client-mandated BTP over the
+    recommended RAP), the UI sends that approach's full `contract` (replace, not merge) plus the
+    chosen `selected_approach` id — both are persisted so the swapped name grid and the radio
+    survive the 3-second poll re-render and drive Build."""
     if not SAFE_NAME.match(run_id or ""):
         return {"error": "Invalid run id"}, 400
     manifest = os.path.join(ROOT_DIR, "output", run_id, "run.json")
@@ -2449,18 +2463,28 @@ def pipeline_naming(run_id, names):
         return {"error": "Run not found"}, 404
     data = read_json(manifest) or {}
     cp = data.get("checkpoint_request") or {}
-    nc = cp.get("naming_contract") or []
-    if not nc:
-        return {"error": "No naming contract on this run"}, 409
-    names = names or {}
-    for item in nc:
-        if item.get("id") in names:
-            item["name"] = str(names[item["id"]]).strip()
-    cp["naming_contract"] = nc
+    # Full-contract swap (approach change) — replace the active contract wholesale.
+    # An empty list is a deliberate clear (override to an approach with no inline naming grid).
+    if isinstance(contract, list):
+        nc = [{"id": str(i.get("id", "")), "object": str(i.get("object", "")),
+               "type": str(i.get("type", "")), "created_in": str(i.get("created_in", "")),
+               "name": str(i.get("name", "")).strip()} for i in contract if isinstance(i, dict)]
+        cp["naming_contract"] = nc
+    else:
+        nc = cp.get("naming_contract") or []
+        if not nc:
+            return {"error": "No naming contract on this run"}, 409
+        names = names or {}
+        for item in nc:
+            if item.get("id") in names:
+                item["name"] = str(names[item["id"]]).strip()
+        cp["naming_contract"] = nc
+    if selected_approach is not None:
+        cp["selected_approach"] = str(selected_approach)
     data["checkpoint_request"] = cp
     with open(manifest, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, ensure_ascii=False)
-    return {"ok": True, "valid": sum(1 for i in nc if _naming_ok(i.get("name"))), "total": len(nc)}, 200
+    return {"ok": True, "valid": sum(1 for i in nc if _naming_ok(i.get("name"), i.get("created_in"))), "total": len(nc)}, 200
 
 def pipeline_comments(run_id, comments):
     """Persist per-file code-review comments into checkpoint_request.code_files[].comment (Gate 2 /
@@ -2573,10 +2597,22 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
         return {"error": "Run not found"}, 404
     # A checklist checkpoint (e.g. BTP prerequisites) cannot be approved until every item is ticked.
     _cpreq = (read_json(os.path.join(run_dir, "run.json")) or {}).get("checkpoint_request") or {}
+    # Belt-and-suspenders: if the developer selected an approach that carries its OWN naming contract
+    # but the persisted active contract doesn't match that selection (e.g. a swap POST was missed),
+    # adopt the selected approach's contract so validation + Build lock the RIGHT mode's names.
+    if selected_approach and (_cpreq.get("approach_options") or []):
+        _so = next((o for o in _cpreq["approach_options"] if o.get("id") == selected_approach), None)
+        _so_nc = (_so or {}).get("naming_contract") or []
+        if _so_nc and _cpreq.get("selected_approach") != selected_approach:
+            _cpreq["naming_contract"] = _so_nc
+        elif _so is not None and not _so.get("recommended") and not _so_nc:
+            # Override to an approach with no inline naming contract — don't lock the default mode's
+            # names for it; clear so Build takes the names from the solution proposal instead.
+            _cpreq["naming_contract"] = []
     if decision == "approved" and (_cpreq.get("checklist") or []) and not checklist_confirmed:
         return {"error": "Complete the pre-req checklist first to proceed."}, 409
     if decision == "approved" and (_cpreq.get("naming_contract") or []):
-        if any(not _naming_ok(i.get("name")) for i in _cpreq["naming_contract"]):
+        if any(not _naming_ok(i.get("name"), i.get("created_in")) for i in _cpreq["naming_contract"]):
             return {"error": "Confirm a valid namespaced name for every custom object first."}, 409
     # Gate 2 Major enforcement — CP2 approval requires fix comments when Gate 2 found Majors
     if decision == "approved" and "CP2" in (checkpoint or ""):
@@ -2635,6 +2671,9 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
               "selected_is_btp": selected_is_btp,
               "selected_is_sbpa": selected_is_sbpa,
               "mode_override": _mode_override,
+              # The human's locked custom-object names for the SELECTED approach — captured here so
+              # Build reads them verbatim from the decision file (checkpoint_request is cleared on approval).
+              "naming_contract": _cpreq.get("naming_contract") or [],
               "by": "developer (webapp)", "date": time.strftime("%Y-%m-%d %H:%M")}
     with open(os.path.join(dec_dir, cp_slug + ".json"), "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=2)
@@ -3047,7 +3086,8 @@ class Handler(BaseHTTPRequestHandler):
                 payload, code = pipeline_findings_review(body.get("run", ""), body.get("findings", []))
                 return self._send(code, payload)
             if path == "/api/pipeline/naming":
-                payload, code = pipeline_naming(body.get("run", ""), body.get("names", {}))
+                payload, code = pipeline_naming(body.get("run", ""), body.get("names", {}),
+                                                body.get("contract"), body.get("selected_approach"))
                 return self._send(code, payload)
             if path == "/api/pipeline/comments":
                 payload, code = pipeline_comments(body.get("run", ""), body.get("comments", {}))

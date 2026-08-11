@@ -847,21 +847,58 @@ function _overrideNoteHTML(o,opts){
     (o.mandated?" This is flagged as a <b>client-mandated</b> mode.":"")+costLine+
     " The override and the original recommendation are recorded in run.json.</div>";
 }
-function approachChanged(){
-  const note=document.getElementById("override-note");if(!note)return;
-  const sel=document.querySelector("input[name=approach-select]:checked");
-  const opts=window._APPROACH_OPTS||[];
-  const o=opts.find(function(x){return String(x.id)===String(sel&&sel.value)});
-  note.innerHTML=_overrideNoteHTML(o,opts);
+function _selectedOpt(cp){
+  var opts=cp.approach_options||[];
+  var id=cp.selected_approach||"";
+  var o=id?opts.find(function(x){return x.id===id;}):null;
+  if(!o)o=opts.find(function(x){return x.mandated&&x.feasible!==false;})||opts.find(function(x){return x.recommended;})||opts[0];
+  return o||null;
 }
-function renderApproachOptions(approaches){
+function _overrideNoContract(o){                       // override to an approach with no inline names
+  return o&&!o.recommended&&!(Array.isArray(o.naming_contract)&&o.naming_contract.length);
+}
+function namingHostHTML(cp){
+  var o=_selectedOpt(cp);
+  if(_overrideNoContract(o))
+    return "<div style='border:1px dashed var(--line);border-radius:8px;padding:12px;font-size:.78rem;color:var(--muted)'>The custom-object names for <b>"+esc(o.label||"this approach")+"</b> are defined in the solution proposal (<code>02-solution-proposal.md</code>); Build will use them verbatim. No inline names to confirm for this approach.</div>";
+  return renderNamingRows(cp.naming_contract||[]);
+}
+function approachChanged(){
+  var opts=window._APPROACH_OPTS||[];
+  var selEl=document.querySelector("input[name=approach-select]:checked");
+  var newId=selEl?selEl.value:"";
+  var o=opts.find(function(x){return String(x.id)===String(newId)});
+  var note=document.getElementById("override-note");if(note)note.innerHTML=_overrideNoteHTML(o,opts);
+  var host=document.getElementById("naming-host");
+  if(!host)return;                                    // CP1 variant with no inline naming grid
+  var cp=(EX_RUN&&EX_RUN.checkpoint_request)||{};
+  cp.selected_approach=newId;
+  var hasOwn=o&&Array.isArray(o.naming_contract)&&o.naming_contract.length;
+  if(_overrideNoContract(o)){
+    // Older run: the chosen approach has no structured contract — show the proposal note, and persist
+    // ONLY the selection (leave cp.naming_contract intact so switching back restores the default names).
+    host.innerHTML=namingHostHTML(cp);
+    var cnt0=document.getElementById("naming-count");if(cnt0)cnt0.textContent="";
+    if(EX_RUN&&EX_RUN.id)fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,selected_approach:newId})}).catch(function(){});
+    return;
+  }
+  // Swap the active contract to the selected approach's own contract (or keep the default for the
+  // recommended option). Deep-copy so edits never mutate approach_options.
+  var base=hasOwn?o.naming_contract:(cp.naming_contract||[]);
+  cp.naming_contract=JSON.parse(JSON.stringify(base));
+  host.innerHTML=renderNamingRows(cp.naming_contract);
+  if(EX_RUN&&EX_RUN.id)fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,contract:cp.naming_contract,selected_approach:newId})}).catch(function(){});
+  updateNaming();
+}
+function renderApproachOptions(approaches, selectedId){
   if(!approaches||!approaches.length)return"";
   window._APPROACH_OPTS=approaches;
   const hasMandated=approaches.some(function(a){return a.mandated});
+  const hasSel=!!selectedId;
   let defaultOpt=null;
   const cards=approaches.map(function(a){
     const infeasible=a.feasible===false;
-    const isDefault=(a.mandated||(!hasMandated&&a.recommended))&&!infeasible;
+    const isDefault=!infeasible&&(hasSel?(a.id===selectedId):(a.mandated||(!hasMandated&&a.recommended)));
     if(isDefault&&!defaultOpt)defaultOpt=a;
     const recBadge=a.recommended?"<span class='chip green' style='font-size:.6rem'>Recommended</span>":"";
     const mandBadge=a.mandated?"<span style='background:#b45309;color:#fff;border-radius:4px;padding:1px 7px;font-size:.65rem;font-weight:700;margin-left:4px'>Client-mandated</span>":"";
@@ -999,19 +1036,12 @@ function checkpointHtml(r,cp){
        "<span id='code-count' style='font-size:.78rem;color:var(--muted)'></span>"+
        "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }else if(Array.isArray(cp.naming_contract)&&cp.naming_contract.length){
-    h+=renderApproachOptions(cp.approach_options);
+    h+=renderApproachOptions(cp.approach_options,cp.selected_approach);
     h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>Confirm the exact technical name for each custom object — edit to match your tenant conventions, Build uses these verbatim:</p>";
     if(Array.isArray(cp.approach_options)&&cp.approach_options.length>1)
-      h+="<p style='font-size:.72rem;color:var(--muted);margin:0 0 6px'>The names below correspond to the recommended approach. If you select a different approach above, Build uses that approach's naming contract from the solution proposal — you can leave these as-is.</p>";
-    h+="<div style='display:flex;flex-direction:column;gap:8px;margin:8px 0'>";
-    cp.naming_contract.forEach(function(it){var idv=esc(it.id||"");
-      h+="<div style='display:flex;gap:10px;align-items:center'>"+
-         "<div style='flex:1;min-width:0'><div style='font-size:.82rem'>"+esc(it.object||"")+"</div>"+
-         "<div style='font-size:.72rem;color:var(--muted)'>"+esc(it.type||"")+(it.created_in?" · "+esc(it.created_in):"")+"</div></div>"+
-         "<input class='name-item' data-id='"+idv+"' value='"+esc(it.name||"")+"' oninput='updateNaming()' spellcheck='false' style='width:220px;font-family:monospace;font-size:.8rem'>"+
-         "<span class='name-ok' id='nok-"+idv+"' style='width:14px;font-weight:700'></span></div>";});
-    h+="</div>";
-    h+="<p style='font-size:.72rem;color:var(--muted);margin:2px 0 6px'>Key-user field names are the <em>intended</em> name — the actual value is verified in <code>$metadata</code> at the step 13 prerequisite check. Use a <code>Z…</code>, <code>Y…</code> or <code>YY1_</code> prefix, no spaces.</p>";
+      h+="<p style='font-size:.72rem;color:var(--muted);margin:0 0 6px'>Names below match the selected approach. Switch approach above and the list updates automatically.</p>";
+    h+="<div id='naming-host' style='display:flex;flex-direction:column;gap:8px;margin:8px 0'>"+namingHostHTML(cp)+"</div>";
+    h+="<p style='font-size:.72rem;color:var(--muted);margin:2px 0 6px'>Developer/key-user objects use a <code>Z…</code>, <code>Y…</code> or <code>YY1_</code> prefix (key-user field names are the <em>intended</em> name, verified in <code>$metadata</code> at the step 13 prerequisite check); side-by-side (BTP) objects follow CAP / destination naming. No spaces.</p>";
     h+="<textarea id='cp-notes' style='min-height:44px' placeholder='Optional notes'></textarea>";
     h+="<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
        "<button class='btn' onclick='submitNaming(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP")+"\")'>Approve &amp; lock names</button>"+
@@ -1073,7 +1103,7 @@ function checkpointHtml(r,cp){
        "<label><input type='radio' name='cp-decision' value='approved'> ✓ Approve</label>"+
        "<label><input type='radio' name='cp-decision' value='adjusted'> ✎ Adjust (explain in notes)</label>"+
        "<label><input type='radio' name='cp-decision' value='rejected'> ✕ Reject</label></div>"+
-       renderApproachOptions(cp.approach_options)+
+       renderApproachOptions(cp.approach_options,cp.selected_approach)+
        "<textarea id='cp-notes' style='min-height:60px' placeholder='Notes — required for adjust/reject; e.g. change capability 2 to developer extensibility'></textarea>"+
        "<div style='margin-top:10px;display:flex;gap:10px;align-items:center'><button class='btn' onclick='submitDecision(\""+esc(r.id)+"\")'>Submit decision & resume pipeline</button><span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }
@@ -1109,11 +1139,25 @@ async function submitCodeReview(runId,checkpoint){
   if(msg)msg.textContent=rr.ok?"✓ "+(rr.message||"recorded"):"✕ "+(rr.error||"failed");
   loadJobs();
 }
-function _nameOk(v){return /^(YY1_|[ZY])[A-Za-z0-9_]{2,}$/.test((v||"").trim());}
+function _nameOk(v,ci){
+  v=(v||"").trim();
+  // Side-by-side (BTP/CAP) objects don't use ABAP Z/Y/YY1_ namespaces.
+  if(/^(side[_-]?by[_-]?side|btp|cap)$/i.test(ci||""))return /^[A-Za-z][A-Za-z0-9_.\/-]{1,}$/.test(v);
+  return /^(YY1_|[ZY])[A-Za-z0-9_]{2,}$/.test(v);
+}
+function renderNamingRows(contract){
+  return (contract||[]).map(function(it){var idv=esc(it.id||"");
+    return "<div style='display:flex;gap:10px;align-items:center'>"+
+      "<div style='flex:1;min-width:0'><div style='font-size:.82rem'>"+esc(it.object||"")+"</div>"+
+      "<div style='font-size:.72rem;color:var(--muted)'>"+esc(it.type||"")+(it.created_in?" · "+esc(it.created_in):"")+"</div></div>"+
+      "<input class='name-item' data-id='"+idv+"' data-ci='"+esc(it.created_in||"")+"' value='"+esc(it.name||"")+"' oninput='updateNaming()' spellcheck='false' style='width:220px;font-family:monospace;font-size:.8rem'>"+
+      "<span class='name-ok' id='nok-"+idv+"' style='width:14px;font-weight:700'></span></div>";
+  }).join("");
+}
 function updateNaming(){
   var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
   var valid=0,names={};
-  items.forEach(function(x){var ok=_nameOk(x.value);if(ok)valid++;names[x.dataset.id]=x.value;
+  items.forEach(function(x){var ok=_nameOk(x.value,x.dataset.ci);if(ok)valid++;names[x.dataset.id]=x.value;
     var sp=document.getElementById("nok-"+x.dataset.id);
     if(sp){sp.textContent=ok?"✓":"⚠";sp.style.color=ok?"var(--green)":"var(--amber)";}});
   var cnt=document.getElementById("naming-count");
@@ -1121,13 +1165,14 @@ function updateNaming(){
   if(EX_RUN){
     if(EX_RUN.checkpoint_request&&Array.isArray(EX_RUN.checkpoint_request.naming_contract))
       EX_RUN.checkpoint_request.naming_contract.forEach(function(it){if(names[it.id]!=null)it.name=names[it.id];});
-    fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,names:names})});
+    if(items.length)
+      fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,names:names})});
   }
 }
 async function submitNaming(runId,checkpoint){
   var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
-  var bad=items.filter(function(x){return !_nameOk(x.value);}).length;
-  if(bad){alert("Complete the object names first to proceed — "+bad+" still need a valid namespaced name (Z…, Y… or YY1_ prefix, no spaces).");return;}
+  var bad=items.filter(function(x){return !_nameOk(x.value,x.dataset.ci);}).length;
+  if(bad){alert("Complete the object names first to proceed — "+bad+" still need a valid name (developer/key-user: Z…, Y… or YY1_ prefix; side-by-side/BTP: CAP-style name, no spaces).");return;}
   var msg=document.getElementById("cp-msg");
   var sel=document.querySelector("input[name=approach-select]:checked");
   var selectedApproach=sel?sel.value:"";
@@ -1135,7 +1180,8 @@ async function submitNaming(runId,checkpoint){
   if(opts.length&&!selectedApproach){if(msg)msg.textContent="Please select an approach above before locking names.";return;}
   var names={};items.forEach(function(x){names[x.dataset.id]=x.value;});
   if(msg)msg.textContent="Locking names + resuming…";
-  await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,names:names})});
+  if(items.length)
+    await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,names:names})});
   var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
   const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes,selected_approach:selectedApproach})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");
