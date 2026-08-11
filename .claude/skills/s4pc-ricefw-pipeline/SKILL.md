@@ -41,6 +41,19 @@ Use `extensibility_advisor` for the first pass, then apply judgment. Every objec
 proposal touches gets `check_object_release_state` — a NOT_AVAILABLE object means redesign
 with the returned alternative BEFORE the proposal is shown to the human.
 
+**Client-mandated mode (a valid business case).** If the FD carries a **Client Constraints** section
+that mandates an extensibility mode (e.g. "side-by-side / BTP only") — even when it is not the
+clean-core best fit — keep your **honest** technical recommendation AND present the mandated mode as a
+**build-ready** option (full pros/cons, released objects, and for BTP the SAP Discovery Center link +
+pricing metric). Flag the mandated option (`mandated: true`) so the human sees the trade-off; the
+developer may select it at CP1 over the recommendation. The **only** hard gate is feasibility: if the
+mandated mode genuinely cannot be built with released artifacts, say so explicitly and mark it
+infeasible (`feasible: false` + the concrete blocker) — a client mandate never overrides platform
+reality (no BAPIs, no unreleased objects, no classical ABAP). Give **each build-viable option its own
+Custom-Object Naming Contract** so a review-time override to a different mode still builds cleanly. A
+non-recommended selection at CP1 is recorded in `run.json.mode_override` (original recommendation vs.
+selected mode, `cost_disclosure_required`).
+
 **Domain facts (fixed — never contradict these):** Forms are **Adobe Forms only** (Maintain
 Form Templates; no Smart Forms/SAPscript). Key user = released BAdIs (Custom Logic app), custom
 fields, Adapt UI, Custom CDS Views/Analytical Queries, Flexible Workflow. Developer = **RAP on
@@ -340,6 +353,10 @@ as **failing**; keep a gate's final status consistent with `gates_passed` and th
 findings (a gate that FAILED, was fixed, then re-passed ends as PASS/CONDITIONAL_PASS, not FAIL).
 `human_approvals[].decision`
 ∈ approved | adjusted | rejected — with `notes` capturing what the human changed.
+`mode_override` (present only when the human selected a **non-recommended** approach at CP1, e.g. a
+client-mandated BTP build over a RAP recommendation) = `{original_recommendation, original_mode,
+selected_mode, selected_label, mandated, cost_disclosure_required, override_at, by}` — the audit trail
+for a deliberate deviation from the clean-core recommendation; absent/`null` on a normal run.
 `findings[].severity` ∈ Critical | Major | Minor | Info; `findings[].source` ∈ RELEASE_CHECK |
 LINT | TD_REVIEW | PEER_REVIEW | UNIT_TEST | CHALLENGER; `findings[].status` ∈ Resolved | Open.
 An unresolved Critical, or a missing checkpoint approval, means the run CANNOT be

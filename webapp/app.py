@@ -857,6 +857,8 @@ def _phase_a_prompt(fd_path, rid):
         '        "is_btp": false,\n'
         '        "is_sbpa": false,\n'
         '        "recommended": true,\n'
+        '        "mandated": false,\n'
+        '        "feasible": true,\n'
         '        "summary": "<2-3 sentences describing this approach>",\n'
         '        "pros": ["<pro 1>", "<pro 2>"],\n'
         '        "cons": ["<con 1>", "<con 2>"],\n'
@@ -869,6 +871,8 @@ def _phase_a_prompt(fd_path, rid):
         '        "is_btp": true,\n'
         '        "is_sbpa": false,\n'
         '        "recommended": false,\n'
+        '        "mandated": false,\n'
+        '        "feasible": true,\n'
         '        "summary": "<description>",\n'
         '        "pros": ["..."],\n'
         '        "cons": ["..."],\n'
@@ -879,16 +883,35 @@ def _phase_a_prompt(fd_path, rid):
         "include an SBPA approach option with mode='sbpa', is_btp=true, is_sbpa=true.\n"
         "SBPA is a BTP service (SAP Discovery Center: sap-build-process-automation).\n"
         "SBPA produces configuration documentation (not deployable code) — state this clearly in pros/cons.\n"
-        '    "naming_contract": [  ← include ONLY if solution creates custom objects\n'
-        '      {"id":"NC-01","object":"<name>","type":"<type>","created_in":"<key_user|developer>","name":"<Z.../YY1_...>"}\n'
+        "CLIENT-MANDATED MODE: Read any 'Client Constraints' section in the FD. If the client mandates an\n"
+        "  extensibility mode (e.g. 'side-by-side / BTP only', even when it is not the clean-core best fit):\n"
+        "    • Keep your HONEST technical recommendation — set recommended=true on the best-fit option so\n"
+        "      the human sees the trade-off. Do NOT silently rewrite the recommendation to match the mandate.\n"
+        "    • Make the mandated mode a BUILD-READY option: set mandated=true on it, give it a full summary,\n"
+        "      real pros/cons, the released objects it uses, and — if BTP — the SAP Discovery Center link +\n"
+        "      pricing metric in its cons. It must be genuinely selectable and buildable, never a stub.\n"
+        "    • Feasibility is the only hard gate: if the mandated mode truly cannot be built with released\n"
+        "      artifacts, set feasible=false and why_not=<the concrete blocker>, and say so in the summary —\n"
+        "      a client mandate cannot override platform reality.\n"
+        "    • Author the naming_contract (below) for the MANDATED option so a mandated build is name-locked\n"
+        "      from the start; if no mode is mandated, author it for the recommended option.\n"
+        "  If NO client constraint is present, set mandated=false + feasible=true on every option normally.\n"
+        "PER-APPROACH NAMING: In 02-solution-proposal.md, give EACH build-viable option its own Custom-Object\n"
+        "  Naming Contract sub-table (mode-appropriate: Z/Y CDS+RAP for developer, YY1_ fields for key user,\n"
+        "  CAP entities/services/destinations for side-by-side) — so a review-time override to a different\n"
+        "  mode still has exact names to build against.\n"
+        '    "naming_contract": [  ← include ONLY if solution creates custom objects; use the mandated\n'
+        "                             option if one is mandated, else the recommended option\n"
+        '      {"id":"NC-01","object":"<name>","type":"<type>","created_in":"<key_user|developer|side_by_side>","name":"<Z.../YY1_.../CAP name>"}\n'
         "    ]\n"
         "  }\n"
         "The developer will SELECT one approach from approach_options — Build (Phase B) uses the selected one,\n"
-        "NOT necessarily the recommended one. is_btp=true triggers BTP deploy steps 13-14 in Phase D.\n"
-        "Only if the RECOMMENDED approach (recommended=true) has is_btp=true, set run.json.workflow to\n"
-        "  'RICEFW Pipeline (14 steps, incl. BTP deploy)'\n"
-        "right now (ASCII only, no smart quotes). If BTP is merely one evaluated option but NOT the\n"
-        "recommended one, keep run.json.workflow as 'RICEFW Pipeline (12 steps)'.\n"
+        "NOT necessarily the recommended one. A mandated option (mandated=true) is pre-selected in the UI.\n"
+        "is_btp=true on the selected approach triggers BTP deploy steps 13-14 in Phase D.\n"
+        "Set run.json.workflow to 'RICEFW Pipeline (14 steps, incl. BTP deploy)' (ASCII only, no smart quotes)\n"
+        "  if the DEFAULT-SELECTED option has is_btp=true — that is the mandated option when mandated=true,\n"
+        "  otherwise the recommended one. Otherwise keep 'RICEFW Pipeline (12 steps)'. The label is\n"
+        "  re-confirmed from the actually-selected approach in Phase D, so a review-time override still works.\n"
         "THEN EXIT. Do NOT continue to step 6.\n"
     ) % {"rid": rid, "fd": fd_path, "catalog": _CATALOG_FALLBACK, "plain_english": _PLAIN_ENGLISH_RULE + _FINDINGS_SCHEMA}
 
@@ -931,6 +954,10 @@ def _phase_b_prompt(rid, fd_path, decision, notes, fc_txt, cp1_slug,
         "    Developer mode: RAP / CDS / released BAdIs — ABAP for Cloud Development only.\n"
         "    Key user mode: Custom Fields & Logic config steps, BAdI implementation outline.\n"
         "    Side-by-side: CAP Node.js + SAPUI5 (follow cap.cloud.sap, ui5.sap.com docs).\n"
+        "  • NAMING ON OVERRIDE: if the selected approach differs from the mode whose names are in the\n"
+        "    locked checkpoint_request.naming_contract (i.e. the developer overrode the default at CP1),\n"
+        "    build against the naming contract for the SELECTED approach documented in\n"
+        "    02-solution-proposal.md (the per-approach sub-table) — never mix names across modes.\n"
         "  • Apply any 'adjust' notes from the developer verbatim.\n"
         "Write output/%(rid)s/06-build.md\n"
         "Update run.json: step 6 → PASS, deliverables += '06-build.md'.\n\n"
@@ -2584,12 +2611,30 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     selected_approach_label = (_sel_opt or {}).get("label", "")
     selected_is_btp = bool((_sel_opt or {}).get("is_btp", False))
     selected_is_sbpa = bool((_sel_opt or {}).get("is_sbpa", False))
+    # Client-mandate / override audit — the developer may select a NON-recommended option (a valid
+    # business case, e.g. the client mandates BTP even though RAP is the clean-core recommendation).
+    # We record the override explicitly so run.json carries the trade-off, not just the outcome.
+    _rec_opt = next((o for o in _approach_opts if o.get("recommended")), None)
+    _mode_override = None
+    if (_sel_opt and _rec_opt and not _sel_opt.get("recommended")
+            and _sel_opt.get("id") != _rec_opt.get("id")):
+        _mode_override = {
+            "original_recommendation": _rec_opt.get("label", ""),
+            "original_mode": _rec_opt.get("mode", ""),
+            "selected_mode": _sel_opt.get("mode", ""),
+            "selected_label": selected_approach_label,
+            "mandated": bool(_sel_opt.get("mandated", False)),
+            "cost_disclosure_required": selected_is_btp,
+            "override_at": checkpoint,
+            "by": "developer (webapp)",
+        }
     record = {"checkpoint": checkpoint, "decision": decision, "notes": notes or "",
               "file_comments": _fc,
               "selected_approach": selected_approach,
               "selected_approach_label": selected_approach_label,
               "selected_is_btp": selected_is_btp,
               "selected_is_sbpa": selected_is_sbpa,
+              "mode_override": _mode_override,
               "by": "developer (webapp)", "date": time.strftime("%Y-%m-%d %H:%M")}
     with open(os.path.join(dec_dir, cp_slug + ".json"), "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=2)
@@ -2599,6 +2644,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
         "notes": (notes or "")[:200],
         "selected_approach": selected_approach_label or selected_approach or "",
         "is_btp": selected_is_btp,
+        "mode_override": bool(_mode_override),
         "file_comments": len(_fc),
         "quality_score": _rj.get("quality_score"),
         "by": "developer (webapp)"
@@ -2616,6 +2662,8 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
             if not any(a.get("checkpoint") == checkpoint and a.get("date") == record["date"]
                        for a in data.get("human_approvals", [])):
                 data.setdefault("human_approvals", []).append(record)
+            if _mode_override:
+                data["mode_override"] = _mode_override
             data["checkpoint_request"] = None
             for s in data.get("steps", []):
                 if s.get("status") == "AWAITING_APPROVAL":

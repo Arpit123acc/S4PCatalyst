@@ -838,30 +838,57 @@ async function refreshJobLog(jobId){
   const j=JOBS.find(x=>x.job===jobId);
   if(j&&j.status!=="running"&&LOG_POLLS[jobId]){clearInterval(LOG_POLLS[jobId]);delete LOG_POLLS[jobId];}
 }
+function _overrideNoteHTML(o,opts){
+  if(!o||o.recommended)return"";
+  const rec=(opts||[]).find(function(x){return x.recommended});
+  const costLine=o.is_btp?" This is a BTP option with consumption cost — record the client mandate and the cost acknowledgement in your notes below.":"";
+  return "<div style='border:2px solid #b45309;background:#fff7ed;border-radius:8px;padding:10px 12px;font-size:.76rem;color:#7c2d12;margin-top:2px'>"+
+    "<b>Override:</b> you are selecting <b>"+esc(o.label)+"</b> instead of the recommended <b>"+esc((rec&&rec.label)||"approach")+"</b>."+
+    (o.mandated?" This is flagged as a <b>client-mandated</b> mode.":"")+costLine+
+    " The override and the original recommendation are recorded in run.json.</div>";
+}
+function approachChanged(){
+  const note=document.getElementById("override-note");if(!note)return;
+  const sel=document.querySelector("input[name=approach-select]:checked");
+  const opts=window._APPROACH_OPTS||[];
+  const o=opts.find(function(x){return String(x.id)===String(sel&&sel.value)});
+  note.innerHTML=_overrideNoteHTML(o,opts);
+}
 function renderApproachOptions(approaches){
   if(!approaches||!approaches.length)return"";
+  window._APPROACH_OPTS=approaches;
+  const hasMandated=approaches.some(function(a){return a.mandated});
+  let defaultOpt=null;
   const cards=approaches.map(function(a){
+    const infeasible=a.feasible===false;
+    const isDefault=(a.mandated||(!hasMandated&&a.recommended))&&!infeasible;
+    if(isDefault&&!defaultOpt)defaultOpt=a;
     const recBadge=a.recommended?"<span class='chip green' style='font-size:.6rem'>Recommended</span>":"";
+    const mandBadge=a.mandated?"<span style='background:#b45309;color:#fff;border-radius:4px;padding:1px 7px;font-size:.65rem;font-weight:700;margin-left:4px'>Client-mandated</span>":"";
     const btpBadge=a.is_btp?"<span class='chip amber' style='font-size:.6rem'>BTP cost</span>":"<span class='chip' style='font-size:.6rem'>Included</span>";
     const sbpaBadge=a.is_sbpa?"<span style='background:#6f42c1;color:#fff;border-radius:4px;padding:1px 7px;font-size:.65rem;font-weight:700;margin-left:4px'>SBPA</span>":"";
     const modeBadge="<span class='chip' style='font-size:.6rem'>"+esc(a.mode||"")+"</span>";
     const pros=(a.pros||[]).map(function(p){return"<li>"+esc(p)+"</li>"}).join("");
     const cons=(a.cons||[]).map(function(c){return"<li style='color:var(--red)'>"+esc(c)+"</li>"}).join("");
-    const whyNot=a.why_not?"<p style='font-size:.72rem;color:var(--muted);margin-top:6px'><b>Why not recommended:</b> "+esc(a.why_not)+"</p>":"";
-    const checked=a.recommended?"checked":"";
-    return"<label style='display:block;cursor:pointer;border:2px solid "+(a.recommended?"#7c3aed":"#e2e8f0")+";border-radius:10px;padding:12px 14px;margin-bottom:8px;background:"+(a.recommended?"#f5f0ff":"#fff")+"'>"+
+    const whyNot=a.why_not?"<p style='font-size:.72rem;color:var(--muted);margin-top:6px'><b>"+(infeasible?"Blocker":"Why not recommended")+":</b> "+esc(a.why_not)+"</p>":"";
+    const infeasWarn=infeasible?"<p style='font-size:.72rem;color:#fff;background:var(--red);border-radius:4px;padding:4px 8px;margin-top:6px'>⚠ Not feasible with released artifacts — cannot be built even if requested. Selecting it is disabled.</p>":"";
+    const checked=isDefault?"checked":"";
+    const hiBorder=a.mandated?"#b45309":(isDefault?"#7c3aed":"#e2e8f0");
+    const hiBg=a.mandated?"#fff7ed":(isDefault?"#f5f0ff":"#fff");
+    return"<label style='display:block;cursor:"+(infeasible?"not-allowed":"pointer")+";border:2px solid "+hiBorder+";border-radius:10px;padding:12px 14px;margin-bottom:8px;background:"+hiBg+";opacity:"+(infeasible?"0.6":"1")+"'>"+
       "<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px'>"+
-      "<input type='radio' name='approach-select' value='"+esc(a.id)+"' "+checked+" style='accent-color:#7c3aed'>"+
-      "<b style='font-size:.85rem;color:var(--ink)'>"+esc(a.label)+"</b>"+recBadge+modeBadge+btpBadge+sbpaBadge+
+      "<input type='radio' name='approach-select' value='"+esc(a.id)+"' "+checked+(infeasible?" disabled":"")+" onchange='approachChanged()' style='accent-color:#7c3aed'>"+
+      "<b style='font-size:.85rem;color:var(--ink)'>"+esc(a.label)+"</b>"+recBadge+mandBadge+modeBadge+btpBadge+sbpaBadge+
       "</div>"+
       "<p style='font-size:.76rem;color:var(--muted);margin-bottom:6px'>"+esc(a.summary||"")+"</p>"+
       "<div style='display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.72rem'>"+
       "<div><b style='color:var(--ink)'>Pros</b><ul style='margin:4px 0 0 14px;padding:0;color:var(--muted)'>"+pros+"</ul></div>"+
       "<div><b style='color:var(--ink)'>Cons</b><ul style='margin:4px 0 0 14px;padding:0;color:var(--muted)'>"+cons+"</ul></div>"+
-      "</div>"+whyNot+
+      "</div>"+whyNot+infeasWarn+
       "</label>";
   }).join("");
-  return"<div style='margin-bottom:14px'><p style='font-size:.8rem;font-weight:600;margin-bottom:8px;color:var(--ink)'>Select the approach to build:</p>"+cards+"</div>";
+  const initNote=_overrideNoteHTML(defaultOpt,approaches);
+  return"<div style='margin-bottom:14px'><p style='font-size:.8rem;font-weight:600;margin-bottom:8px;color:var(--ink)'>Select the approach to build:</p>"+cards+"<div id='override-note'>"+initNote+"</div></div>";
 }
 async function submitDecision(runId){
   const cp=EX_RUN.checkpoint_request||{};

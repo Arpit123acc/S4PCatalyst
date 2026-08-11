@@ -18,7 +18,10 @@ Six-step FD creation, adapted from the team's FD Creation workflow, with Public 
    extensibility mode per requirement + object inventory with MCP release verdicts. The FD must
    NOT promise anything that failed the release gate. List every custom object the solution would
    CREATE (with a proposed namespaced name) so the downstream proposal can build the
-   **Custom-Object Naming Contract** the human locks at solution approval.
+   **Custom-Object Naming Contract** the human locks at solution approval. If the client mandates a
+   specific build mode, record it in the **Client Constraints** block (see template) — it is honoured
+   as a build-ready option downstream even when it is not the clean-core best fit; only genuine
+   infeasibility overrides it.
 5. **Data & integration view** — entities (released CDS/API names where verified), field lists
    (source: `odata_get_metadata` in live mode, otherwise marked as assumption), error handling,
    authorization concept (business catalogs/roles, not S_TCODE).
@@ -27,7 +30,8 @@ Six-step FD creation, adapted from the team's FD Creation workflow, with Public 
 
 ## FD document template
 
-1. Header (ID, title, author, date, status, extensibility mode)
+1. Header (ID, title, author, date, status, extensibility mode) — plus an optional **Client
+   Constraints** block when the client mandates a build mode (see below)
 2. Business context & problem statement
 3. Process flow (as-is / to-be)
 4. Functional requirements (numbered, testable)
@@ -38,6 +42,23 @@ Six-step FD creation, adapted from the team's FD Creation workflow, with Public 
 9. Test scenarios (mapped 1:1 to requirements)
 10. Assumptions & open items
 11. Sources & verification (tool-verified facts vs tenant-to-verify items — keep separated)
+
+### Client Constraints (optional)
+
+When the client dictates *how* a requirement must be built (not just *what*), capture it verbatim in
+the FD so the downstream pipeline honours it at solution approval:
+
+```
+## Client Constraints
+- Preferred / mandated extensibility mode: side-by-side (BTP)   ← key user | developer | side-by-side
+- Reason / mandate: <e.g. client enterprise-architecture policy — all new integrations on BTP>
+- Overrides recommendation: yes                                 ← yes | no
+```
+
+The solution proposal keeps its **honest** clean-core recommendation **and** presents the mandated mode
+as a **build-ready** option (for BTP, with its SAP Discovery Center link + pricing metric); the
+developer selects it at solution approval. A mandate cannot make an infeasible design feasible (no
+BAPIs / unreleased objects / classical ABAP) — genuine infeasibility is flagged and wins.
 
 ## Review checklist (step 6)
 
