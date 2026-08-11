@@ -2202,6 +2202,16 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
             "ok": exit_code == 0
         })
         _record_run_usage(run_id, job_id, kind, log_path, fd)
+        # Rebuild the vector index when a pipeline run completes so new experience
+        # entries and run data are immediately searchable by the Digital Brain.
+        if exit_code == 0 and run_id:
+            try:
+                manifest = os.path.join(ROOT_DIR, "output", run_id, "run.json")
+                data = read_json(manifest) or {}
+                if data.get("status") in ("complete", "packaged", "done"):
+                    _rebuild_index_bg("run %s complete" % run_id)
+            except Exception:
+                pass
         # Detect fast-exit failures (billing error, auth error, CLI crash) and immediately
         # flip run.json to error so the Workflow Explorer doesn't stay "stuck on step 1".
         exit_code = proc.poll()
@@ -2701,6 +2711,35 @@ def experience_export():
     }, 200
 
 
+_INDEX_REBUILD_LOCK = threading.Lock()
+
+def _rebuild_index_bg(reason=""):
+    """Rebuild the Digital Brain vector index in a background thread (non-blocking).
+    Uses a lock so concurrent triggers (e.g. two phases finishing close together)
+    collapse into one rebuild instead of running in parallel.
+    """
+    def _run():
+        if not _INDEX_REBUILD_LOCK.acquire(blocking=False):
+            return  # another rebuild already running — skip
+        try:
+            build_script = os.path.join(MCP_DIR, "vector", "build_index.py")
+            if not os.path.isfile(build_script):
+                return
+            result = subprocess.run(
+                [sys.executable, build_script],
+                cwd=ROOT_DIR, capture_output=True, text=True, timeout=300
+            )
+            if result.returncode == 0:
+                print("[brain] Vector index rebuilt%s" % (" (%s)" % reason if reason else ""))
+            else:
+                print("[brain] Index rebuild failed: %s" % (result.stderr or "")[:200])
+        except Exception as exc:
+            print("[brain] Index rebuild error: %s" % exc)
+        finally:
+            _INDEX_REBUILD_LOCK.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def catalog_sync(hub_api_key, dry_run=False, rebuild=False):
     """Run sync_hub.py with the API key passed only as an env var — never written to disk or logged."""
     key = (hub_api_key or "").strip()
@@ -3049,6 +3088,8 @@ def main():
     print("Stop with Ctrl+C, SHUTDOWN.cmd (Windows), or POST /api/shutdown")
     if os.environ.get("S4PC_UI_NO_BROWSER") != "1":
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    # Rebuild vector index on startup (catches any runs/experience added since last session).
+    threading.Timer(3.0, lambda: _rebuild_index_bg("startup")).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
