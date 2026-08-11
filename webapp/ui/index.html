@@ -317,7 +317,8 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
     <div class="grid c2" id="experience-grid"></div>
   </div>
   <div id="rtab-brain" style="display:none">
-    <div class="notice">✦ <b>Digital Brain — three knowledge layers</b> built into the pipeline. After catalog changes or completed runs: <code>python mcp-server/vector/build_index.py</code> &amp; <code>python mcp-server/graph/build_graph.py</code> — or call <code>rebuild_vector_index</code> / <code>sync_object_graph</code> from the Playground.</div>
+    <div id="brain-status-bar" style="margin-bottom:14px"></div>
+    <div class="notice">✦ <b>Digital Brain — three knowledge layers</b> built into the pipeline. The <b>vector index rebuilds automatically</b> on startup and after every completed pipeline run — no manual step needed. To force an immediate rebuild or pick up a new catalog sync: <code>python mcp-server/vector/build_index.py</code> &amp; <code>python mcp-server/graph/build_graph.py</code> — or call <code>rebuild_vector_index</code> / <code>sync_object_graph</code> from the Playground.</div>
     <div class="grid c3">
       <div class="card">
         <h3>Layer 1 · Live Object Graph</h3>
@@ -328,10 +329,10 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
       </div>
       <div class="card">
         <h3>Layer 2 · SAP Knowledge Vectors</h3>
-        <p>10,767 documents (74 APIs + 8,928 CDS views + 1,734 BAdIs + 29 experience entries + past runs) indexed with BM25 TF-IDF. Finds released objects by <em>meaning</em>, not just token match — useful when the requirement is vague or the exact object name is unknown. Rebuilt automatically on every catalog sync.</p>
+        <p>10,767 documents (74 APIs + 8,928 CDS views + 1,734 BAdIs + experience entries + past runs) indexed with a <b>dual-mode backend</b>: <b>dense semantic embeddings</b> (sentence-transformers, <code>all-MiniLM-L6-v2</code>) when installed, or <b>BM25 TF-IDF</b> fallback (pure stdlib, always available). Finds released objects by <em>meaning</em>, not just token match. Index rebuilds automatically on startup and after completed runs.</p>
         <p style="margin-top:10px;font-size:.75rem"><b>Tools:</b></p>
         <p style="font-size:.75rem"><code>semantic_search</code> — natural-language search, optional type filter<br><code>rebuild_vector_index</code> — rebuild after catalog or run changes</p>
-        <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Index: mcp-server/vector/index.json · ~5 MB (grows with catalog syncs)</p>
+        <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Index: mcp-server/vector/index.json (metadata) · index.npy (dense float32 matrix, dense mode only)</p>
       </div>
       <div class="card">
         <h3>Layer 3 · Experience Graph</h3>
@@ -354,15 +355,17 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
       </div>
       <div class="card">
         <h3 style="font-size:.85rem">Rebuild commands</h3>
-        <p style="font-size:.78rem;margin-bottom:8px">Run after catalog changes or each completed pipeline run:</p>
-        <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:10px;border-radius:4px;line-height:1.7">python mcp-server/vector/build_index.py
+        <p style="font-size:.78rem;margin-bottom:8px"><b>Vector index</b> rebuilds automatically (startup + run completion). Run manually only to force an immediate rebuild or after installing <code>sentence-transformers</code>. <b>Graph</b> must be rebuilt manually after catalog changes:</p>
+        <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:10px;border-radius:4px;line-height:1.7">pip install sentence-transformers   # optional: enable dense embeddings
+python mcp-server/vector/build_index.py
 python mcp-server/graph/build_graph.py</pre>
         <p style="font-size:.73rem;color:var(--muted);margin-top:8px">Or call <code>rebuild_vector_index</code> / <code>sync_object_graph</code> from the MCP server directly.</p>
       </div>
       <div class="card">
-        <h3 style="font-size:.85rem">Zero-dependency design</h3>
-        <p style="font-size:.78rem">Both engine modules use pure Python 3.9+ stdlib — no pip installs, no API keys, no network access in offline mode. Works on any machine running the Catalyst.</p>
-        <p style="font-size:.73rem;color:var(--muted);margin-top:8px"><b>Layer 2:</b> BM25 TF-IDF cosine similarity · <b>Layer 1:</b> adjacency-list BFS with name-prefix edge matching · <b>Live mode:</b> Layer 1 sync can enrich API nodes with actual OData entity/field names via <code>sync_object_graph(live_enrich=true)</code>.</p>
+        <h3 style="font-size:.85rem">Setup &amp; dependency notes</h3>
+        <p style="font-size:.78rem"><b>Layer 1 (graph) &amp; Layer 3 (experience):</b> pure Python 3.9+ stdlib — zero installs. <b>Layer 2 (vectors):</b> TF-IDF fallback is also zero-install. For true semantic search, install the dense backend:</p>
+        <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:8px;border-radius:4px;line-height:1.6">pip install sentence-transformers</pre>
+        <p style="font-size:.73rem;color:var(--muted);margin-top:8px">The model (<code>all-MiniLM-L6-v2</code>, ~80 MB) is downloaded once and cached locally. No API keys, no network access in offline mode. <b>Layer 1:</b> adjacency-list BFS with name-prefix edge matching · <b>Live mode:</b> <code>sync_object_graph(live_enrich=true)</code> enriches API nodes with OData entity/field names.</p>
       </div>
     </div>
   </div>
@@ -669,7 +672,7 @@ function showRTab(name){
   ["skills","workflows","mcp","agents","catalog","experience","brain"].forEach(t=>{$("#rtab-"+t).style.display=t===name?"":"none"});
   $$("[data-rtab]").forEach(b=>b.classList.toggle("on",b.dataset.rtab===name));
 }
-$$("[data-rtab]").forEach(b=>b.onclick=()=>showRTab(b.dataset.rtab));
+$$("[data-rtab]").forEach(b=>b.onclick=()=>{showRTab(b.dataset.rtab);if(b.dataset.rtab==="brain")loadBrainStatus();});
 function showSTab(name){
   ["conn","cart"].forEach(t=>{$("#stab-"+t).style.display=t===name?"":"none"});
   $$("[data-stab]").forEach(b=>b.classList.toggle("on",b.dataset.stab===name));
@@ -689,7 +692,7 @@ async function boot(){
   renderModes();renderAgentflow();
   const wf=await api("/api/workflows");WORKFLOWS=wf.workflows;renderWF("All");
   const sk=await api("/api/skills");SKILLS=sk.skills;renderSkills();
-  renderRefWF();loadMCP();loadAgents();loadCatalogs();loadSettings();renderFAQ();loadRuns();loadInputs();loadJobs();loadExperience();loadUsage();
+  renderRefWF();loadMCP();loadAgents();loadCatalogs();loadSettings();renderFAQ();loadRuns();loadInputs();loadJobs();loadExperience();loadUsage();loadBrainStatus();
 }
 
 /* ---------- fd intake ---------- */
@@ -1552,6 +1555,35 @@ async function exportExperience(){
     }
   }catch(e){st.style.color="var(--red,#dc2626)";st.textContent="Network error: "+e.message;}
   btn.disabled=false;btn.textContent="↑ Export to Shared Seed";
+}
+async function loadBrainStatus(){
+  const el=$("#brain-status-bar");if(!el)return;
+  try{
+    const d=await api("/api/brain/status");
+    const eng=d.active_engine||"not_built";
+    const isDense=eng==="dense";
+    const isTfidf=eng==="tfidf";
+    const notBuilt=eng==="not_built"||eng==="unknown";
+    const engChip=isDense
+      ?"<span class='chip green'>dense embeddings (sentence-transformers)</span>"
+      :isTfidf?"<span class='chip blue'>TF-IDF fallback</span>"
+      :"<span class='chip amber'>index not built yet</span>";
+    const stChip=d.st_installed
+      ?"<span class='chip green'>sentence-transformers installed</span>"
+      :"<span class='chip gray'>sentence-transformers not installed (TF-IDF mode)</span>";
+    const docs=d.doc_count?d.doc_count.toLocaleString()+" docs":"";
+    const model=d.model?"<code style='font-size:.7rem'>"+esc(d.model)+"</code>":"";
+    const autoChip="<span class='chip purple'>auto-rebuild on</span>";
+    const installHint=!d.st_installed
+      ?"<span style='font-size:.72rem;color:var(--muted);margin-left:10px'>Run <code>pip install sentence-transformers</code> then restart to enable dense semantic search</span>"
+      :"";
+    el.innerHTML="<div class='card' style='padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap'>"+
+      "<span style='font-size:.75rem;font-weight:700'>Layer 2 Backend:</span>"+engChip+stChip+autoChip+
+      (docs?"<span style='font-size:.72rem;color:var(--muted)'>"+docs+"</span>":"")+model+installHint+
+      "</div>";
+  }catch(e){
+    const el2=$("#brain-status-bar");if(el2)el2.innerHTML="";
+  }
 }
 async function loadCatalogs(){
   const [a,b,c]=await Promise.all([api("/api/catalog/apis"),api("/api/catalog/badis"),api("/api/catalog/cds")]);

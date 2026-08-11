@@ -393,6 +393,37 @@ def mcp_inventory():
         }]
     }
 
+def brain_status():
+    """Return Digital Brain Layer 2 backend info without loading the full model."""
+    vector_dir = os.path.join(MCP_DIR, "vector")
+    index_path = os.path.join(vector_dir, "index.json")
+    embed_path = os.path.join(vector_dir, "index.npy")
+    st_installed = importlib.util.find_spec("sentence_transformers") is not None
+    index_exists = os.path.isfile(index_path)
+    embed_exists = os.path.isfile(embed_path)
+    engine = "not_built"
+    model = ""
+    doc_count = 0
+    if index_exists:
+        try:
+            with open(index_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+            engine = data.get("engine", "unknown")
+            model = data.get("model", "")
+            doc_count = len(data.get("docs", []))
+        except Exception:
+            pass
+    return {
+        "st_installed": st_installed,
+        "index_exists": index_exists,
+        "embed_exists": embed_exists,
+        "active_engine": engine,
+        "model": model,
+        "doc_count": doc_count,
+        "auto_rebuild": True,
+    }
+
+
 def summary():
     con = _catalog_db.get_conn()
     try:
@@ -2992,6 +3023,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, {"error": "Job not found"})
             return self._send(200, content or "", "text/plain")
         routes = {
+            "/api/brain/status": brain_status,
             "/api/runs": list_runs,
             "/api/inputs": list_inputs,
             "/api/pipeline/jobs": pipeline_jobs,
