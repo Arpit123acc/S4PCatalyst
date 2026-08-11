@@ -507,6 +507,7 @@ def tool_extensibility_advisor(args):
 
 def _save_experience(entry):
     _catalog_db.append_experience(entry)
+    _catalog_db.sync_experience_to_seed(entry)  # auto-sync seed so git diff is always ready
 
 def tool_query_experience(args):
     query = (args.get("query") or "").strip().lower()
