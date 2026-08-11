@@ -308,6 +308,11 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
   <div id="rtab-catalog" style="display:none"><div id="catalog-area"></div></div>
   <div id="rtab-experience" style="display:none">
     <div class="notice">🧠 <b>Experience database</b> — team delivery lessons for Public Cloud. Grows with every pipeline run (the package step records new lessons via <code>record_experience</code>). Searchable semantically via <code>find_similar_delivery</code> (Layer 3 — Digital Brain). References: <a href="https://api.sap.com/products/SAPS4HANACloud/apis/all" target="_blank">SAP Business Accelerator Hub</a> (APIs/CDS) · <a href="https://discovery-center.cloud.sap/viewServices" target="_blank">SAP Discovery Center</a> (BTP services + pricing).</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn" onclick="exportExperience()" id="exp-export-btn">↑ Export to Shared Seed</button>
+      <span style="font-size:.75rem;color:var(--muted)">Writes net-new pipeline lessons back to <code>experience_db.json</code> so teammates get them on next <code>git pull</code>.</span>
+      <span style="font-size:.75rem;font-weight:600" id="exp-export-status"></span>
+    </div>
     <div class="tabs" id="exp-cat-tabs"></div>
     <div class="grid c2" id="experience-grid"></div>
   </div>
@@ -1525,6 +1530,28 @@ function renderExperience(){
     "<div style='margin-top:8px'><span class='chip purple'>"+esc(e.category)+"</span>"+(e.tags||[]).map(t=>"<span class='chip gray'>"+esc(t)+"</span>").join("")+
     "<span class='chip blue'>"+esc(e.added)+"</span></div>"+
     "<p style='margin-top:6px;font-size:.66rem;color:var(--muted)'>"+esc(e.source||"")+"</p></div>").join("");
+}
+async function exportExperience(){
+  const btn=$("#exp-export-btn"),st=$("#exp-export-status");
+  btn.disabled=true;btn.textContent="Exporting…";st.textContent="";st.style.color="var(--muted)";
+  try{
+    const r=await fetch("/api/experience/export",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const d=await r.json();
+    if(d.ok){
+      if(d.exported>0){
+        st.style.color="var(--green,#16a34a)";
+        st.textContent="✓ "+d.exported+" new lesson(s) exported. "+d.message.split(". ").slice(1).join(". ");
+        await loadExperience();
+      } else {
+        st.style.color="var(--muted)";
+        st.textContent=d.message;
+      }
+    } else {
+      st.style.color="var(--red,#dc2626)";
+      st.textContent=d.error||"Export failed.";
+    }
+  }catch(e){st.style.color="var(--red,#dc2626)";st.textContent="Network error: "+e.message;}
+  btn.disabled=false;btn.textContent="↑ Export to Shared Seed";
 }
 async function loadCatalogs(){
   const [a,b,c]=await Promise.all([api("/api/catalog/apis"),api("/api/catalog/badis"),api("/api/catalog/cds")]);

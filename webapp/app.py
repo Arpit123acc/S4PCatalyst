@@ -2669,6 +2669,38 @@ def pipeline_delete(run_id):
     return {"ok": True, "deleted": run_id}, 200
 
 
+def experience_export():
+    """Export net-new experience entries from catalog.db back to experience_db.json seed.
+
+    Net-new = entries in catalog.db whose ID is not already in the JSON seed.
+    Flow: one developer records lessons during pipeline runs → they click Export →
+    review the diff → git commit + push → teammates pull → their next DB migration
+    picks up the shared lessons automatically.
+    """
+    seed_path = os.path.join(MCP_DIR, "catalog", "experience_db.json")
+    live_entries = _catalog_db.load_experience().get("entries", [])
+    try:
+        with open(seed_path, encoding="utf-8") as fh:
+            seed = json.load(fh)
+    except FileNotFoundError:
+        seed = {"_meta": {}, "entries": []}
+    existing_ids = {e.get("id") for e in seed.get("entries", [])}
+    new_entries = [e for e in live_entries if e.get("id") and e["id"] not in existing_ids]
+    if not new_entries:
+        return {"ok": True, "exported": 0, "entries": [],
+                "message": "No new entries — seed is already up to date with your local DB."}, 200
+    seed.setdefault("entries", []).extend(new_entries)
+    with open(seed_path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(seed, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    return {
+        "ok": True,
+        "exported": len(new_entries),
+        "entries": new_entries,
+        "message": "%d new lesson(s) written to experience_db.json. Review then: git add mcp-server/catalog/experience_db.json && git commit -m 'Export %d experience entries' && git push" % (len(new_entries), len(new_entries)),
+    }, 200
+
+
 def catalog_sync(hub_api_key, dry_run=False, rebuild=False):
     """Run sync_hub.py with the API key passed only as an env var — never written to disk or logged."""
     key = (hub_api_key or "").strip()
@@ -2880,6 +2912,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(code, payload)
             if path == "/api/btp/test":
                 payload, code = btp_test()
+                return self._send(code, payload)
+            if path == "/api/experience/export":
+                payload, code = experience_export()
                 return self._send(code, payload)
             if path == "/api/catalog/sync":
                 payload, code = catalog_sync(
