@@ -235,9 +235,13 @@ evidence of a real re-check is itself a gate failure.
 
 ## Conditional · Deploy to BTP (only when a side-by-side capability exists)
 
-Add these steps to `run.json` **only if the mode split includes a side-by-side (BTP) capability**
-(CAP + UI5). For a pure key-user or developer (in-tenant) solution, do **not** add them — the run
-stays 12 steps and no deploy stage appears. When side-by-side IS chosen, append **two** steps after
+Add these steps to `run.json` **whenever the mode split includes a side-by-side (BTP) capability** —
+this includes a **MIXED** approach (`DEV_SXS` / `KU_SXS` / `KU_DEV_SXS`), where the developer and/or
+key-user objects are built **in-tenant** and the CAP/UI5 part deploys to BTP: that solution IS a
+14-step run, and step 13's checklist must include those in-tenant developer + key-user objects (see
+below). For a pure key-user or developer (in-tenant) solution with no BTP part, do **not** add these
+steps — the run stays 12 steps and no deploy stage appears. (SBPA is BTP-cost but produces
+configuration handover, not a CAP deploy — it stays 12 steps.) When side-by-side IS chosen, append **two** steps after
 Package (step 12) / CP3 acceptance and set the `workflow` label to **exactly**
 `RICEFW Pipeline (14 steps, incl. BTP deploy)` — use this exact ASCII string, never invent a
 variant or add non-ASCII punctuation (a pure in-tenant run keeps the seeded label
