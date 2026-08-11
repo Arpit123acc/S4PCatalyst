@@ -187,8 +187,15 @@ def list_runs():
             if not data:
                 continue
             data["folder"] = name
-            data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""),
-                                                data.get("selected_is_btp", False))
+            # A run is the 14-step BTP variant when a deployable side-by-side solution was chosen:
+            # the CP1 flag selected_is_btp (new runs), OR a deployable BTP component in the solution
+            # (CAP_APP / Integration Suite / …, i.e. any btp_component other than SBPA — SBPA is
+            # config handover, not a CAP deploy). This also lights up runs approved before the flag
+            # was persisted. An evaluated-but-rejected BTP option never sets btp_components.
+            _btp_comps = data.get("btp_components") or []
+            _is_btp = (bool(data.get("selected_is_btp"))
+                       or any(str(c).strip().upper() != "SBPA" for c in _btp_comps if str(c).strip()))
+            data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""), _is_btp)
             run_dir_path = os.path.join(out_dir, name)
             data["files"] = sorted(
                 f for f in os.listdir(run_dir_path)
