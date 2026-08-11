@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import threading
 import urllib.parse
@@ -63,12 +64,52 @@ _LOCK = threading.Lock()
 
 # ------------------------------------------------------------- data readers ---
 
+_RUNJSON_LOCK = threading.RLock()
+
 def read_json(path, default=None):
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            return json.load(fh)
+            raw = fh.read()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # Self-heal a manifest left with trailing junk by a legacy non-atomic/interleaved write:
+            # salvage the first complete JSON object rather than making the whole run vanish.
+            obj, _end = json.JSONDecoder().raw_decode(raw)
+            return obj
     except Exception:
         return default
+
+def write_json_atomic(path, data):
+    """Atomically write JSON so concurrent writers (webapp threads under ThreadingHTTPServer, plus the
+    headless engine) can never leave a half-written or interleaved file — the cause of a run
+    'vanishing' when read_json can't parse it. Serialized by a process-wide lock and committed with
+    os.replace (atomic on the same filesystem)."""
+    with _RUNJSON_LOCK:
+        d = os.path.dirname(path) or "."
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".runjson-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=2, ensure_ascii=False)
+                fh.flush()
+                os.fsync(fh.fileno())
+            # On Windows os.replace can raise PermissionError while a reader momentarily holds the
+            # file open (open() doesn't grant share-delete). Readers are brief — retry a few times so
+            # a write is never silently lost.
+            for _attempt in range(25):
+                try:
+                    os.replace(tmp, path)
+                    break
+                except PermissionError:
+                    if _attempt == 24:
+                        raise
+                    time.sleep(0.02)
+        finally:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
 def list_skills():
     skills_dir = os.path.join(ROOT_DIR, ".claude", "skills")
@@ -2371,8 +2412,7 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
                                 if s.get("status") == "RUNNING":
                                     s["status"] = "FAIL"
                                     s["detail"] = note
-                            with open(manifest, "w", encoding="utf-8") as fh:
-                                json.dump(data, fh, indent=2, ensure_ascii=False)
+                            write_json_atomic(manifest, data)
                     except Exception:
                         pass
     threading.Thread(target=_await_and_record, daemon=True).start()
@@ -2452,8 +2492,7 @@ def _seed_run_skeleton(fd_path):
     }
     run_dir = os.path.join(ROOT_DIR, "output", rid)
     os.makedirs(run_dir, exist_ok=True)                  # fresh folder per version — nothing is wiped
-    with open(os.path.join(run_dir, "run.json"), "w", encoding="utf-8") as fh:
-        json.dump(skeleton, fh, indent=2, ensure_ascii=False)
+    write_json_atomic(os.path.join(run_dir, "run.json"), skeleton)
     return rid
 
 def pipeline_start(fd_path):
@@ -2526,8 +2565,7 @@ def pipeline_naming(run_id, names, contract=None, selected_approach=None):
     if selected_approach is not None:
         cp["selected_approach"] = str(selected_approach)
     data["checkpoint_request"] = cp
-    with open(manifest, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
+    write_json_atomic(manifest, data)
     return {"ok": True, "valid": sum(1 for i in nc if _naming_ok(i.get("name"), i.get("created_in"))), "total": len(nc)}, 200
 
 def pipeline_comments(run_id, comments):
@@ -2549,8 +2587,7 @@ def pipeline_comments(run_id, comments):
             item["comment"] = str(comments[item["id"]])[:4000]
     cp["code_files"] = cf
     data["checkpoint_request"] = cp
-    with open(manifest, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
+    write_json_atomic(manifest, data)
     return {"ok": True, "commented": sum(1 for f in cf if (f.get("comment") or "").strip()), "total": len(cf)}, 200
 
 def pipeline_checklist(run_id, checked):
@@ -2572,8 +2609,7 @@ def pipeline_checklist(run_id, checked):
         state.append(False)
     cp["checked"] = state
     data["checkpoint_request"] = cp
-    with open(manifest, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
+    write_json_atomic(manifest, data)
     return {"ok": True, "checked": sum(1 for x in state if x), "total": n}, 200
 
 def pipeline_findings_review(run_id, findings_actions):
@@ -2627,8 +2663,7 @@ def pipeline_findings_review(run_id, findings_actions):
     data["quality_score"] = max(0, _qs)
     data["auto_corrections"] = data.get("auto_corrections", 0)  # preserve existing field
     data["checkpoint_request"] = cp
-    with open(manifest, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
+    write_json_atomic(manifest, data)
     return {"ok": True,
             "actioned": sum(1 for f in fr if f.get("action")),
             "total": len(fr)}, 200
@@ -2755,8 +2790,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                     s["detail"] = ((s.get("detail") or "") + " | " + nt).strip(" |")
                     break
             data["status"] = "in_progress"
-            with open(manifest, "w", encoding="utf-8") as fh:
-                json.dump(data, fh, indent=2, ensure_ascii=False)
+            write_json_atomic(manifest, data)
         except Exception:
             pass
     _fc_txt = ("Per-file change requests from the code review:\n" + "\n".join(
@@ -3299,8 +3333,7 @@ def _watchdog():
                 data["status"] = "error"
                 data["engine_note"] = "Run stalled — no active engine process. Re-run or investigate the logs."
                 try:
-                    with open(manifest, "w", encoding="utf-8") as fh:
-                        json.dump(data, fh, indent=2, ensure_ascii=False)
+                    write_json_atomic(manifest, data)
                 except Exception:
                     pass
         except Exception:

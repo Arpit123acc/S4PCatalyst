@@ -888,7 +888,7 @@ function approachChanged(){
   cp.naming_contract=JSON.parse(JSON.stringify(base));
   host.innerHTML=renderNamingRows(cp.naming_contract);
   if(EX_RUN&&EX_RUN.id)fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,contract:cp.naming_contract,selected_approach:newId})}).catch(function(){});
-  updateNaming();
+  updateNaming(true);   // refresh counters only — the contract POST above already persisted
 }
 function renderApproachOptions(approaches, selectedId){
   if(!approaches||!approaches.length)return"";
@@ -1154,7 +1154,7 @@ function renderNamingRows(contract){
       "<span class='name-ok' id='nok-"+idv+"' style='width:14px;font-weight:700'></span></div>";
   }).join("");
 }
-function updateNaming(){
+function updateNaming(skipSave){
   var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
   var valid=0,names={};
   items.forEach(function(x){var ok=_nameOk(x.value,x.dataset.ci);if(ok)valid++;names[x.dataset.id]=x.value;
@@ -1165,7 +1165,9 @@ function updateNaming(){
   if(EX_RUN){
     if(EX_RUN.checkpoint_request&&Array.isArray(EX_RUN.checkpoint_request.naming_contract))
       EX_RUN.checkpoint_request.naming_contract.forEach(function(it){if(names[it.id]!=null)it.name=names[it.id];});
-    if(items.length)
+    // skipSave: caller (approachChanged) already persisted the full contract — don't fire a second,
+    // overlapping POST (the cause of the run.json write race).
+    if(items.length&&!skipSave)
       fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,names:names})});
   }
 }
@@ -1403,7 +1405,12 @@ function selectRun(id){
   EX_RUN=RUNS.find(r=>r.id===id);if(!EX_RUN)return;
   $("#ex-empty").style.display="none";$("#ex-dash").style.display="";
   const r=EX_RUN;
-  {const w=canonWf(r.workflow);if([...$("#ex-type").options].some(o=>o.value===w))$("#ex-type").value=w;}
+  // Follow the run to its own workflow-type tab — a run that becomes side-by-side flips from the
+  // 12-step to the 14-step variant, so ADD the option if the dropdown doesn't have it yet, then
+  // select it. Without this the run gets filtered out of the current tab and the dashboard vanishes.
+  {const w=canonWf(r.workflow);const sel=$("#ex-type");
+   if(![...sel.options].some(o=>o.value===w))sel.insertAdjacentHTML("beforeend","<option>"+esc(w)+"</option>");
+   sel.value=w;}
   $("#ex-run-title").textContent=r.id+" — "+(r.title||"");
   $("#ex-run-chips").innerHTML="<span class='chip purple'>"+esc(r.type||"")+"</span>"+
     "<span class='chip "+(r.status==="completed"?"green":r.status==="awaiting_approval"?"amber":"blue")+"'>"+esc((r.status||"").replace("_"," "))+"</span>"+
