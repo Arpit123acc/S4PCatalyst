@@ -394,25 +394,44 @@ def mcp_inventory():
     }
 
 def brain_status():
-    """Return Digital Brain Layer 2 backend info without loading the full model."""
+    """Return Digital Brain Layer 1 + Layer 2 backend info without loading the full model."""
     vector_dir = os.path.join(MCP_DIR, "vector")
+    graph_dir  = os.path.join(MCP_DIR, "graph")
     index_path = os.path.join(vector_dir, "index.json")
     embed_path = os.path.join(vector_dir, "index.npy")
-    st_installed = importlib.util.find_spec("sentence_transformers") is not None
-    index_exists = os.path.isfile(index_path)
-    embed_exists = os.path.isfile(embed_path)
-    engine = "not_built"
-    model = ""
-    doc_count = 0
+    graph_path = os.path.join(graph_dir,  "graph.json")
+
+    st_installed  = importlib.util.find_spec("sentence_transformers") is not None
+    index_exists  = os.path.isfile(index_path)
+    embed_exists  = os.path.isfile(embed_path)
+    graph_exists  = os.path.isfile(graph_path)
+
+    engine = "not_built"; model = ""; doc_count = 0; index_mtime = None
     if index_exists:
         try:
+            index_mtime = int(os.path.getmtime(index_path))
             with open(index_path, encoding="utf-8") as fh:
-                data = json.load(fh)
-            engine = data.get("engine", "unknown")
-            model = data.get("model", "")
-            doc_count = len(data.get("docs", []))
+                d = json.load(fh)
+            engine = d.get("engine", "unknown")
+            model  = d.get("model", "")
+            doc_count = len(d.get("docs", []))
         except Exception:
             pass
+
+    graph_nodes = 0; graph_edges = 0; graph_areas = 0; graph_mtime = None
+    if graph_exists:
+        try:
+            graph_mtime = int(os.path.getmtime(graph_path))
+            if os.path.getsize(graph_path) < 100_000_000:
+                with open(graph_path, encoding="utf-8") as fh:
+                    gd = json.load(fh)
+                gs = gd.get("stats", {})
+                graph_nodes = gs.get("nodes", 0)
+                graph_edges = gs.get("edges", 0)
+                graph_areas = gs.get("areas", 0)
+        except Exception:
+            pass
+
     return {
         "st_installed": st_installed,
         "index_exists": index_exists,
@@ -420,6 +439,12 @@ def brain_status():
         "active_engine": engine,
         "model": model,
         "doc_count": doc_count,
+        "index_mtime": index_mtime,
+        "graph_exists": graph_exists,
+        "graph_nodes": graph_nodes,
+        "graph_edges": graph_edges,
+        "graph_areas": graph_areas,
+        "graph_mtime": graph_mtime,
         "auto_rebuild": True,
     }
 
@@ -2241,6 +2266,7 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
                 data = read_json(manifest) or {}
                 if data.get("status") in ("complete", "packaged", "done"):
                     _rebuild_index_bg("run %s complete" % run_id)
+                    threading.Timer(60.0, lambda: _rebuild_graph_bg("run %s complete" % run_id)).start()
             except Exception:
                 pass
         # Detect fast-exit failures (billing error, auth error, CLI crash) and immediately
@@ -2771,6 +2797,39 @@ def _rebuild_index_bg(reason=""):
     threading.Thread(target=_run, daemon=True).start()
 
 
+_GRAPH_REBUILD_LOCK = threading.Lock()
+
+def _rebuild_graph_bg(reason=""):
+    """Rebuild the Digital Brain object graph in a background thread (non-blocking)."""
+    def _run():
+        if not _GRAPH_REBUILD_LOCK.acquire(blocking=False):
+            return
+        try:
+            build_script = os.path.join(MCP_DIR, "graph", "build_graph.py")
+            if not os.path.isfile(build_script):
+                return
+            result = subprocess.run(
+                [sys.executable, build_script],
+                cwd=ROOT_DIR, capture_output=True, text=True, timeout=300
+            )
+            if result.returncode == 0:
+                print("[brain] Object graph rebuilt%s" % (" (%s)" % reason if reason else ""))
+            else:
+                print("[brain] Graph rebuild failed: %s" % (result.stderr or "")[:200])
+        except Exception as exc:
+            print("[brain] Graph rebuild error: %s" % exc)
+        finally:
+            _GRAPH_REBUILD_LOCK.release()
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def brain_rebuild():
+    """Trigger immediate background rebuild of both vector index and object graph."""
+    _rebuild_index_bg("manual rebuild from UI")
+    threading.Timer(2.0, lambda: _rebuild_graph_bg("manual rebuild from UI")).start()
+    return {"ok": True, "message": "Rebuild started — vector index and object graph queuing in background. Refresh status in ~60s."}, 200
+
+
 def catalog_sync(hub_api_key, dry_run=False, rebuild=False):
     """Run sync_hub.py with the API key passed only as an env var — never written to disk or logged."""
     key = (hub_api_key or "").strip()
@@ -2983,6 +3042,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/btp/test":
                 payload, code = btp_test()
                 return self._send(code, payload)
+            if path == "/api/brain/rebuild":
+                payload, code = brain_rebuild()
+                return self._send(code, payload)
             if path == "/api/experience/export":
                 payload, code = experience_export()
                 return self._send(code, payload)
@@ -3121,7 +3183,8 @@ def main():
     if os.environ.get("S4PC_UI_NO_BROWSER") != "1":
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     # Rebuild vector index on startup (catches any runs/experience added since last session).
-    threading.Timer(3.0, lambda: _rebuild_index_bg("startup")).start()
+    threading.Timer(3.0,  lambda: _rebuild_index_bg("startup")).start()
+    threading.Timer(15.0, lambda: _rebuild_graph_bg("startup")).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

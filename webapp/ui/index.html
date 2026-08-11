@@ -355,7 +355,12 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
       </div>
       <div class="card">
         <h3 style="font-size:.85rem">Rebuild commands</h3>
-        <p style="font-size:.78rem;margin-bottom:8px"><b>Vector index</b> rebuilds automatically (startup + run completion). Run manually only to force an immediate rebuild or after installing <code>sentence-transformers</code>. <b>Graph</b> must be rebuilt manually after catalog changes:</p>
+        <p style="font-size:.78rem;margin-bottom:8px"><b>Vector index</b> rebuilds automatically on startup and after completed runs. <b>Graph</b> also auto-rebuilds on startup (15s delay) and after run completion (60s delay). Use the button below to force an immediate rebuild of both — useful after a catalog sync or installing <code>sentence-transformers</code>:</p>
+        <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="brain-rebuild-btn" onclick="brainRebuild()">↺ Rebuild Index &amp; Graph</button>
+          <span id="brain-rebuild-status" style="font-size:.75rem;color:var(--muted)"></span>
+        </div>
+        <p style="font-size:.73rem;color:var(--muted)">CLI alternative (same result):</p>
         <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:10px;border-radius:4px;line-height:1.7">pip install sentence-transformers   # optional: enable dense embeddings
 python mcp-server/vector/build_index.py
 python mcp-server/graph/build_graph.py</pre>
@@ -442,6 +447,14 @@ python mcp-server/graph/build_graph.py</pre>
         <button class="btn" onclick="pgBrainArea()">Map</button>
       </div>
       <div class="result-box" id="area-result"></div>
+    </div>
+    <div class="card" style="margin-top:0">
+      <h3>Layer 3 · Experience Graph — Find Similar Delivery</h3>
+      <p style="margin-bottom:6px;font-size:.8rem">Paste a requirement or FD snippet — the brain finds the most similar past pipeline run and surfaces its proven approach, objects used, and lessons learned. Best results after several completed runs.</p>
+      <p style="margin-bottom:10px;font-size:.8rem">Try: <a onclick="pgFindSimilar('block purchase order when custom priority field is empty')">block PO when custom field empty</a> · <a onclick="pgFindSimilar('sales order pricing condition custom logic')">sales order pricing custom logic</a> · <a onclick="pgFindSimilar('workflow approval notification BTP')">workflow approval BTP</a></p>
+      <textarea id="delivery-q" style="min-height:70px" placeholder="Describe the requirement, e.g. 'Validate goods receipt quantity against purchase order tolerance and block posting if exceeded'"></textarea>
+      <div style="margin-top:8px"><button class="btn" onclick="pgFindSimilar()">Find Similar Delivery</button></div>
+      <div class="result-box" id="delivery-result"></div>
     </div>
   </div>
 </section>
@@ -1556,6 +1569,14 @@ async function exportExperience(){
   }catch(e){st.style.color="var(--red,#dc2626)";st.textContent="Network error: "+e.message;}
   btn.disabled=false;btn.textContent="↑ Export to Shared Seed";
 }
+function _ago(ts){
+  if(!ts)return"";
+  const s=Math.floor(Date.now()/1000)-ts;
+  if(s<60)return"just now";
+  if(s<3600)return Math.floor(s/60)+"m ago";
+  if(s<86400)return Math.floor(s/3600)+"h ago";
+  return Math.floor(s/86400)+"d ago";
+}
 async function loadBrainStatus(){
   const el=$("#brain-status-bar");if(!el)return;
   try{
@@ -1563,27 +1584,83 @@ async function loadBrainStatus(){
     const eng=d.active_engine||"not_built";
     const isDense=eng==="dense";
     const isTfidf=eng==="tfidf";
-    const notBuilt=eng==="not_built"||eng==="unknown";
+    // Layer 2 chips
     const engChip=isDense
-      ?"<span class='chip green'>dense embeddings (sentence-transformers)</span>"
+      ?"<span class='chip green'>dense embeddings</span>"
       :isTfidf?"<span class='chip blue'>TF-IDF fallback</span>"
-      :"<span class='chip amber'>index not built yet</span>";
+      :"<span class='chip amber'>L2 index not built</span>";
     const stChip=d.st_installed
-      ?"<span class='chip green'>sentence-transformers installed</span>"
-      :"<span class='chip gray'>sentence-transformers not installed (TF-IDF mode)</span>";
+      ?"<span class='chip green'>sentence-transformers ✓</span>"
+      :"<span class='chip gray'>sentence-transformers not installed</span>";
     const docs=d.doc_count?d.doc_count.toLocaleString()+" docs":"";
-    const model=d.model?"<code style='font-size:.7rem'>"+esc(d.model)+"</code>":"";
-    const autoChip="<span class='chip purple'>auto-rebuild on</span>";
+    const idxAge=d.index_mtime?"<span style='font-size:.7rem;color:var(--muted)'>rebuilt "+_ago(d.index_mtime)+"</span>":"";
+    // Layer 1 chips
+    const graphChip=d.graph_exists
+      ?"<span class='chip green'>L1 graph ✓</span>"
+      :"<span class='chip amber'>L1 graph not built</span>";
+    const graphStats=d.graph_nodes?"<span style='font-size:.7rem;color:var(--muted)'>"+d.graph_nodes.toLocaleString()+" nodes · "+d.graph_edges.toLocaleString()+" edges · "+d.graph_areas+" areas</span>":"";
+    const graphAge=d.graph_mtime?"<span style='font-size:.7rem;color:var(--muted)'>rebuilt "+_ago(d.graph_mtime)+"</span>":"";
+    const autoChip="<span class='chip purple'>auto-rebuild ✓</span>";
     const installHint=!d.st_installed
-      ?"<span style='font-size:.72rem;color:var(--muted);margin-left:10px'>Run <code>pip install sentence-transformers</code> then restart to enable dense semantic search</span>"
+      ?"<span style='font-size:.71rem;color:var(--amber)'>Tip: <code>pip install sentence-transformers</code> → restart → Rebuild to enable dense semantic search</span>"
       :"";
-    el.innerHTML="<div class='card' style='padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap'>"+
-      "<span style='font-size:.75rem;font-weight:700'>Layer 2 Backend:</span>"+engChip+stChip+autoChip+
-      (docs?"<span style='font-size:.72rem;color:var(--muted)'>"+docs+"</span>":"")+model+installHint+
+    el.innerHTML="<div class='card' style='padding:10px 16px'>"+
+      "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px'>"+
+      "<span style='font-size:.75rem;font-weight:700'>Layer 2 (Vectors):</span>"+engChip+stChip+autoChip+
+      (docs?"<span style='font-size:.7rem;color:var(--muted)'>"+docs+"</span>":"")+idxAge+
+      "</div>"+
+      "<div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px'>"+
+      "<span style='font-size:.75rem;font-weight:700'>Layer 1 (Graph):</span>"+graphChip+graphStats+graphAge+
+      "</div>"+
+      (installHint?"<div style='margin-top:4px'>"+installHint+"</div>":"")+
       "</div>";
   }catch(e){
     const el2=$("#brain-status-bar");if(el2)el2.innerHTML="";
   }
+}
+async function pgFindSimilar(q){
+  if(q)$("#delivery-q").value=q;
+  const query=($("#delivery-q")||{}).value||"";
+  if(!query.trim())return;
+  const el=$("#delivery-result");if(el)el.innerHTML="<p style='color:var(--muted)'>Searching experience graph…</p>";
+  const r=await runTool("find_similar_delivery",{requirement:query,top_k:5});
+  const hits=r.result;
+  if(!Array.isArray(hits)||!hits.length){
+    if(el)el.innerHTML="<p style='color:var(--muted);font-size:.8rem'>No similar past deliveries found. Complete a few pipeline runs first — each completed run is automatically indexed into Layer 3.</p>";
+    return;
+  }
+  if(el)el.innerHTML="<div style='margin-top:10px;display:flex;flex-direction:column;gap:10px'>"+
+    hits.map(function(h){
+      const m=h.metadata||{};
+      const score=h.score!=null?"<span style='font-size:.7rem;background:#ede9fe;color:#4c1d95;border-radius:4px;padding:1px 6px;font-weight:700'>"+Math.round(h.score*100)+"% match</span>":"";
+      const mode=m.extensibility_mode?"<span class='chip blue' style='font-size:.65rem'>"+esc(m.extensibility_mode)+"</span>":"";
+      const approach=m.approved_approach?"<p style='font-size:.76rem;margin:4px 0'><b>Approach:</b> "+esc(m.approved_approach)+"</p>":"";
+      const objects=m.objects_used?(Array.isArray(m.objects_used)?m.objects_used:[m.objects_used]).slice(0,6).map(function(o){return"<code style='font-size:.68rem'>"+esc(o)+"</code>";}).join(" "):"";
+      return"<div style='border:1px solid var(--line);border-radius:8px;padding:10px 12px'>"+
+        "<div style='display:flex;align-items:center;gap:8px;margin-bottom:4px'>"+score+
+        "<b style='font-size:.82rem'>"+esc(m.fd_name||m.run_id||h.id)+"</b>"+mode+"</div>"+
+        approach+
+        (objects?"<p style='font-size:.72rem;margin:4px 0;color:var(--muted)'><b>Objects:</b> "+objects+"</p>":"")+
+        "<p style='font-size:.7rem;color:var(--muted)'>Run: "+esc(m.run_id||h.id)+"</p></div>";
+    }).join("")+"</div>";
+}
+async function brainRebuild(){
+  const btn=$("#brain-rebuild-btn"),st=$("#brain-rebuild-status");
+  if(btn){btn.disabled=true;btn.textContent="Rebuilding…";}
+  if(st){st.style.color="var(--muted)";st.textContent="Queuing rebuild…";}
+  try{
+    const r=await fetch("/api/brain/rebuild",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const d=await r.json();
+    if(d.ok){
+      if(st){st.style.color="var(--green,#16a34a)";st.textContent="✓ "+d.message;}
+      setTimeout(loadBrainStatus,10000);  // refresh status after 10s
+    } else {
+      if(st){st.style.color="var(--red,#dc2626)";st.textContent=d.error||"Rebuild failed";}
+    }
+  }catch(e){
+    if(st){st.style.color="var(--red,#dc2626)";st.textContent="Network error: "+e.message;}
+  }
+  if(btn){btn.disabled=false;btn.textContent="↺ Rebuild Index & Graph";}
 }
 async function loadCatalogs(){
   const [a,b,c]=await Promise.all([api("/api/catalog/apis"),api("/api/catalog/badis"),api("/api/catalog/cds")]);
