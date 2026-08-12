@@ -3199,20 +3199,64 @@ def pipeline_log(job_id):
     except OSError:
         return '', 200
 
+def _terminate_run_jobs(run_id):
+    """Kill any engine process still attached to this run and drop it from the jobs registry.
+
+    Deleting a run without this leaves an orphaned `claude -p` process that keeps burning tokens and —
+    because it writes output/<RUN-ID>/run.json — RECREATES the folder you just deleted. On Windows the
+    engine is spawned DETACHED, so it also survives a webapp restart; kill the whole process tree."""
+    killed = []
+    with JOBS_LOCK:
+        items = [(jid, j) for jid, j in JOBS.items() if j.get("run") == run_id]
+    for jid, j in items:
+        proc = j.get("proc")
+        try:
+            if proc is not None and proc.poll() is None:
+                if sys.platform == "win32":
+                    subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                                   capture_output=True, timeout=15)
+                else:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except Exception:
+                        proc.kill()
+                killed.append(jid)
+        except Exception:
+            pass
+        try:                                   # release the log file handle
+            fh = j.get("log_fh")
+            if fh and not fh.closed:
+                fh.close()
+        except Exception:
+            pass
+        with JOBS_LOCK:
+            JOBS.pop(jid, None)
+    return killed
+
 def pipeline_delete(run_id):
-    """Delete a run folder (and its usage record). Refuses while the run is still executing."""
+    """Delete a run folder (and its usage record), stopping its engine process first."""
     if not SAFE_NAME.match(run_id or ""):
         return {"error": "Invalid run id"}, 400
     run_dir = os.path.join(ROOT_DIR, "output", run_id)
     if not os.path.isdir(run_dir):
         return {"error": "Run not found"}, 404
-    data = read_json(os.path.join(run_dir, "run.json")) or {}
-    if data.get("status") in ("running", "in_progress"):
-        return {"error": "This run is still executing — wait for it to finish or reach a checkpoint before deleting."}, 409
+    # Stop the engine BEFORE removing the folder: a live process would otherwise re-create run.json
+    # (resurrecting the deleted run) and keep consuming tokens against a run nobody is watching.
+    killed = _terminate_run_jobs(run_id)
     try:
         shutil.rmtree(run_dir)
     except OSError as exc:
         return {"error": "Could not delete: %s" % exc}, 500
+    # A detached engine can still be mid-write; remove anything it recreated in the race window.
+    for _ in range(3):
+        if not os.path.isdir(run_dir):
+            break
+        time.sleep(0.3)
+        try:
+            shutil.rmtree(run_dir)
+        except OSError:
+            pass
     try:                                            # drop its token-usage record too
         with USAGE_LOCK:
             u = _load_usage()
@@ -3222,8 +3266,10 @@ def pipeline_delete(run_id):
                     json.dump(u, fh, indent=2)
     except Exception:
         pass
-    MCP.audit("run_deleted", {"run": run_id})
-    return {"ok": True, "deleted": run_id}, 200
+    MCP.audit("run_deleted", {"run": run_id, "engine_jobs_killed": len(killed)})
+    return {"ok": True, "deleted": run_id, "jobs_stopped": len(killed),
+            "message": ("Run deleted." if not killed
+                        else "Run deleted and %d running engine job(s) stopped." % len(killed))}, 200
 
 
 def experience_export():

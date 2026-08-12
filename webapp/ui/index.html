@@ -1573,12 +1573,17 @@ async function rerunPipeline(btn){
 async function deleteRun(btn){
   if(!EX_RUN)return;
   const id=EX_RUN.id;
-  if(!confirm("Delete run "+id+" and ALL its generated files?\n\nThis cannot be undone. Other runs (including earlier versions) are not affected."))return;
+  const live=(EX_RUN.status==="running"||EX_RUN.status==="in_progress");
+  const extra=live?"\n\n⚠ This run is still EXECUTING. Deleting it will also stop its engine process.":"";
+  if(!confirm("Delete run "+id+" and ALL its generated files?"+extra+"\n\nThis cannot be undone. Other runs (including earlier versions) are not affected."))return;
   if(btn){btn.disabled=true;btn.textContent="🗑 Deleting…"}
   const r=await fetch("/api/pipeline/delete",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({run:id})}).then(x=>x.json()).catch(()=>({error:"network error"}));
   if(btn){btn.disabled=false;btn.textContent="🗑 Delete"}
-  if(r.ok){EX_FOLLOW=false;EX_RUN=null;await loadRuns();loadInputs();}   // renderRunChips picks another run or shows empty state
+  if(r.ok){
+    if(r.jobs_stopped)alert(r.message||("Run deleted; "+r.jobs_stopped+" engine job(s) stopped."));
+    EX_FOLLOW=false;EX_RUN=null;await loadRuns();loadInputs();loadJobs();   // refresh the jobs list too
+  }
   else alert("Delete failed: "+(r.error||"unknown"));
 }
 
