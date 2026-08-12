@@ -192,10 +192,20 @@ def list_runs():
             # (CAP_APP / Integration Suite / …, i.e. any btp_component other than SBPA — SBPA is
             # config handover, not a CAP deploy). This also lights up runs approved before the flag
             # was persisted. An evaluated-but-rejected BTP option never sets btp_components.
-            _btp_comps = data.get("btp_components") or []
-            _is_btp = (bool(data.get("selected_is_btp"))
-                       or any(str(c).strip().upper() != "SBPA" for c in _btp_comps if str(c).strip()))
+            # 14-step BTP variant: once a CP1 decision is made, selected_is_btp is authoritative — True
+            # for a BTP pick, False for RAP/key-user (even an override of a mandated-BTP default). Only
+            # BEFORE any decision (flag is None) do we infer from a deployable BTP component in scope.
+            _sel_btp = data.get("selected_is_btp")
+            if _sel_btp is not None:
+                _is_btp = bool(_sel_btp)
+            else:
+                _btp_comps = data.get("btp_components") or []
+                _is_btp = any(str(c).strip().upper() != "SBPA" for c in _btp_comps if str(c).strip())
             data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""), _is_btp)
+            # A non-BTP run must never DISPLAY the BTP deploy steps — Phase A may have pre-seeded 13/14
+            # for a mandated-BTP default that the developer then overrode to RAP/key-user.
+            if not _is_btp and data.get("steps"):
+                data["steps"] = [s for s in data["steps"] if str(s.get("n")) not in ("13", "14")]
             # UI robustness: if the architect put the Custom-Object Naming Contract only INSIDE the
             # approach_options (per-approach) and omitted the top-level checkpoint_request mirror, the
             # CP1 naming grid would not render and the developer could not review/lock names. Backfill
@@ -1367,7 +1377,8 @@ def _phase_d_prompt(rid, fd_path, decision, notes, cp3_slug, selected_is_btp=Fal
         "  • Set status → 'awaiting_approval', step 13 → AWAITING_APPROVAL. THEN EXIT.\n"
     ) if selected_is_btp else (
         "The approach selected at CP1 is NOT BTP (key_user or developer). No deploy steps.\n"
-        "  • Keep run.json.workflow as 'RICEFW Pipeline (12 steps)'.\n"
+        "  • Set run.json.workflow to 'RICEFW Pipeline (12 steps)' and REMOVE any steps 13/14 that a\n"
+        "    mandated-BTP default pre-seeded (the developer overrode to a non-BTP approach at CP1).\n"
         "  • Do NOT add steps 13 or 14.\n"
         "  • Set run.json.status → 'completed', gates_passed → '3/3'. THEN EXIT.\n"
     )
@@ -2827,25 +2838,31 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                 data.setdefault("human_approvals", []).append(record)
             if _mode_override:
                 data["mode_override"] = _mode_override
-            # Selecting a side-by-side (BTP) approach at CP1 turns this into the 14-step pipeline
-            # immediately: persist the authoritative flag, switch the workflow label, and reveal the
-            # two BTP deploy steps as PENDING so the Workflow Explorer reflects it right away (the
-            # engine fills them in for real at Phase D / Deploy). SBPA is BTP-cost but produces config
-            # handover (step 12), not a CAP deploy — so it stays 12-step.
-            if selected_is_btp and not selected_is_sbpa:
-                data["selected_is_btp"] = True
-                data["workflow"] = "RICEFW Pipeline (14 steps, incl. BTP deploy)"
-                _have = {str(s.get("n")) for s in data.get("steps", [])}
-                if "13" not in _have:
-                    data.setdefault("steps", []).append(
-                        {"n": 13, "name": "BTP Prerequisite Check", "agent": "Delivery Lead",
-                         "gate": True, "status": "PENDING", "score": None, "iterations": 0,
-                         "detail": "Side-by-side (BTP) approach selected at CP1 — deploy prerequisites gate."})
-                if "14" not in _have:
-                    data.setdefault("steps", []).append(
-                        {"n": 14, "name": "Deploy to BTP (dev)", "agent": "Developer",
-                         "gate": False, "status": "PENDING", "score": None, "iterations": 0,
-                         "detail": "Side-by-side (BTP) approach selected at CP1 — deploy to a dev/test space."})
+            # Align the run to the SELECTED approach at CP1 (approach_options present) — in BOTH
+            # directions. A BTP (non-SBPA) selection makes it the 14-step pipeline with the two deploy
+            # steps; ANY other selection (RAP / key-user), including an OVERRIDE of a mandated-BTP
+            # default, reverts it to 12 steps and REMOVES the deploy steps. The workflow must follow the
+            # developer's choice, not the proposal's default. SBPA is BTP-cost but config handover, 12-step.
+            if _approach_opts:   # this is CP1
+                _is_btp_sel = bool(selected_is_btp and not selected_is_sbpa)
+                data["selected_is_btp"] = _is_btp_sel
+                if _is_btp_sel:
+                    data["workflow"] = "RICEFW Pipeline (14 steps, incl. BTP deploy)"
+                    _have = {str(s.get("n")) for s in data.get("steps", [])}
+                    if "13" not in _have:
+                        data.setdefault("steps", []).append(
+                            {"n": 13, "name": "BTP Prerequisite Check", "agent": "Delivery Lead",
+                             "gate": True, "status": "PENDING", "score": None, "iterations": 0,
+                             "detail": "Side-by-side (BTP) approach selected at CP1 — deploy prerequisites gate."})
+                    if "14" not in _have:
+                        data.setdefault("steps", []).append(
+                            {"n": 14, "name": "Deploy to BTP (dev)", "agent": "Developer",
+                             "gate": False, "status": "PENDING", "score": None, "iterations": 0,
+                             "detail": "Side-by-side (BTP) approach selected at CP1 — deploy to a dev/test space."})
+                else:
+                    data["workflow"] = "RICEFW Pipeline (12 steps)"
+                    data["steps"] = [s for s in data.get("steps", [])
+                                     if str(s.get("n")) not in ("13", "14")]
             data["checkpoint_request"] = None
             for s in data.get("steps", []):
                 if s.get("status") == "AWAITING_APPROVAL":
