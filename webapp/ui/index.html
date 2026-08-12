@@ -1526,7 +1526,8 @@ function normalizeFinding(f){
     description:f.description||f.problem||f.summary||f.message||"",
     resolution:f.resolution||f.action||f.fix||f.recommendation||"",
     verify:f.verify||f.how_to_verify||"",
-    status:f.status||(resolved?"Resolved":"Open")
+    status:f.status||(resolved?"Resolved":"Open"),
+    _raw:f                                  // keep the original for developer_input / resolution_applied
   };
 }
 function renderFindings(){
@@ -1539,13 +1540,19 @@ function renderFindings(){
   const sevChip={Critical:"red",Major:"amber",Minor:"amber",Info:"blue"};
   $("#ex-findings").innerHTML=all.filter(f=>EX_SEV==="All"||f.severity===EX_SEV).map(f=>{
     var verifyHtml=f.verify?"<div style='font-size:.68rem;color:var(--muted);margin-top:3px'>Verify: "+esc(f.verify)+"</div>":"";
+    var raw=f._raw||{};
+    // Your own review input + what the pipeline actually did about it
+    var yours=raw.developer_input?"<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #7c3aed;padding-left:6px;color:var(--ink)'><b>Your input</b>"+
+      (raw.developer_input_file?" <span style='color:var(--muted)'>("+esc(raw.developer_input_file)+")</span>":"")+": "+esc(raw.developer_input)+"</div>":"";
+    var applied=raw.resolution_applied?"<div style='font-size:.68rem;margin-top:4px;border-left:3px solid var(--green,#16a34a);padding-left:6px;color:var(--ink)'><b>Applied</b>: "+esc(raw.resolution_applied)+"</div>":"";
+    var stChip=f.status==="Resolved"?"green":(f.status==="Accepted"?"blue":"amber");
     return "<tr>"+
       "<td><b>"+esc(f.id)+"</b></td>"+
       "<td><span class='chip "+(sevChip[f.severity]||"gray")+"'>"+esc(f.severity||"—")+"</span></td>"+
       "<td style='white-space:nowrap;font-size:.72rem'>"+esc(f.source)+"</td>"+
-      "<td>"+esc(f.description)+"</td>"+
+      "<td>"+esc(f.description)+yours+applied+"</td>"+
       "<td style='color:var(--muted)'>"+esc(f.resolution)+verifyHtml+"</td>"+
-      "<td><span class='chip "+(f.status==="Resolved"?"green":"amber")+"'>"+esc(f.status)+"</span></td>"+
+      "<td><span class='chip "+stChip+"'>"+esc(f.status)+"</span></td>"+
     "</tr>";}).join("")||"<tr><td colspan='6' style='color:var(--muted)'>No findings in this filter.</td></tr>";
 }
 async function openRunFile(run,f){

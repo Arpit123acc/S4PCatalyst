@@ -1239,6 +1239,11 @@ def _phase_c_prompt(rid, fd_path, decision, notes, fc_txt, cp2_slug, is_sbpa=Fal
         "  <!-- Step 7B: no corrections required by CP2 reviewer — code unchanged -->\n"
         "NEVER skip this step: 06-build-corrected.md must ALWAYS exist (steps 8-11 and deploy read it),\n"
         "and step 7B's status is PASS — not SKIP/SKIPPED — even when nothing changed.\n"
+        "CLOSE THE FINDINGS LOOP: for every run.json findings[] entry you actually fixed here — these are\n"
+        "  marked \"status\":\"Pending Fix\" and carry the developer's own words in \"developer_input\" —\n"
+        "  set \"status\":\"Resolved\" and write \"resolution_applied\":\"<what you changed, one sentence,\n"
+        "  referencing the file>\". If a Pending Fix finding could NOT be addressed, leave it Open and say\n"
+        "  why in \"resolution_applied\". Never mark a finding Resolved without a corresponding code change.\n"
         "Update run.json deliverables: append {\"step\":\"7B\",\"file\":\"06-build-corrected.md\",\"status\":\"done\"}.\n\n"
         "── STEP 8 · LINT (Clean-Core Reviewer) ──────────────────────────────────────\n"
         "Set step 8 → RUNNING. Then:\n"
@@ -2729,6 +2734,36 @@ def pipeline_checklist(run_id, checked):
     write_json_atomic(manifest, data)
     return {"ok": True, "checked": sum(1 for x in state if x), "total": n}, 200
 
+def _attach_comments_to_findings(data, file_comments, when):
+    """Record the developer's CP2 code-review input ON the findings themselves.
+
+    Comments are captured per FILE while findings are separate items with no file field, so link
+    conservatively: (a) the comment or file name mentions the finding id (e.g. "CR-02"), or (b) the
+    finding text mentions the commented file name. A linked finding moves Open -> "Pending Fix" and
+    carries the developer's own words; step 7B applies the change and marks it Resolved.
+    Returns the number of findings linked."""
+    linked = 0
+    for c in file_comments or []:
+        comment = (c.get("comment") or "").strip()
+        fname = (c.get("file") or "").strip()
+        if not comment:
+            continue
+        hay = (comment + " " + fname).lower()
+        for f in (data.get("findings") or []):
+            fid = (f.get("id") or "").strip()
+            if not fid or (f.get("status") or "Open") not in ("Open", "Pending Fix"):
+                continue
+            ftext = " ".join(str(f.get(k) or "") for k in ("description", "resolution", "verify")).lower()
+            match = (fid.lower() in hay) or (bool(fname) and fname.lower() in ftext)
+            if not match:
+                continue
+            f["status"] = "Pending Fix"
+            f["developer_input"] = comment
+            f["developer_input_file"] = fname
+            f["developer_input_at"] = when
+            linked += 1
+    return linked
+
 def pipeline_findings_review(run_id, findings_actions):
     """Persist developer choices (fix/accept) for each finding in the findings_review checkpoint,
     similar to pipeline_checklist. Does NOT approve — that is a separate step."""
@@ -2813,6 +2848,27 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     if decision == "approved" and (_cpreq.get("naming_contract") or []):
         if any(not _naming_ok(i.get("name"), i.get("created_in")) for i in _cpreq["naming_contract"]):
             return {"error": "Confirm a valid namespaced name for every custom object first."}, 409
+    # CP3 findings-review enforcement — SERVER-SIDE. The UI disables the submit button until every
+    # Critical/Major finding is actioned, but a disabled button is not a gate: a stale page, a refresh
+    # or a direct POST bypassed it entirely. Mirror the rule here so it actually holds.
+    if decision == "approved" and (_cpreq.get("findings_review") or []):
+        _unactioned, _unjustified = [], []
+        for _f in _cpreq["findings_review"]:
+            if (_f.get("severity") or "").strip().lower() not in ("critical", "major"):
+                continue                      # Minor/Info are advisory
+            _fid = _f.get("id") or "?"
+            _act = (_f.get("action") or "").strip().lower()
+            if _act not in ("fix", "accept"):
+                _unactioned.append(_fid)
+            elif _act == "accept" and not (_f.get("notes") or "").strip():
+                _unjustified.append(_fid)     # accepting a Critical/Major risk needs a justification
+        if _unactioned:
+            return {"error": ("Critical/Major findings still need a decision (fix or accept): %s. "
+                              "Action each one in the findings panel before approving."
+                              % ", ".join(_unactioned))}, 409
+        if _unjustified:
+            return {"error": ("Accepting a Critical/Major finding requires a written justification: %s."
+                              % ", ".join(_unjustified))}, 409
     # Gate 2 Major enforcement — CP2 approval requires fix comments when Gate 2 found Majors.
     # Resolve the review file by PATTERN, not one hardcoded name: the engine has written it as
     # 07-code-review.md as well as 07-gate2-review.md, and a name mismatch silently disabled this
@@ -2905,6 +2961,11 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                 data.setdefault("human_approvals", []).append(record)
             if _mode_override:
                 data["mode_override"] = _mode_override
+            # CP2: carry the developer's per-file review input onto the findings it addresses, so the
+            # Findings Inventory shows WHO said WHAT rather than leaving a Major sitting at "Open"
+            # with no trace. Step 7B applies the change and flips these to Resolved.
+            if _fc:
+                _attach_comments_to_findings(data, _fc, record["date"])
             # Align the run to the SELECTED approach at CP1 (approach_options present) — in BOTH
             # directions. A BTP (non-SBPA) selection makes it the 14-step pipeline with the two deploy
             # steps; ANY other selection (RAP / key-user), including an OVERRIDE of a mandated-BTP
