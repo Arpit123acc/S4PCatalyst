@@ -30,6 +30,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# Progress output contains non-ASCII characters; a Windows cp1252 console would raise
+# UnicodeEncodeError and abort a sync that had otherwise succeeded.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 _HERE         = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 import db  # noqa: E402  (after sys.path setup)

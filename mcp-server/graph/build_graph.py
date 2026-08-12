@@ -19,6 +19,16 @@ Zero-dependency — pure Python 3.9+ stdlib only.
 import os
 import sys
 
+# The graph is written BEFORE the closing spot-check prints. Those prints contain non-ASCII
+# characters, so on a Windows cp1252 console they raised UnicodeEncodeError and the script exited
+# rc=1 — every caller (sync_hub --rebuild, the webapp's background rebuild) then reported a FAILED
+# graph rebuild even though graph.json had been written correctly. Force UTF-8 output instead.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 import graph_engine

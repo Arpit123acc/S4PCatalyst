@@ -28,6 +28,14 @@ import json
 import os
 import sys
 
+# Progress output contains non-ASCII characters; a Windows cp1252 console would raise
+# UnicodeEncodeError and make this script exit non-zero even on a successful build.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # allow: `python mcp-server/vector/build_index.py` from project root
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)

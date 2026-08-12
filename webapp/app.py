@@ -3424,19 +3424,31 @@ def catalog_sync(hub_api_key, dry_run=False, rebuild=False):
         return {"error": "sync_hub.py not found at %s" % sync_script}, 500
     env = os.environ.copy()
     env["SAP_HUB_API_KEY"] = key          # key lives only in this subprocess env
+    # Deliberately NOT passing --rebuild: that runs the vector index (~3s) and the object graph
+    # (~100s for 137k edges) inside this request, which blew the old 180s budget on top of ~55
+    # paginated Hub calls. Do the network sync here, then kick both rebuilds off in the background
+    # (same machinery used after a pipeline run) so the browser is not held open for minutes.
     cmd = [sys.executable, sync_script]
     if dry_run:
         cmd.append("--dry-run")
-    elif rebuild:
-        cmd.append("--rebuild")
+    _timeout = int(os.environ.get("S4PC_SYNC_TIMEOUT", "900"))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180, env=env)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=_timeout, env=env)
         output = result.stdout
         if result.returncode != 0:
             output += ("\n" + result.stderr) if result.stderr else ""
-        return {"ok": result.returncode == 0, "output": output.strip()}, 200
+        ok = result.returncode == 0
+        if ok and rebuild and not dry_run:
+            _rebuild_index_bg("catalog sync")
+            threading.Timer(5.0, lambda: _rebuild_graph_bg("catalog sync")).start()
+            output += ("\n\nCatalog written. Rebuilding the vector index and object graph in the "
+                       "background (the graph takes ~2 minutes) — the Digital Brain page shows the "
+                       "new counts when it finishes.")
+        return {"ok": ok, "output": output.strip()}, 200
     except subprocess.TimeoutExpired:
-        return {"error": "Sync timed out after 3 minutes."}, 500
+        return {"error": ("Sync timed out after %d minutes. Raise S4PC_SYNC_TIMEOUT (seconds) if the "
+                          "Hub is slow, or run it from a terminal: "
+                          "python mcp-server/catalog/sync_hub.py --rebuild" % (_timeout // 60))}, 500
     except Exception as exc:
         return {"error": str(exc)}, 500
 
