@@ -221,8 +221,17 @@ def _normalize_btp_steps(steps):
 # the naming contract instead) and reads ONLY fenced code blocks, so a prose mention of an object the
 # design explicitly rejected does not block approval (measured: 1 true positive, 0 false positives
 # across the bundled example runs).
-_SAP_OBJ_RE = re.compile(
+_SAP_OBJ_RE = re.compile(          # what counts as "verified" when read from the verdicts table
     r'\b(?:I_[A-Za-z][A-Za-z0-9_]{2,}|C_[A-Za-z][A-Za-z0-9_]{2,}|A_[A-Za-z][A-Za-z0-9_]{2,}'
+    r'|E_[A-Za-z][A-Za-z0-9_]{2,}|R_[A-Za-z][A-Za-z0-9_]{2,}|P_[A-Za-z][A-Za-z0-9_]{2,}'
+    r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}|[A-Z][A-Z0-9_]{5,}_SRV)\b')
+# What we FLAG from code. Deliberately excludes A_* OData entity sets: an entity is reached through a
+# service, so the unit of release governance is the SERVICE (API_*/*_SRV) — and if that service is
+# unverified the gate still catches it. Measured on the bundled runs: every A_* flag was an entity of
+# an ALREADY-verified service (A_PurchaseRequisitionHeader under API_PURCHASEREQUISITION_2,
+# A_EnterpriseProjectTeamMember under API_ENTERPRISE_PROJECT_SRV) — 0 true positives, 2 false ones.
+_SAP_OBJ_CODE_RE = re.compile(
+    r'\b(?:I_[A-Za-z][A-Za-z0-9_]{2,}|C_[A-Za-z][A-Za-z0-9_]{2,}'
     r'|E_[A-Za-z][A-Za-z0-9_]{2,}|R_[A-Za-z][A-Za-z0-9_]{2,}|P_[A-Za-z][A-Za-z0-9_]{2,}'
     r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}|[A-Z][A-Z0-9_]{5,}_SRV)\b')
 _FENCED_RE = re.compile(r'```[^\n]*\n(.*?)```', re.S)
@@ -243,7 +252,7 @@ def _unverified_objects_in_code(run_dir):
             verdicts = fh.read()
     except OSError:
         return []
-    in_code = set(_SAP_OBJ_RE.findall("\n".join(_FENCED_RE.findall(code_md))))
+    in_code = set(_SAP_OBJ_CODE_RE.findall("\n".join(_FENCED_RE.findall(code_md))))
     verified = set(_SAP_OBJ_RE.findall(verdicts))
     return sorted(in_code - verified)
 
