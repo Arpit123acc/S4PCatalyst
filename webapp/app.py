@@ -2971,8 +2971,20 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     # 07-code-review.md as well as 07-gate2-review.md, and a name mismatch silently disabled this
     # gate entirely (a run was approved with 6 open Majors and no fix comments).
     if decision == "approved" and "CP2" in (checkpoint or ""):
+        # Prefer the STRUCTURED findings: a Major the reviewer already fixed is not something the
+        # developer must comment on. Counting "| Major |" mentions in the markdown blocked a run whose
+        # Majors were all marked Resolved. Fall back to the markdown only when findings[] is absent.
+        _rj_now = read_json(os.path.join(run_dir, "run.json")) or {}
+        _structured = [f for f in (_rj_now.get("findings") or [])
+                       if (f.get("severity") or "").strip().lower() == "major"]
         _g2_path = _find_gate2_review(run_dir)
-        if _g2_path:
+        if _structured:
+            _open_majors = [f for f in _structured
+                            if (f.get("status") or "Open").strip().lower()
+                            not in ("resolved", "accepted", "pending fix")]
+            _g2_major_count = len(_open_majors)
+            _g2_ids = ", ".join(f.get("id") or "?" for f in _open_majors[:6])
+        elif _g2_path:
             with open(_g2_path, "r", encoding="utf-8") as _gf:
                 _g2_content = _gf.read().lower()
             _g2_major_count = (
@@ -2980,17 +2992,22 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                 + _g2_content.count("**major**")
                 + _g2_content.count("severity: major")
             )
-            if _g2_major_count > 0:
-                _fc_check = [f for f in (_cpreq.get("code_files") or [])
-                             if (f.get("comment") or "").strip()]
-                if not _fc_check:
-                    return {
-                        "error": (
-                            f"Gate 2 code review identified {_g2_major_count} Major finding(s). "
-                            f"Open {os.path.basename(_g2_path)}, then add a fix comment for each Major "
-                            "finding using the code files panel before approving CP2."
-                        )
-                    }, 409
+            _g2_ids = ""
+        else:
+            _g2_major_count, _g2_ids = 0, ""
+        if _g2_major_count > 0:
+            _fc_check = [f for f in (_cpreq.get("code_files") or [])
+                         if (f.get("comment") or "").strip()]
+            if not _fc_check:
+                _where = os.path.basename(_g2_path) if _g2_path else "the Gate 2 review"
+                return {
+                    "error": (
+                        "%d unresolved Major finding(s)%s. Open %s, then add a comment on the "
+                        "relevant file in the code-files panel saying how each will be handled "
+                        "(a fix, or why you accept it) before approving CP2."
+                        % (_g2_major_count, (" — %s" % _g2_ids) if _g2_ids else "", _where)
+                    )
+                }, 409
     dec_dir = os.path.join(run_dir, "decisions")
     os.makedirs(dec_dir, exist_ok=True)
     cp_slug = re.sub(r"[^A-Za-z0-9]+", "_", checkpoint or "CP").strip("_") or "CP"
