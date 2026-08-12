@@ -1178,12 +1178,17 @@ async function submitNaming(runId,checkpoint){
   var msg=document.getElementById("cp-msg");
   var sel=document.querySelector("input[name=approach-select]:checked");
   var selectedApproach=sel?sel.value:"";
-  var opts=(EX_RUN&&EX_RUN.checkpoint_request&&EX_RUN.checkpoint_request.approach_options)||[];
+  var cp=(EX_RUN&&EX_RUN.checkpoint_request)||{};
+  var opts=cp.approach_options||[];
   if(opts.length&&!selectedApproach){if(msg)msg.textContent="Please select an approach above before locking names.";return;}
-  var names={};items.forEach(function(x){names[x.dataset.id]=x.value;});
   if(msg)msg.textContent="Locking names + resuming…";
-  if(items.length)
-    await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,names:names})});
+  // Send the FULL edited contract (replace) + selection, so the locked names persist even when the
+  // server's top-level checkpoint_request.naming_contract was empty (per-approach-only proposal).
+  if(items.length){
+    var meta={};(cp.naming_contract||[]).forEach(function(it){meta[it.id]=it;});
+    var contract=items.map(function(x){var b=meta[x.dataset.id]||{};return {id:x.dataset.id,object:b.object||"",type:b.type||"",created_in:b.created_in||x.dataset.ci||"",name:x.value};});
+    await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,contract:contract,selected_approach:selectedApproach})});
+  }
   var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
   const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes,selected_approach:selectedApproach})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");

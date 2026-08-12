@@ -196,6 +196,23 @@ def list_runs():
             _is_btp = (bool(data.get("selected_is_btp"))
                        or any(str(c).strip().upper() != "SBPA" for c in _btp_comps if str(c).strip()))
             data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""), _is_btp)
+            # UI robustness: if the architect put the Custom-Object Naming Contract only INSIDE the
+            # approach_options (per-approach) and omitted the top-level checkpoint_request mirror, the
+            # CP1 naming grid would not render and the developer could not review/lock names. Backfill
+            # it (display only) from the selected option, else the mandated/recommended default.
+            _cp = data.get("checkpoint_request") or {}
+            if _cp and not (_cp.get("naming_contract") or []):
+                _opts = _cp.get("approach_options") or []
+                _sel = _cp.get("selected_approach")
+                _pick = (next((o for o in _opts if o.get("id") == _sel), None) if _sel else None)
+                _pick = (_pick
+                         or next((o for o in _opts if o.get("mandated") and o.get("feasible") is not False), None)
+                         or next((o for o in _opts if o.get("recommended")), None)
+                         or next((o for o in _opts if o.get("naming_contract")), None))
+                if _pick and (_pick.get("naming_contract") or []):
+                    _cp = dict(_cp)
+                    _cp["naming_contract"] = _pick["naming_contract"]
+                    data["checkpoint_request"] = _cp
             run_dir_path = os.path.join(out_dir, name)
             data["files"] = sorted(
                 f for f in os.listdir(run_dir_path)
@@ -970,8 +987,10 @@ def _phase_a_prompt(fd_path, rid):
         "  CDS+RAP for developer, YY1_ fields for key user, CAP entities/services/destinations for\n"
         "  side-by-side. The webapp swaps the editable name grid to the SELECTED option's contract, so a\n"
         "  client-mandated override (e.g. BTP over RAP) never shows the other mode's names.\n"
-        '    "naming_contract": [  ← TOP-LEVEL mirror: copy the DEFAULT option\'s contract here (the mandated\n'
-        "                             option if one is mandated, else the recommended one) for initial display\n"
+        '    "naming_contract": [  ← MANDATORY TOP-LEVEL mirror (NOT optional): copy the DEFAULT option\'s\n'
+        "                             contract here VERBATIM (the mandated option if one is mandated, else the\n"
+        "                             recommended one). The webapp renders the editable name grid from THIS\n"
+        "                             field — omit it and the developer cannot review or lock the names at CP1.\n"
         '      {"id":"NC-01","object":"<name>","type":"<type>","created_in":"<key_user|developer|side_by_side>","name":"<Z.../YY1_.../CAP name>"}\n'
         "    ]\n"
         "  }\n"
