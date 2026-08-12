@@ -215,6 +215,21 @@ def _normalize_btp_steps(steps):
             s["detail"] = spec["detail"]
     return steps
 
+def _find_gate2_review(run_dir):
+    """Locate the Gate 2 (code review) deliverable regardless of the exact name the engine used.
+    Returns a path or None. Hardcoding one filename silently disables the CP2 Major-findings gate."""
+    for cand in ("07-gate2-review.md", "07-code-review.md", "07-review.md"):
+        p = os.path.join(run_dir, cand)
+        if os.path.isfile(p):
+            return p
+    try:                                   # any 07-*review*.md the engine may have written
+        for f in sorted(os.listdir(run_dir)):
+            if re.match(r"^0?7[-_].*review.*\.md$", f, re.I):
+                return os.path.join(run_dir, f)
+    except OSError:
+        pass
+    return None
+
 def list_runs():
     """Pipeline runs = output/<ID>/run.json manifests written by the s4pc-ricefw-pipeline skill."""
     out_dir = os.path.join(ROOT_DIR, "output")
@@ -1219,13 +1234,16 @@ def _phase_c_prompt(rid, fd_path, decision, notes, fc_txt, cp2_slug, is_sbpa=Fal
         "the relevant artifact.\n"
         "Write output/%(rid)s/06-build-corrected.md — this is the CANONICAL code\n"
         "reference for all subsequent steps (8-11 and deploy).\n"
-        "If there are no CP2 file comments: write 06-build-corrected.md as a verbatim\n"
+        "If there are no CP2 file comments: STILL write 06-build-corrected.md as a verbatim\n"
         "copy of the build output file, prepending this one-line header comment:\n"
         "  <!-- Step 7B: no corrections required by CP2 reviewer — code unchanged -->\n"
+        "NEVER skip this step: 06-build-corrected.md must ALWAYS exist (steps 8-11 and deploy read it),\n"
+        "and step 7B's status is PASS — not SKIP/SKIPPED — even when nothing changed.\n"
         "Update run.json deliverables: append {\"step\":\"7B\",\"file\":\"06-build-corrected.md\",\"status\":\"done\"}.\n\n"
         "── STEP 8 · LINT (Clean-Core Reviewer) ──────────────────────────────────────\n"
         "Set step 8 → RUNNING. Then:\n"
-        "  • Run abap_cloud_lint on every ABAP artifact in 06-build-corrected.md.\n"
+        "  • Run abap_cloud_lint on every ABAP artifact in 06-build-corrected.md (if that file is\n"
+        "    missing, fall back to 06-build.md, else 06-code.md — never skip the lint).\n"
         "    If no ABAP (e.g. pure side-by-side): write a brief 'no ABAP artifacts — not applicable' note.\n"
         "  • On FAIL: fix and re-lint (max 3 rounds; on 3rd FAIL log as open Critical finding).\n"
         "Write output/%(rid)s/07-lint-report.md\n"
@@ -2795,10 +2813,13 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     if decision == "approved" and (_cpreq.get("naming_contract") or []):
         if any(not _naming_ok(i.get("name"), i.get("created_in")) for i in _cpreq["naming_contract"]):
             return {"error": "Confirm a valid namespaced name for every custom object first."}, 409
-    # Gate 2 Major enforcement — CP2 approval requires fix comments when Gate 2 found Majors
+    # Gate 2 Major enforcement — CP2 approval requires fix comments when Gate 2 found Majors.
+    # Resolve the review file by PATTERN, not one hardcoded name: the engine has written it as
+    # 07-code-review.md as well as 07-gate2-review.md, and a name mismatch silently disabled this
+    # gate entirely (a run was approved with 6 open Majors and no fix comments).
     if decision == "approved" and "CP2" in (checkpoint or ""):
-        _g2_path = os.path.join(run_dir, "07-gate2-review.md")
-        if os.path.isfile(_g2_path):
+        _g2_path = _find_gate2_review(run_dir)
+        if _g2_path:
             with open(_g2_path, "r", encoding="utf-8") as _gf:
                 _g2_content = _gf.read().lower()
             _g2_major_count = (
@@ -2813,7 +2834,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                     return {
                         "error": (
                             f"Gate 2 code review identified {_g2_major_count} Major finding(s). "
-                            "Open 07-gate2-review.md, then add a fix comment for each Major "
+                            f"Open {os.path.basename(_g2_path)}, then add a fix comment for each Major "
                             "finding using the code files panel before approving CP2."
                         )
                     }, 409
