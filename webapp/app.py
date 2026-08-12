@@ -933,9 +933,14 @@ def _phase_a_prompt(fd_path, rid):
         "Set run.json steps[0].status → RUNNING. Then:\n"
         "  • Restate FD scope in ≤10 lines.\n"
         "  • Classify RICEFW type: Report | Interface | Conversion | Enhancement | Form | Workflow\n"
+        "  • DIGITAL BRAIN — Layer 3 (past deliveries): call find_similar_delivery with a one-line\n"
+        "    requirement summary. If a past run matches, state which one and what you are reusing\n"
+        "    (approach, objects, pitfalls) — or say explicitly that no similar delivery exists.\n"
         "  • List open questions for the human (do NOT silently answer them).\n"
         "Write output/%(rid)s/01-discovery.md\n"
-        "Update run.json: step 1 → PASS, run.json 'type' → classified type.\n\n"
+        "Update run.json: step 1 → PASS, 'type' → classified type, and — REQUIRED, this is what makes\n"
+        "  the run reusable by future runs via the Experience Graph —\n"
+        "  'requirement_summary' → one sentence (≤200 chars) capturing what this delivery does.\n\n"
         "── STEP 2 · SOLUTION PROPOSAL (Extensibility Architect) ─────────────────────\n"
         "Set step 2 → RUNNING. Then:\n"
         "  • Call query_experience for similar past runs (cite EXP-ids in the proposal).\n"
@@ -969,6 +974,15 @@ def _phase_a_prompt(fd_path, rid):
         "Set step 3 → RUNNING. Then:\n"
         "  • Check EVERY API / BAdI / CDS view / table via check_object_release_state\n"
         "    (or catalog fallback above).\n"
+        "  • DIGITAL BRAIN — use it BEFORE writing 'to be confirmed' anywhere:\n"
+        "      Layer 2 semantic_search — when you cannot name the right object, or a name check comes\n"
+        "        back NOT_VERIFIED, search by MEANING (e.g. 'purchase requisition creation') and\n"
+        "        re-check the top hits with check_object_release_state. Do not guess a name.\n"
+        "      Layer 1 get_object_graph — for each principal object, list the related released objects\n"
+        "        (same business concept) so the inventory is complete rather than name-guessed;\n"
+        "        get_area_map browses a business area when the object is still unknown.\n"
+        "    Record in 03-release-verdicts.md WHICH tool produced each verdict. A NOT_VERIFIED that was\n"
+        "    never put through semantic_search/get_object_graph is an incomplete inventory, not a fact.\n"
         "  • NOT_AVAILABLE → redesign (BAPI, classical table, enhancement point, Smart Form).\n"
         "  • LIKELY_RELEASED → released; add 'confirm on authoritative source' note.\n"
         "  • NOT_VERIFIED → look up on authoritative list for its type; never mark as unreleased.\n"
@@ -1471,7 +1485,14 @@ def _phase_d_prompt(rid, fd_path, decision, notes, cp3_slug, selected_is_btp=Fal
         "  • Tenant verification checklist (one item per NOT_VERIFIED object + authoritative URL).\n"
         "  • Call record_experience for anything non-obvious this run taught (source = run id).\n"
         "Write output/%(rid)s/12-package.md\n"
-        "Update run.json: step 12 → PASS, deliverables[] complete.\n\n"
+        "Update run.json: step 12 → PASS, deliverables[] complete, AND close the learning loop —\n"
+        "  these fields are how the Experience Graph indexes this run so FUTURE runs can find it\n"
+        "  (find_similar_delivery); a run that omits them teaches the pipeline nothing:\n"
+        "    'objects_used'  → flat array of every released SAP object consumed + every custom object\n"
+        "                      created (exact technical names, e.g. ['I_Product','API_...','Z_LOTTI']).\n"
+        "    'summary'       → 2-3 sentences: what was built, in which extensibility mode, and the one\n"
+        "                      thing a future run should reuse or avoid.\n"
+        "    'requirement_summary' / 'approved_approach' → fill if still empty.\n\n"
         "── STEP 12B · CREATE DEPLOY FOLDER ──────────────────────────────────────────\n"
         "Create output/%(rid)s/deploy/ and write three files:\n"
         "  1. output/%(rid)s/deploy/code-final.md\n"
@@ -2605,6 +2626,11 @@ def _seed_run_skeleton(fd_path):
         "version": ver, "previous_run": prev,
         "quality_score": None, "gates_passed": "0/3", "auto_corrections": 0,
         "extensibility_mode": None, "mode_split": [], "steps": steps,
+        # Experience Graph (Layer 3) fields — build_index.py indexes past runs on these, so a run
+        # that leaves them empty can never be matched by find_similar_delivery. fd_name is known
+        # here; approved_approach is filled at CP1; the rest are written by the agent (intake/package).
+        "fd_name": os.path.splitext(os.path.basename(fd_path))[0] if fd_path else title,
+        "requirement_summary": None, "approved_approach": None, "objects_used": [], "summary": None,
         # Extensibility field contract (taxonomy Section 3) — filled by the architect at step 2.
         "extensibility_approach": None, "key_user_components": [], "developer_components": [],
         "btp_components": [], "clean_core_validated": None, "transport_type": None,
@@ -2974,6 +3000,10 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
             if _approach_opts:   # this is CP1
                 _is_btp_sel = bool(selected_is_btp and not selected_is_sbpa)
                 data["selected_is_btp"] = _is_btp_sel
+                # Layer 3: record the approach the human actually approved, so this run becomes
+                # matchable in the Experience Graph (find_similar_delivery indexes this field).
+                if selected_approach_label:
+                    data["approved_approach"] = selected_approach_label
                 if _is_btp_sel:
                     data["workflow"] = "RICEFW Pipeline (14 steps, incl. BTP deploy)"
                     _have = {str(s.get("n")) for s in data.get("steps", [])}

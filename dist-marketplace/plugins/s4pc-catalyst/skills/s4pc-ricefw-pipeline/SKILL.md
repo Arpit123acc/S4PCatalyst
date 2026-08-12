@@ -413,6 +413,11 @@ progress (or one waiting on a human) is visible in the Workflow Explorer UI. Sch
   "workflow": "RICEFW Pipeline (12 steps)",
   "fd_source": "input/FD-MM-EXT-0001.md",
   "created": "2026-07-18",
+  "fd_name": "FD-MM-EXT-0001",
+  "requirement_summary": "Block PO release when the custom priority field is empty.",
+  "approved_approach": "Key user: custom field + released BAdI custom logic",
+  "objects_used": ["I_PurchaseOrder", "MM_PUR_S4_PO_CHECK", "YY1_Priority_PDH"],
+  "summary": "Key-user custom field + BAdI validation; no transport. Reuse the FLCL pattern.",
   "status": "completed",
   "quality_score": 81,
   "gates_passed": "3/3",
@@ -447,6 +452,11 @@ as **failing**; keep a gate's final status consistent with `gates_passed` and th
 findings (a gate that FAILED, was fixed, then re-passed ends as PASS/CONDITIONAL_PASS, not FAIL).
 `human_approvals[].decision`
 ∈ approved | adjusted | rejected — with `notes` capturing what the human changed.
+**Experience Graph fields (`fd_name`, `requirement_summary`, `approved_approach`, `objects_used`,
+`summary`) are what `build_index.py` indexes past runs on** — a run that leaves them empty is invisible
+to `find_similar_delivery` and teaches the pipeline nothing. Write `requirement_summary` at intake,
+`approved_approach` at solution approval, and `objects_used` + `summary` at package time.
+
 `mode_override` (present only when the human selected a **non-recommended** approach at CP1, e.g. a
 client-mandated BTP build over a RAP recommendation) = `{original_recommendation, original_mode,
 selected_mode, selected_label, mandated, cost_disclosure_required, override_at, by}` — the audit trail
