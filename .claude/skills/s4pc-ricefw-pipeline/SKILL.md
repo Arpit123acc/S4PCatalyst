@@ -218,6 +218,14 @@ assume approval; never continue on silence.
     produce the TD **documenting the delivered solution** (mode-specific per capability — key user:
     BAdI + custom-field spec; developer: RAP artifacts; side-by-side: BTP service + comm
     arrangements), reflecting what was actually built. Write `04-fd-analysis.md`, `05-technical-design.md`.
+    The TD is a **client deliverable handed over for sign-off** — write it to be shared as-is:
+    self-contained (never "see the FD"), no internal jargon (no phases/gates/agents/run ids outside the
+    Document Control table), every acronym expanded on first use, no `TBD`/empty cells, and every
+    section present. It opens with **Document Control** and a **Table of Contents** (anchor links to
+    every numbered section, including one line per custom object in the object-specification section),
+    and closes with **Assumptions & Dependencies**, **Glossary & Abbreviations**, **References**
+    (canonical URLs from `get_reference_links`), **Revision History** and an **Approval & Sign-off**
+    table with blank Name/Signature/Date rows for the client and the delivery leads.
 11. **GATE 3: Peer review + challenger** — full checklist over the code, tests AND the TD; verdict SHIP/FIX/REDESIGN.
 12. **Package** — deliverables + deployment guide + tenant verification checklist + at least
     one `record_experience` call if the run taught anything non-obvious, then
