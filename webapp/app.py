@@ -155,26 +155,65 @@ def list_workflows():
                         "size_kb": round(len(text) / 1024, 1), "content": text})
     return out
 
-def _canon_workflow(label, extensibility_mode="", is_btp=False):
+def _canon_workflow(label, is_btp=False):
     """Collapse the engine's free-text pipeline labels into ONE canonical string per variant, so the
     Workflow Explorer dropdown shows a clean, de-duplicated type list (fixes mojibake and the
     '12 steps' / '14 steps incl. BTP deploy' drift). Non-pipeline workflows pass through unchanged.
 
-    A run is the 14-step BTP variant when a side-by-side (BTP) approach was actually SELECTED —
-    signalled by is_btp (the CP1 decision's selected_is_btp, authoritative even for a BTP override of
-    a developer recommendation, and even for a mixed approach whose mode string isn't 'side') or by an
-    extensibility_mode of side-by-side. An evaluated-but-rejected BTP option never triggers it."""
+    `is_btp` is the SOLE authority (computed once by the caller, see _run_is_btp) so the label can never
+    disagree with which steps the run actually shows."""
     s = (label or "").strip()
-    mode = (extensibility_mode or "").lower()
     if not s:
         return "RICEFW Pipeline (12 steps)"
     low = s.lower()
     if "ricefw" in low or "pipeline" in low:
-        is_side_by_side = bool(is_btp) or ("side" in mode)
-        if is_side_by_side:
-            return "RICEFW Pipeline (14 steps, incl. BTP deploy)"
-        return "RICEFW Pipeline (12 steps)"
+        return ("RICEFW Pipeline (14 steps, incl. BTP deploy)" if is_btp
+                else "RICEFW Pipeline (12 steps)")
     return s
+
+def _run_is_btp(data):
+    """Single source of truth for 'is this the 14-step BTP variant?' — used for BOTH the workflow label
+    and whether steps 13/14 are shown, so the two can never disagree.
+
+    Precedence: once a CP1 decision exists, selected_is_btp is authoritative (True for a BTP pick,
+    False for a RAP/key-user pick — even an override of a mandated-BTP default). Only before any
+    decision do we infer from the solution: a deployable BTP component in scope (any btp_component
+    other than SBPA, which is config handover) or a side-by-side extensibility mode."""
+    sel = data.get("selected_is_btp")
+    if sel is not None:
+        return bool(sel)
+    comps = data.get("btp_components") or []
+    if any(str(c).strip().upper() != "SBPA" for c in comps if str(c).strip()):
+        return True
+    return "side" in (data.get("extensibility_mode") or "").lower()
+
+# The two BTP steps are FIXED contract, not free text: step 13 is the human prerequisite GATE (the
+# checklist confirming the in-tenant RAP/key-user objects are active) and step 14 is the deploy. The
+# engine sometimes renames them (e.g. "BTP Deploy - Build & Push MTA"), which silently drops the gate —
+# so canonicalize name/agent/gate on both seed and read.
+_BTP_STEP_SPEC = {
+    "13": {"name": "BTP Prerequisite Check", "agent": "Human", "gate": True,
+           "detail": "Confirm every in-tenant prerequisite (developer RAP/CDS objects, key-user fields, "
+                     "communication arrangements) is deployed and active before the BTP deploy."},
+    "14": {"name": "Deploy to BTP", "agent": "Developer", "gate": False,
+           "detail": "Build and deploy the BTP (CAP/UI5) part to a dev/test space."},
+}
+_VALID_STEP_STATUS = {"PASS", "FAIL", "RUNNING", "AWAITING_APPROVAL", "PENDING", "SKIPPED"}
+
+def _normalize_btp_steps(steps):
+    """Force steps 13/14 onto the canonical contract so a renamed step can't drop the prereq gate."""
+    for s in steps or []:
+        spec = _BTP_STEP_SPEC.get(str(s.get("n")))
+        if not spec:
+            continue
+        s["name"] = spec["name"]
+        s["agent"] = spec["agent"]
+        s["gate"] = spec["gate"]
+        if str(s.get("status") or "").upper() not in _VALID_STEP_STATUS:
+            s["status"] = "PENDING"          # e.g. the engine's "N/A"
+        if not (s.get("detail") or "").strip():
+            s["detail"] = spec["detail"]
+    return steps
 
 def list_runs():
     """Pipeline runs = output/<ID>/run.json manifests written by the s4pc-ricefw-pipeline skill."""
@@ -192,20 +231,16 @@ def list_runs():
             # (CAP_APP / Integration Suite / …, i.e. any btp_component other than SBPA — SBPA is
             # config handover, not a CAP deploy). This also lights up runs approved before the flag
             # was persisted. An evaluated-but-rejected BTP option never sets btp_components.
-            # 14-step BTP variant: once a CP1 decision is made, selected_is_btp is authoritative — True
-            # for a BTP pick, False for RAP/key-user (even an override of a mandated-BTP default). Only
-            # BEFORE any decision (flag is None) do we infer from a deployable BTP component in scope.
-            _sel_btp = data.get("selected_is_btp")
-            if _sel_btp is not None:
-                _is_btp = bool(_sel_btp)
-            else:
-                _btp_comps = data.get("btp_components") or []
-                _is_btp = any(str(c).strip().upper() != "SBPA" for c in _btp_comps if str(c).strip())
-            data["workflow"] = _canon_workflow(data.get("workflow"), data.get("extensibility_mode", ""), _is_btp)
+            # ONE signal drives both the label and the steps, so they can never disagree.
+            _is_btp = _run_is_btp(data)
+            data["workflow"] = _canon_workflow(data.get("workflow"), _is_btp)
             # A non-BTP run must never DISPLAY the BTP deploy steps — Phase A may have pre-seeded 13/14
             # for a mandated-BTP default that the developer then overrode to RAP/key-user.
-            if not _is_btp and data.get("steps"):
-                data["steps"] = [s for s in data["steps"] if str(s.get("n")) not in ("13", "14")]
+            if data.get("steps"):
+                if not _is_btp:
+                    data["steps"] = [s for s in data["steps"] if str(s.get("n")) not in ("13", "14")]
+                else:
+                    _normalize_btp_steps(data["steps"])
             # UI robustness: if the architect put the Custom-Object Naming Contract only INSIDE the
             # approach_options (per-approach) and omitted the top-level checkpoint_request mirror, the
             # CP1 naming grid would not render and the developer could not review/lock names. Backfill
@@ -1011,6 +1046,11 @@ def _phase_a_prompt(fd_path, rid):
         "  if the DEFAULT-SELECTED option has is_btp=true — that is the mandated option when mandated=true,\n"
         "  otherwise the recommended one. Otherwise keep 'RICEFW Pipeline (12 steps)'. The label is\n"
         "  re-confirmed from the actually-selected approach in Phase D, so a review-time override still works.\n"
+        "Do NOT add steps 13/14 yourself in this phase — the webapp adds them when the developer actually\n"
+        "  selects a BTP approach at CP1. If you do write them, use EXACTLY these fixed entries (step 13 is\n"
+        "  the human prerequisite GATE, never a build step) and never invent other names:\n"
+        '    {"n":13,"name":"BTP Prerequisite Check","agent":"Human","gate":true,"status":"PENDING"}\n'
+        '    {"n":14,"name":"Deploy to BTP","agent":"Developer","gate":false,"status":"PENDING"}\n'
         "THEN EXIT. Do NOT continue to step 6.\n"
     ) % {"rid": rid, "fd": fd_path, "catalog": _CATALOG_FALLBACK, "plain_english": _PLAIN_ENGLISH_RULE + _FINDINGS_SCHEMA}
 
@@ -1355,9 +1395,12 @@ def _phase_d_prompt(rid, fd_path, decision, notes, cp3_slug, selected_is_btp=Fal
         "The BTP app depends on in-tenant objects that MUST be deployed & activated in S/4HANA FIRST; only\n"
         "then is the BTP part deployed. Add steps 13 and 14:\n"
         "  • Ensure run.json.workflow = 'RICEFW Pipeline (14 steps, incl. BTP deploy)' (ASCII only).\n"
-        "  • Ensure steps 13 (BTP Prerequisite Check, gate=true) and 14 (Deploy to BTP) exist in\n"
-        "    run.json.steps — the webapp already seeds them as PENDING when BTP is selected at CP1, so\n"
-        "    UPDATE those entries in place (do NOT append duplicates); add only any that are missing.\n"
+        "  • Ensure steps 13 and 14 exist in run.json.steps with EXACTLY these fixed fields (the webapp\n"
+        "    seeds them when BTP is selected at CP1 — UPDATE in place, never append duplicates, and never\n"
+        "    rename them; step 13 is the human prerequisite GATE, not a build step):\n"
+        '      {"n":13,"name":"BTP Prerequisite Check","agent":"Human","gate":true,"status":"AWAITING_APPROVAL"}\n'
+        '      {"n":14,"name":"Deploy to BTP","agent":"Developer","gate":false,"status":"PENDING"}\n'
+        "    status must be one of PASS|FAIL|RUNNING|AWAITING_APPROVAL|PENDING|SKIPPED — never 'N/A'.\n"
         "  • STEP 13 CHECKLIST — build it from run.json.mode_split + the Custom-Object Naming Contract:\n"
         "    one string per in-tenant prerequisite, each named with its EXACT technical name. Cover EVERY\n"
         "    non-BTP layer the BTP app depends on (this is the whole point for a mixed approach):\n"
@@ -2732,13 +2775,16 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
         return {"error": "Run not found"}, 404
     # A checklist checkpoint (e.g. BTP prerequisites) cannot be approved until every item is ticked.
     _cpreq = (read_json(os.path.join(run_dir, "run.json")) or {}).get("checkpoint_request") or {}
-    # Belt-and-suspenders: if the developer selected an approach that carries its OWN naming contract
-    # but the persisted active contract doesn't match that selection (e.g. a swap POST was missed),
-    # adopt the selected approach's contract so validation + Build lock the RIGHT mode's names.
+    # Belt-and-suspenders: make sure the locked contract belongs to the SELECTED approach, so Build can
+    # never get another mode's names (e.g. RAP Z-names on a BTP build) if a swap POST was missed.
+    # Compare by object ID set, NOT by the persisted selection flag: when the IDs already match the
+    # selected option, this IS its contract carrying the developer's edits — keep them (Build uses the
+    # human-locked names verbatim). Only a contract from a different approach is replaced.
     if selected_approach and (_cpreq.get("approach_options") or []):
         _so = next((o for o in _cpreq["approach_options"] if o.get("id") == selected_approach), None)
         _so_nc = (_so or {}).get("naming_contract") or []
-        if _so_nc and _cpreq.get("selected_approach") != selected_approach:
+        _cur_nc = _cpreq.get("naming_contract") or []
+        if _so_nc and {i.get("id") for i in _cur_nc} != {i.get("id") for i in _so_nc}:
             _cpreq["naming_contract"] = _so_nc
         elif _so is not None and not _so.get("recommended") and not _so_nc:
             # Override to an approach with no inline naming contract — don't lock the default mode's
@@ -2849,16 +2895,14 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                 if _is_btp_sel:
                     data["workflow"] = "RICEFW Pipeline (14 steps, incl. BTP deploy)"
                     _have = {str(s.get("n")) for s in data.get("steps", [])}
-                    if "13" not in _have:
-                        data.setdefault("steps", []).append(
-                            {"n": 13, "name": "BTP Prerequisite Check", "agent": "Delivery Lead",
-                             "gate": True, "status": "PENDING", "score": None, "iterations": 0,
-                             "detail": "Side-by-side (BTP) approach selected at CP1 — deploy prerequisites gate."})
-                    if "14" not in _have:
-                        data.setdefault("steps", []).append(
-                            {"n": 14, "name": "Deploy to BTP (dev)", "agent": "Developer",
-                             "gate": False, "status": "PENDING", "score": None, "iterations": 0,
-                             "detail": "Side-by-side (BTP) approach selected at CP1 — deploy to a dev/test space."})
+                    for _n in ("13", "14"):
+                        if _n not in _have:
+                            _spec = _BTP_STEP_SPEC[_n]
+                            data.setdefault("steps", []).append(
+                                {"n": int(_n), "name": _spec["name"], "agent": _spec["agent"],
+                                 "gate": _spec["gate"], "status": "PENDING", "score": None,
+                                 "iterations": 0, "detail": _spec["detail"]})
+                    _normalize_btp_steps(data.get("steps"))
                 else:
                     data["workflow"] = "RICEFW Pipeline (12 steps)"
                     data["steps"] = [s for s in data.get("steps", [])

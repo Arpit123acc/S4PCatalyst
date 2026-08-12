@@ -248,6 +248,12 @@ variant or add non-ASCII punctuation (a pure in-tenant run keeps the seeded labe
 `RICEFW Pipeline (12 steps)`). The agent picks the variant automatically from the mode split; the
 developer never chooses it:
 
+The two extra steps are a **fixed contract — never rename them** (a renamed step 13 silently drops the
+prerequisite gate). Write them exactly as:
+`{"n":13,"name":"BTP Prerequisite Check","agent":"Human","gate":true}` and
+`{"n":14,"name":"Deploy to BTP","agent":"Developer","gate":false}` — step 13 is the **human gate**, not a
+build step, and `status` is always one of PASS|FAIL|RUNNING|AWAITING_APPROVAL|PENDING|SKIPPED (never "N/A").
+
 **Step 13 · BTP prerequisite check (gate).** A side-by-side app fails at runtime if the in-tenant
 objects it depends on are not deployed and active *first*. Before any deploy, enumerate those
 dependencies from the design and confirm each is in place in the target tenant:
