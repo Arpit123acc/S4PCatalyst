@@ -215,6 +215,38 @@ def _normalize_btp_steps(steps):
             s["detail"] = spec["detail"]
     return steps
 
+# Deterministic release-verification gate. Prompts steer the agent to verify every object; this
+# ENFORCES it — the webapp refuses to approve code that references a standard SAP object which never
+# got a verdict. Matches SAP's released-object naming only (custom Z*/Y*/YY1_ objects are governed by
+# the naming contract instead) and reads ONLY fenced code blocks, so a prose mention of an object the
+# design explicitly rejected does not block approval (measured: 1 true positive, 0 false positives
+# across the bundled example runs).
+_SAP_OBJ_RE = re.compile(
+    r'\b(?:I_[A-Za-z][A-Za-z0-9_]{2,}|C_[A-Za-z][A-Za-z0-9_]{2,}|A_[A-Za-z][A-Za-z0-9_]{2,}'
+    r'|E_[A-Za-z][A-Za-z0-9_]{2,}|R_[A-Za-z][A-Za-z0-9_]{2,}|P_[A-Za-z][A-Za-z0-9_]{2,}'
+    r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}|[A-Z][A-Z0-9_]{5,}_SRV)\b')
+_FENCED_RE = re.compile(r'```[^\n]*\n(.*?)```', re.S)
+
+def _unverified_objects_in_code(run_dir):
+    """Return SAP objects referenced in the built CODE that carry no verdict in 03-release-verdicts.md.
+    Empty list when either file is absent (nothing to compare) — the gate never blocks on missing data."""
+    code_file = next((f for f in ("06-build-corrected.md", "06-build.md", "06-code.md")
+                      if os.path.isfile(os.path.join(run_dir, f))), None)
+    verdict_file = next((f for f in ("03-release-verdicts.md", "03-object-inventory.md")
+                         if os.path.isfile(os.path.join(run_dir, f))), None)
+    if not code_file or not verdict_file:
+        return []
+    try:
+        with open(os.path.join(run_dir, code_file), encoding="utf-8", errors="replace") as fh:
+            code_md = fh.read()
+        with open(os.path.join(run_dir, verdict_file), encoding="utf-8", errors="replace") as fh:
+            verdicts = fh.read()
+    except OSError:
+        return []
+    in_code = set(_SAP_OBJ_RE.findall("\n".join(_FENCED_RE.findall(code_md))))
+    verified = set(_SAP_OBJ_RE.findall(verdicts))
+    return sorted(in_code - verified)
+
 def _find_gate2_review(run_dir):
     """Locate the Gate 2 (code review) deliverable regardless of the exact name the engine used.
     Returns a path or None. Hardcoding one filename silently disables the CP2 Major-findings gate."""
@@ -2912,6 +2944,19 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
         if _unjustified:
             return {"error": ("Accepting a Critical/Major finding requires a written justification: %s."
                               % ", ".join(_unjustified))}, 409
+    # Release-verification enforcement — CP2 approval is refused while the built code references a
+    # standard SAP object that has no verdict. This is the anti-hallucination gate made deterministic:
+    # the prompts ask for it, this makes it non-optional. 'adjusted'/'rejected' still pass through, so
+    # the developer always has a way forward.
+    if decision == "approved" and "CP2" in (checkpoint or ""):
+        _unver = _unverified_objects_in_code(run_dir)
+        if _unver:
+            return {"error": (
+                "%d SAP object(s) used in the code have no release verdict: %s. "
+                "Every object must be checked (check_object_release_state) and listed in "
+                "03-release-verdicts.md before the code can be approved. Add a comment on the "
+                "relevant file asking for the verdict, then choose Adjust to send it back."
+                % (len(_unver), ", ".join(_unver[:8]) + (" …" if len(_unver) > 8 else "")))}, 409
     # Gate 2 Major enforcement — CP2 approval requires fix comments when Gate 2 found Majors.
     # Resolve the review file by PATTERN, not one hardcoded name: the engine has written it as
     # 07-code-review.md as well as 07-gate2-review.md, and a name mismatch silently disabled this
