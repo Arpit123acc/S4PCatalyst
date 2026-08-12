@@ -326,10 +326,15 @@ def tool_search_released_badis(args):
 
 # classical table -> released replacement, built from the CDS catalog
 def _table_map():
+    # NOTE: `.get(key, default)` returns the STORED value when the key exists — and most synced
+    # catalog entries carry "replaces": null — so the default is NOT applied and iteration explodes.
+    # Always coerce with `or []`. This crash disabled check_object_release_state for every object.
     mapping = {}
-    for view in CATALOG_CDS.get("views", []):
-        for tab in view.get("replaces", []):
-            mapping.setdefault(tab.upper(), []).append(view["name"])
+    for view in (CATALOG_CDS.get("views") or []):
+        for tab in (view.get("replaces") or []):
+            if not tab:
+                continue
+            mapping.setdefault(str(tab).upper(), []).append(view.get("name"))
     return mapping
 
 def tool_check_object_release_state(args):
@@ -369,16 +374,16 @@ def tool_check_object_release_state(args):
             alternative="Use released CDS view(s): %s (confirm C1 on the Released CDS Views list / ADT)." % ", ".join(tmap[name]))
         return result
     # Seed-catalog hits
-    for api in CATALOG_APIS.get("apis", []):
-        if api["name"].upper() == name:
+    for api in (CATALOG_APIS.get("apis") or []):
+        if (api.get("name") or "").upper() == name:
             result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released APIs; confirm on the SAP Business Accelerator Hub.", details=api)
             return result
-    for badi in CATALOG_BADIS.get("badis", []):
-        if badi["name"].upper() == name:
+    for badi in (CATALOG_BADIS.get("badis") or []):
+        if (badi.get("name") or "").upper() == name:
             result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released BAdIs — availability still depends on your release/scope; confirm on the List of BAdIs.", details=badi)
             return result
-    for view in CATALOG_CDS.get("views", []):
-        if view["name"].upper() == name:
+    for view in (CATALOG_CDS.get("views") or []):
+        if (view.get("name") or "").upper() == name:
             result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released CDS views; confirm C1 on the Released CDS Views list / ADT Released Objects.", details=view)
             return result
     # Naming-convention heuristic — do NOT dead-end standard released VDM views as NOT_VERIFIED.
@@ -513,11 +518,12 @@ def tool_query_experience(args):
     query = (args.get("query") or "").strip().lower()
     category = (args.get("category") or "").strip().lower()
     hits = []
-    for e in EXPERIENCE.get("entries", []):
-        if category and e.get("category", "") != category:
+    for e in (EXPERIENCE.get("entries") or []):
+        if category and (e.get("category") or "") != category:
             continue
-        hay = " ".join([e.get("topic", ""), e.get("lesson", ""), e.get("category", ""),
-                        " ".join(e.get("tags", []))]).lower()
+        # `or ""`/`or []` (not .get defaults): a stored null bypasses the default and breaks join()
+        hay = " ".join([e.get("topic") or "", e.get("lesson") or "", e.get("category") or "",
+                        " ".join(str(t) for t in (e.get("tags") or []))]).lower()
         if not query or any(tok in hay for tok in query.split()):
             hits.append(e)
     return {
