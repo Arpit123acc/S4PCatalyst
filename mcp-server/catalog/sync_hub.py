@@ -65,6 +65,49 @@ def _build_url(path, params=None):
     return HUB_BASE + path + "?" + "&".join(parts)
 
 
+_SSL_CTX = None
+
+def _ssl_context():
+    """TLS context that works behind a corporate inspection proxy WITHOUT disabling verification.
+
+    Two problems bite on a managed Windows laptop:
+      1. Python 3.13+ turns on ssl.VERIFY_X509_STRICT by default. Many proxy CAs (Zscaler, BlueCoat,
+         Netskope …) issue certificates whose basicConstraints extension is not marked critical, which
+         strict mode rejects with 'Basic Constraints of CA cert not marked critical'. We clear ONLY
+         that structural flag — chain building and hostname checking stay fully enabled.
+      2. Python trusts its own bundled CA list, not the Windows certificate store where the corporate
+         root actually lives. Load the Windows ROOT/CA stores too (stdlib, no dependency).
+
+    Overrides: SSL_CERT_FILE=<pem> to pin a specific bundle. S4PC_SYNC_INSECURE=true disables
+    verification entirely — last resort, prints a warning, never the default."""
+    global _SSL_CTX
+    if _SSL_CTX is not None:
+        return _SSL_CTX
+    import ssl
+    if (os.environ.get("S4PC_SYNC_INSECURE", "").lower() == "true"):
+        print("\n  [WARN] S4PC_SYNC_INSECURE=true — TLS certificate verification is DISABLED for this "
+              "sync. Only acceptable on a trusted network; unset it as soon as the corporate CA is "
+              "configured.", flush=True)
+        ctx = ssl._create_unverified_context()
+        _SSL_CTX = ctx
+        return ctx
+    ctx = ssl.create_default_context(cafile=os.environ.get("SSL_CERT_FILE") or None)
+    ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT        # keep verification, drop the strict structure check
+    if not os.environ.get("SSL_CERT_FILE"):
+        for store in ("ROOT", "CA"):                    # trust the corporate root from the Windows store
+            try:
+                for cert, enc, _trust in ssl.enum_certificates(store):
+                    if enc == "x509_asn":
+                        try:
+                            ctx.load_verify_locations(cadata=ssl.DER_cert_to_PEM_cert(cert))
+                        except Exception:
+                            pass
+            except Exception:
+                pass                                    # non-Windows, or store unavailable
+    _SSL_CTX = ctx
+    return ctx
+
+
 def _get(path, api_key, params=None, timeout=30):
     url = _build_url(path, params)
     req = urllib.request.Request(url, headers={
@@ -72,7 +115,7 @@ def _get(path, api_key, params=None, timeout=30):
         "Accept": "application/json",
     })
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
             raw = resp.read()
             if not raw or not raw.strip():
                 return None
@@ -96,7 +139,29 @@ def _get(path, api_key, params=None, timeout=30):
     except json.JSONDecodeError as e:
         _die("Response is not JSON.\n  URL: %s\n  %s" % (url, e))
     except Exception as e:
-        _die("Request failed: %s\n  URL: %s" % (e, url))
+        # Transient network/TLS hiccups are common through an inspection proxy and used to abort a
+        # sync that had already downloaded thousands of rows. Retry with backoff before giving up.
+        retries = int(os.environ.get("S4PC_SYNC_RETRIES", "3"))
+        for attempt in range(1, retries + 1):
+            time.sleep(2 * attempt)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+                    raw = resp.read()
+                    if not raw or not raw.strip():
+                        return None
+                    text = raw.decode("utf-8")
+                    if text.lstrip().startswith("<"):
+                        return None
+                    print(" [recovered after retry %d]" % attempt, end="", flush=True)
+                    return json.loads(text)
+            except Exception as retry_exc:
+                e = retry_exc
+        hint = ""
+        if "CERTIFICATE_VERIFY_FAILED" in str(e):
+            hint = ("\n  This is a TLS trust problem, not an SAP problem — usually a corporate "
+                    "inspection proxy.\n  Try: set SSL_CERT_FILE to your corporate root CA (.pem), or "
+                    "as a last resort set S4PC_SYNC_INSECURE=true.")
+        _die("Request failed after %d retries: %s\n  URL: %s%s" % (retries, e, url, hint))
 
 
 def _die(msg):
