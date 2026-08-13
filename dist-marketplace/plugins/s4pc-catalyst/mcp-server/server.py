@@ -537,6 +537,39 @@ def tool_query_experience(args):
         "reference_links": REFERENCE_LINKS,
     }
 
+def _reject_client_identifiers(args, topic, lesson):
+    """Keep client identifiers out of the lesson TEXT.
+
+    db._seed_safe() already hashes the structured `source` before it reaches the git-tracked
+    experience_db.json, but the free text is published verbatim — so a lesson that names the
+    engagement ('in TEST-LOGISTIC-EXT-ID71-SID296 we found …') would still leak it. Rather than
+    silently redacting (which mangles the lesson) we REJECT with the offending token named, so the
+    caller rewrites it generically. Lessons are meant to be reusable across clients anyway.
+
+    Deliberately conservative to avoid false positives: only the run id itself, its
+    punctuation-variants, and its digit-bearing tokens (ID71, SID296) are treated as identifying.
+    Ordinary words from a project name ('logistic', 'supplier') are NOT flagged."""
+    source = (args.get("source") or "").strip()
+    if not source or source.lower() in ("pipeline run", "delivery experience — seed",
+                                        "delivery experience - seed"):
+        return
+    haystack = " ".join([topic, lesson, (args.get("impact") or ""),
+                         " ".join(args.get("tags") or [])]).lower()
+    norm = lambda s: re.sub(r"[^a-z0-9]+", "", s.lower())
+    hits = []
+    if norm(source) and norm(source) in norm(haystack):
+        hits.append(source)
+    for tok in re.split(r"[^A-Za-z0-9]+", source):          # ID71 / SID296 style identifiers
+        if len(tok) >= 4 and any(c.isdigit() for c in tok) and tok.lower() in haystack:
+            hits.append(tok)
+    if hits:
+        raise GuardrailViolation(
+            "The lesson names this engagement (%s). experience_db.json is shared in git, so lessons "
+            "must be client-neutral. Rewrite it as a reusable rule — describe the SAP object, the "
+            "pattern and the fix, not the project. The run is already linked automatically."
+            % ", ".join(sorted(set(hits))[:3]))
+
+
 def tool_record_experience(args):
     topic = (args.get("topic") or "").strip()
     lesson = (args.get("lesson") or "").strip()
@@ -549,6 +582,7 @@ def tool_record_experience(args):
                    "workflow", "developer", "key_user", "side_by_side"}
     if category not in allowed_cat:
         raise GuardrailViolation("category must be one of: %s" % ", ".join(sorted(allowed_cat)))
+    _reject_client_identifiers(args, topic, lesson)
     next_id = "EXP-%03d" % (max([int(e["id"].split("-")[1]) for e in EXPERIENCE["entries"]
                                  if re.match(r"^EXP-\d+$", e.get("id", ""))] or [0]) + 1)
     entry = {"id": next_id, "category": category, "topic": topic, "lesson": lesson,
