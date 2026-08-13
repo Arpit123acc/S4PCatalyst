@@ -1,7 +1,15 @@
 logs/
 __pycache__/
 .DS_Store
+
+# Client material — never publish. Pipeline runs contain the client's requirements and the
+# generated solution; input/ holds their Functional Designs. Both were previously only
+# UNTRACKED, so a single `git add -A` would have committed a client document. Ignore the
+# folders and allow-list the two bundled examples that ship with the tool.
 output/
+input/*
+!input/Smart Search FD.md
+!input/Supplier PO Status Viewer FD.md
 node_modules/
 *.code-workspace
 webapp/data/btp-connection.json
