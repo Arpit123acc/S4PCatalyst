@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — Hosted Delivery on AWS</title>
+<style>
+:root{
+  --ink:#14121c; --ink2:#3d3854; --muted:#6b6685; --line:#e3e0ee;
+  --bg:#f4f2f9; --card:#ffffff;
+  --c1:#5b3fd4;  /* our infrastructure */
+  --c2:#0f7a6c;  /* client side        */
+  --c3:#b45309;  /* AWS / cost         */
+  --c4:#1e5fa8;  /* SAP                */
+  --good:#0f7a3d; --warn:#b45309; --bad:#b3261e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif;padding:28px 16px 80px}
+.deck{max-width:1180px;margin:0 auto}
+.slide{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:38px 44px;margin-bottom:26px;box-shadow:0 1px 3px rgba(20,18,28,.06);
+  min-height:600px;display:flex;flex-direction:column;page-break-after:always}
+.num{font-size:.68rem;letter-spacing:.14em;color:var(--muted);font-weight:700;margin-bottom:6px}
+h1{font-size:2.3rem;line-height:1.15;letter-spacing:-.02em;margin-bottom:12px}
+h2{font-size:1.72rem;letter-spacing:-.015em;margin-bottom:6px}
+h3{font-size:1rem;margin:16px 0 7px;color:var(--ink2)}
+h4{font-size:.95rem;margin-bottom:6px}
+.sub{color:var(--muted);font-size:1rem;margin-bottom:20px}
+p{margin-bottom:10px;color:var(--ink2)}
+ul{margin:0 0 10px 18px}li{margin-bottom:6px;color:var(--ink2)}
+strong{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:.84rem;margin:10px 0 14px}
+th{text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);
+  font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;white-space:nowrap}
+.t-good{background:#e4f4ea;color:var(--good)} .t-warn{background:#fdf0dd;color:var(--warn)}
+.t-bad{background:#fbe6e4;color:var(--bad)} .t-our{background:#ece7fb;color:var(--c1)}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+.box{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fbfaff}
+.box.rec{border:2px solid var(--c1);background:#f6f3ff}
+.kpi{font-size:2rem;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.kpi-l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+.diagram{background:#fbfaff;border:1px solid var(--line);border-radius:10px;padding:18px;
+  font:12.5px/1.62 "Cascadia Code",Consolas,monospace;white-space:pre;overflow-x:auto;color:var(--ink2)}
+.note{border-left:3px solid var(--c1);background:#f6f3ff;padding:11px 14px;border-radius:0 8px 8px 0;
+  font-size:.85rem;margin-top:12px}
+.warnbox{border-left:3px solid var(--warn);background:#fdf7ee;padding:11px 14px;border-radius:0 8px 8px 0;
+  font-size:.85rem;margin-top:12px}
+.spacer{flex:1}
+.foot{font-size:.73rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:auto}
+@media print{body{background:#fff;padding:0}.slide{box-shadow:none;border:none;margin:0;min-height:auto}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">RECOMMENDED APPROACH</div>
+  <h1>Hosted delivery on AWS</h1>
+  <p class="sub">We host the accelerator. The client gets a tile. They need no AWS, no Anthropic account,
+  and no entitlements from us.</p>
+
+  <div class="grid g2">
+    <div class="box"><h4>What the client needs</h4>
+      <table style="margin:6px 0 0">
+        <tr><td>AWS account</td><td style="text-align:right"><span class="tag t-good">not needed</span></td></tr>
+        <tr><td>Anthropic account</td><td style="text-align:right"><span class="tag t-good">not needed</span></td></tr>
+        <tr><td>BTP entitlements from us</td><td style="text-align:right"><span class="tag t-good">not needed</span></td></tr>
+        <tr><td>SAP Build Work Zone</td><td style="text-align:right"><span class="tag t-our">already have</span></td></tr>
+        <tr><td>One destination + tile</td><td style="text-align:right"><span class="tag t-our">~30 min</span></td></tr>
+      </table></div>
+    <div class="box rec"><h4>What we run</h4>
+      <ul>
+        <li><strong>EC2 instance</strong> — the accelerator and governance server</li>
+        <li><strong>IAM instance profile</strong> — no stored credential</li>
+        <li><strong>Amazon Bedrock</strong> — Claude inference</li>
+        <li><strong>Public Cloud Brain</strong> — catalog, vectors, graph, experience</li>
+      </ul>
+      <p style="font-size:.85rem;margin-top:8px"><strong>The methodology never leaves our side.</strong></p></div>
+  </div>
+
+  <h3>Three problems this solves at once</h3>
+  <table>
+    <tr><td style="width:36px"><strong>1</strong></td>
+      <td><strong>Credential expiry disappears.</strong> An IAM instance profile issues temporary
+      credentials that AWS rotates automatically — no login to renew, no token to expire, no manual
+      operational task.</td></tr>
+    <tr><td><strong>2</strong></td>
+      <td><strong>The client's cloud becomes irrelevant.</strong> Clients on Azure, GCP or no public
+      cloud at all are served identically from one AWS account.</td></tr>
+    <tr><td><strong>3</strong></td>
+      <td><strong>IP stays protected.</strong> Prompts, brain and engine remain on our infrastructure.
+      Only a URL and the deliverables cross the boundary.</td></tr>
+  </table>
+  <div class="spacer"></div>
+  <div class="foot">Also removes the "no LLM API keys" conflict — an IAM role is not an API key.</div>
+</section>
+
+<!-- 2 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">ARCHITECTURE</div>
+  <h2>How it fits together</h2>
+  <p class="sub">One integration point: a destination from the client's launchpad to our endpoint.</p>
+<div class="diagram">   CLIENT TENANT                              OUR AWS ACCOUNT
+   ┌────────────────────────────┐            ┌──────────────────────────────────────┐
+   │  SAP Build Work Zone       │            │  EC2  ── IAM instance profile ──┐    │
+   │    └─ tile                 │            │   │      (no stored secret)     │    │
+   │        │                   │  HTTPS     │   │                             ▼    │
+   │        └─ destination ─────────────────►│  Web UI · orchestrator          │    │
+   │             (OAuth2 / mTLS)│            │   │   phase prompts             │    │
+   │                            │            │   ▼                        Amazon    │
+   │  Client SSO / IdP          │            │  Claude Code engine  ◄──── Bedrock   │
+   │                            │            │   │                                  │
+   └────────────────────────────┘            │   ▼                                  │
+              ▲                              │  PUBLIC CLOUD BRAIN                  │
+              │  deliverables only           │  catalog · vectors · graph ·          │
+              └──────────────────────────────┤  experience   (per-client scoped)     │
+                 FD · TD · code · tests      └──────────────────────────────────────┘
+
+   Crosses the boundary:   a URL   +   the outputs
+   Never crosses:          prompts · brain · engine · catalogs</div>
+
+  <div class="grid g3" style="margin-top:14px">
+    <div class="box"><div class="kpi-l">Client integration</div>
+      <p style="font-size:.85rem">One destination, one tile. Their BTP admin does it in half an hour.</p></div>
+    <div class="box"><div class="kpi-l">Authentication</div>
+      <p style="font-size:.85rem">OAuth2 client credentials per client, or mTLS if their security team prefers.</p></div>
+    <div class="box"><div class="kpi-l">Isolation</div>
+      <p style="font-size:.85rem">Per-client partitioning in the brain; only anonymised lessons are shared.</p></div>
+  </div>
+  <div class="note"><strong>Scaling shape:</strong> one host serves many clients. Move to a dedicated
+  instance per client only where a contract requires physical isolation.</div>
+  <div class="spacer"></div>
+  <div class="foot">Standard SaaS integration pattern — no Cloud Connector, no inbound firewall rule on our side.</div>
+</section>
+
+<!-- 3 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">ECONOMICS &amp; VALIDATION</div>
+  <h2>What it costs — and what to prove first</h2>
+
+  <div class="grid g3">
+    <div class="box"><div class="kpi" style="color:var(--c3)">$2.25</div>
+      <div class="kpi-l">inference per run (measured)</div></div>
+    <div class="box"><div class="kpi" style="color:var(--c1)">~$60</div>
+      <div class="kpi-l">EC2 host per month</div></div>
+    <div class="box"><div class="kpi" style="color:var(--good)">$0</div>
+      <div class="kpi-l">cost to the client's IT</div></div>
+  </div>
+
+  <h3>Cost model</h3>
+  <table>
+    <tr><th>Line</th><th>Basis</th><th>Who pays</th></tr>
+    <tr><td>Bedrock inference</td><td>~$2.25 per pipeline run, measured across 3 real runs</td><td>Us — existing AWS agreement</td></tr>
+    <tr><td>EC2 host</td><td>2 vCPU / 8 GB, always-on</td><td>Us</td></tr>
+    <tr><td>Work Zone</td><td>Per user / month</td><td>Client — already entitled</td></tr>
+    <tr><td><strong>Net per engagement</strong></td><td><strong>Tens of dollars against a six-figure engagement</strong></td><td><strong>Bundle into the delivery fee</strong></td></tr>
+  </table>
+
+  <h3>Validate before committing — three checks, a few days</h3>
+  <table>
+    <tr><td style="width:36px"><strong>1</strong></td>
+      <td><strong>Does Claude Code run against Bedrock in our setup?</strong> If yes, the existing
+      architecture is kept unchanged and there is <em>no engine rewrite</em> — the single largest cost
+      item disappears. Confirm against current Claude Code documentation.</td></tr>
+    <tr><td><strong>2</strong></td>
+      <td><strong>Does prompt caching behave the same on Bedrock?</strong> The $2.25 figure depends on
+      1.4–1.6 M cached tokens per run. If caching differs, the cost model changes materially. Test with
+      one real functional design.</td></tr>
+    <tr><td><strong>3</strong></td>
+      <td><strong>Is the required Claude model available in the region our data residency demands?</strong>
+      Client requirement documents and generated code will be processed there.</td></tr>
+  </table>
+
+  <div class="warnbox"><strong>If a client mandates that no data leaves their tenant,</strong> hosting is
+  not viable for them — deliver via internal service instead: we run the pipeline, they receive the
+  deliverables. Nothing is deployed and no data movement is required from them.</div>
+  <div class="spacer"></div>
+  <div class="foot">Measured from 3 pipeline runs (10 phases). AWS figures indicative — confirm against contracted rates.</div>
+</section>
+
+</div>
+</body>
+</html>
