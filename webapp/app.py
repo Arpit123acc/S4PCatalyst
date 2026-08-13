@@ -3340,7 +3340,10 @@ def experience_export():
     if not new_entries:
         return {"ok": True, "exported": 0, "entries": [],
                 "message": "No new entries — seed is already up to date with your local DB."}, 200
-    seed.setdefault("entries", []).extend(new_entries)
+    # Same client-identifier scrub the auto-sync applies: the seed is git-tracked, so a run id
+    # (derived from the client's FD filename) must not be published with the lesson.
+    _scrub = getattr(_catalog_db, "_seed_safe", lambda e: e)
+    seed.setdefault("entries", []).extend(_scrub(e) for e in new_entries)
     with open(seed_path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(seed, fh, indent=2, ensure_ascii=False)
         fh.write("\n")

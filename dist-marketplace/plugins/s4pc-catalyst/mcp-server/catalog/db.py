@@ -7,6 +7,7 @@ Migrates automatically on first use; existing JSON files become read-only seeds.
 Zero-dependency — sqlite3 is Python 3.9+ stdlib.
 """
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -277,6 +278,23 @@ def append_experience(entry):
         con.close()
 
 
+_GENERIC_SOURCES = {"delivery experience — seed", "delivery experience - seed", "pipeline run", ""}
+
+def _seed_safe(entry):
+    """Strip client identifiers from an entry before it goes into the GIT-TRACKED seed.
+
+    `source` is the run id, and run ids are derived from the FD filename — so a lesson learned on a
+    client engagement would publish that client's project name into experience_db.json. catalog.db
+    keeps the real value (local, gitignored, full traceability); the shared seed gets a stable short
+    hash instead, which still groups lessons from the same run without naming it."""
+    safe = dict(entry)
+    src = (entry.get("source") or "").strip()
+    if src and src.lower() not in _GENERIC_SOURCES:
+        digest = hashlib.sha256(src.encode("utf-8")).hexdigest()[:8]
+        safe["source"] = "pipeline run %s" % digest
+    return safe
+
+
 def sync_experience_to_seed(entry):
     """Auto-sync one entry to experience_db.json immediately after it is recorded.
 
@@ -284,6 +302,7 @@ def sync_experience_to_seed(entry):
     stays current without any manual export step. Teammates get the lesson on the
     next git pull — no button click required.
     Skips silently if the entry id is already in the seed (idempotent).
+    The entry is passed through _seed_safe() so client run names never reach git.
     """
     try:
         try:
@@ -293,7 +312,7 @@ def sync_experience_to_seed(entry):
             data = {"_meta": {}, "entries": []}
         if any(e.get("id") == entry.get("id") for e in data.get("entries", [])):
             return  # already present — nothing to do
-        data.setdefault("entries", []).append(entry)
+        data.setdefault("entries", []).append(_seed_safe(entry))
         with open(_JSON_EXPERIENCE, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(data, fh, indent=2, ensure_ascii=False)
             fh.write("\n")
