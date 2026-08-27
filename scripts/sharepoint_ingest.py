@@ -42,7 +42,7 @@ SITE_URL   = os.environ.get("SHAREPOINT_SITE_URL", "")
 LIBRARY    = os.environ.get("SHAREPOINT_LIBRARY", "Shared Documents")
 SUBFOLDER  = os.environ.get("SHAREPOINT_SUBFOLDER", "")  # e.g. "Folder/SubFolder"
 
-SCOPES     = ["Sites.Read.All", "Files.Read.All", "offline_access"]
+SCOPES     = ["Sites.Read.All", "Files.Read.All"]
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
 BASE_DIR        = Path(__file__).resolve().parent.parent
