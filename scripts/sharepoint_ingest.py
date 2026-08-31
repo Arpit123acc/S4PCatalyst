@@ -524,8 +524,27 @@ _MASK_LABELS = {
     "CLIENT_OBJECT", "CLIENT", "RATE", "AMOUNT", "PROJECT", "PERSON", "PHONE",
 }
 
+# NER runs in windows so a single huge document can't exhaust memory (spaCy needs
+# ~1GB per 100k chars). Windows break at newlines to avoid splitting an entity.
+_NER_WINDOW = 100_000
+
 def _ner_mask(text: str, nlp) -> str:
-    """Mask PERSON (and unknown-client ORG) entities found by spaCy NER."""
+    """Mask names/orgs via spaCy NER, windowing long text to bound memory."""
+    if len(text) <= _NER_WINDOW:
+        return _ner_mask_segment(text, nlp)
+    out, i, n = [], 0, len(text)
+    while i < n:
+        end = min(i + _NER_WINDOW, n)
+        if end < n:                              # extend to next newline if close
+            nl = text.find("\n", end)
+            if nl != -1 and nl - end < 5000:
+                end = nl + 1
+        out.append(_ner_mask_segment(text[i:end], nlp))
+        i = end
+    return "".join(out)
+
+def _ner_mask_segment(text: str, nlp) -> str:
+    """Mask PERSON (and unknown-client ORG) entities in one NER-sized segment."""
     doc = nlp(text)
     spans = []
     for ent in doc.ents:
