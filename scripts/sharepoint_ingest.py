@@ -181,6 +181,14 @@ log = logging.getLogger("sharepoint_ingest")
 _client_alternatives = "|".join(re.escape(c) for c in KNOWN_CLIENTS)
 
 _MASK_RULES = [
+    # ── CREDENTIALS (highest risk — run first) ────────────────────────────────
+    # password / key / token / secret followed by a value
+    (re.compile(
+        r"(?i)(?:password|passwd|api[_\s]?key|access[_\s]?key|secret[_\s]?key"
+        r"|token|bearer|credential|auth[_\s]?key)\s*[:=]\s*\S+",
+    ), "[CREDENTIAL]"),
+
+    # ── CLIENT NAMES ──────────────────────────────────────────────────────────
     # Known client names (exact match, case-insensitive)
     (re.compile(rf"\b(?:{_client_alternatives})\b", re.IGNORECASE), "[CLIENT]"),
 
@@ -190,20 +198,75 @@ _MASK_RULES = [
         r"(?:AG|GmbH|Ltd|Inc|Corp|SE|NV|PLC|SA|LLC|LLP|BV|SAS|SpA)\b"
     ), "[CLIENT]"),
 
-    # Person names with titles
+    # SAP namespace objects named after client (ZBOBST_, ZCDI_, etc.)
+    (re.compile(rf"\bZ(?:{_client_alternatives})[_A-Z0-9]*\b", re.IGNORECASE), "[CLIENT_OBJECT]"),
+
+    # ── PERSON NAMES ──────────────────────────────────────────────────────────
+    # Titled names (Mr/Mrs/Dr/Prof etc.)
     (re.compile(
         r"\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Eng)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b"
     ), "[PERSON]"),
 
-    # Person names in author/by/contact fields
+    # Author/contact/owner fields
     (re.compile(
-        r"(?i)(?:author|by|prepared by|created by|contact|owner|lead)\s*:\s*"
-        r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
-    ), r"\1".replace(r"\1", "[PERSON]")),  # replace full match
+        r"(?i)(?:author|by|prepared by|created by|modified by|contact|owner|lead"
+        r"|reviewed by|approved by|assigned to)\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
+    ), "[PERSON]"),
 
-    # Email addresses (may contain person names)
-    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"), "[EMAIL]"),
+    # Standalone Firstname Lastname (two+ capitalised words)
+    (re.compile(r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b"), "[PERSON]"),
 
+    # Employee IDs (Accenture I/C format: I123456, C123456)
+    (re.compile(r"\b[IC]\d{6,7}\b"), "[EMP_ID]"),
+
+    # ── CONTACT DETAILS ───────────────────────────────────────────────────────
+    # Email addresses
+    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[EMAIL]"),
+
+    # Phone numbers (international and local formats)
+    (re.compile(
+        r"(?:\+\d{1,3}[\s\-.]?)?"
+        r"(?:\(?\d{2,4}\)?[\s\-.]?)?"
+        r"\d{3,4}[\s\-.]?\d{3,4}[\s\-.]?\d{0,4}"
+        r"(?=\s|$|[,;])"
+    ), "[PHONE]"),
+
+    # ── FINANCIAL ─────────────────────────────────────────────────────────────
+    # Budget/cost figures with currency (€500K, $1.2M, USD 250,000)
+    (re.compile(
+        r"(?:USD|EUR|GBP|CHF|€|\$|£)\s?\d[\d,\.]*\s?(?:K|M|B|thousand|million)?\b",
+        re.IGNORECASE
+    ), "[AMOUNT]"),
+
+    # Day rates (e.g. $1,800/day, €950 per day)
+    (re.compile(
+        r"(?:USD|EUR|GBP|€|\$|£)\s?\d[\d,\.]+\s?(?:/\s?day|per\s+day)",
+        re.IGNORECASE
+    ), "[RATE]"),
+
+    # PO / contract numbers
+    (re.compile(r"\b(?:PO|CONTRACT|ORDER)[-\s]?\d{4,}\b", re.IGNORECASE), "[CONTRACT_REF]"),
+
+    # ── TECHNICAL / INFRASTRUCTURE ────────────────────────────────────────────
+    # IP addresses (v4)
+    (re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"), "[IP_ADDRESS]"),
+
+    # Internal/client URLs and hostnames (not public SAP docs)
+    (re.compile(
+        r"https?://(?!help\.sap\.com|api\.sap\.com|cap\.cloud\.sap|ui5\.sap\.com"
+        r"|www\.sap\.com|discovery\.sap\.com)[^\s\"'<>]+"
+    ), "[INTERNAL_URL]"),
+
+    # SAP tenant URLs (myXXXXXX.s4hana.ondemand.com)
+    (re.compile(r"\bmy[A-Za-z0-9]+\.s4hana\.ondemand\.com\b"), "[SAP_TENANT_URL]"),
+
+    # SAP logical system names (often contain client abbreviation + CLNT + number)
+    (re.compile(r"\b[A-Z]{2,10}CLNT\d{3}\b"), "[LOGICAL_SYSTEM]"),
+
+    # SAP transport request numbers (e.g. NPLK900123)
+    (re.compile(r"\b[A-Z]{3}[KO]\d{6}\b"), "[TRANSPORT]"),
+
+    # ── PROJECT REFERENCES ────────────────────────────────────────────────────
     # Project ticket IDs (PROJ-1234)
     (re.compile(r"\b[A-Z]{2,6}-\d{3,}\b"), "[TICKET]"),
 
