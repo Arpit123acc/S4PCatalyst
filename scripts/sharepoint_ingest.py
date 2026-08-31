@@ -58,7 +58,7 @@ LOG_FILE   = BASE_DIR / "brain" / "ingest.log"
 
 CHUNK_WORDS   = 512
 CHUNK_OVERLAP = 64
-SUPPORTED_EXT = {".docx", ".pdf", ".pptx", ".txt", ".md"}
+SUPPORTED_EXT = {".docx", ".pdf", ".pptx", ".txt", ".md", ".xlsx"}
 
 # ── PHASES ────────────────────────────────────────────────────────────────────
 PHASES = ["prepare", "explore", "realize", "deploy", "run"]
@@ -157,6 +157,17 @@ def extract_text(path: Path) -> str:
                 for shape in slide.shapes:
                     if hasattr(shape, "text") and shape.text.strip():
                         parts.append(shape.text)
+            return "\n".join(parts)
+        if ext == ".xlsx":
+            import openpyxl
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            parts = []
+            for sheet in wb.worksheets:
+                parts.append(f"[Sheet: {sheet.title}]")
+                for row in sheet.iter_rows(values_only=True):
+                    line = "\t".join(str(c) for c in row if c is not None)
+                    if line.strip():
+                        parts.append(line)
             return "\n".join(parts)
     except Exception as e:
         log.warning("Extraction failed [%s]: %s", path.name, e)
