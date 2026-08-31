@@ -102,11 +102,11 @@ class FaissStore(VectorStore):
 class PgVectorStore(VectorStore):
     """
     Postgres + pgvector. Connection from PGVECTOR_DSN (or standard PG* env vars).
-    Table (auto-created):
+    Table:
         brain_chunks(id bigserial pk, embedding vector(dim), metadata jsonb)
-    Cosine distance via the `<=>` operator; score = 1 - distance.
-    For large corpora add an ANN index: CREATE INDEX ON brain_chunks USING hnsw
-    (embedding vector_cosine_ops);
+    Cosine distance via the `<=>` operator; score = 1 - distance. Build mode drops
+    and recreates the table (clean rebuild, like FAISS overwrite) and adds an HNSW
+    index for fast ANN at scale. Load mode infers the dimension from the table.
     """
     TABLE = os.environ.get("PGVECTOR_TABLE", "brain_chunks")
 
@@ -118,11 +118,27 @@ class PgVectorStore(VectorStore):
         self.conn.autocommit = False
         with self.conn.cursor() as cur:
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-            cur.execute(
-                f"CREATE TABLE IF NOT EXISTS {self.TABLE} ("
-                f"  id bigserial PRIMARY KEY,"
-                f"  embedding vector({dim}),"
-                f"  metadata jsonb)")
+            cur.execute("SELECT to_regclass(%s)", (self.TABLE,))
+            exists = cur.fetchone()[0] is not None
+            if load:
+                if not exists:
+                    raise FileNotFoundError(
+                        f"pgvector table '{self.TABLE}' not found. Build it first: "
+                        f"BRAIN_BACKEND=pgvector python3.11 scripts/embed_chunks.py")
+                cur.execute(f"SELECT vector_dims(embedding) FROM {self.TABLE} LIMIT 1")
+                row = cur.fetchone()
+                if not row:
+                    raise FileNotFoundError(
+                        f"pgvector table '{self.TABLE}' is empty. Build it first.")
+                self.dim = int(row[0])
+            else:
+                # clean rebuild — matches FAISS overwrite semantics, handles dim change
+                cur.execute(f"DROP TABLE IF EXISTS {self.TABLE}")
+                cur.execute(
+                    f"CREATE TABLE {self.TABLE} ("
+                    f"  id bigserial PRIMARY KEY,"
+                    f"  embedding vector({dim}),"
+                    f"  metadata jsonb)")
         self.conn.commit()
 
     def add(self, vectors, metadatas):
@@ -136,6 +152,11 @@ class PgVectorStore(VectorStore):
                 rows, template="(%s::vector, %s::jsonb)")
 
     def persist(self):
+        # HNSW index for fast cosine ANN at scale (safe/no-op if it already exists).
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"CREATE INDEX IF NOT EXISTS {self.TABLE}_hnsw "
+                f"ON {self.TABLE} USING hnsw (embedding vector_cosine_ops)")
         self.conn.commit()
 
     def search(self, vector, k, filters=None):

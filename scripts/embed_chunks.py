@@ -169,7 +169,10 @@ def main():
     try:
         store = get_store(args.dim, load=False, backend=backend)
     except ImportError as e:
-        sys.exit(f"Backend '{backend}' deps missing: {e}")
+        sys.exit(f"Backend '{backend}' deps missing: {e}. "
+                 f"pgvector needs: pip3.11 install psycopg2-binary")
+    except Exception as e:
+        sys.exit(f"Backend '{backend}' init failed: {e}")
 
     sources = [("chunks", load_chunks(limit=args.limit))]
     if not args.no_scope:

@@ -46,6 +46,11 @@ def _load():
         store = get_store(0, load=True, backend=backend)   # dim inferred on load
     except FileNotFoundError as e:
         sys.exit(str(e))
+    except ImportError as e:
+        sys.exit(f"Backend '{backend}' deps missing: {e}. "
+                 f"pgvector needs: pip3.11 install psycopg2-binary")
+    except Exception as e:
+        sys.exit(f"Backend '{backend}' connection failed: {e}")
     client = boto3.client("bedrock-runtime", region_name=REGION)
     return store, client, getattr(store, "dim", 1024)
 
