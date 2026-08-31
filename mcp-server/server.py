@@ -1714,6 +1714,105 @@ TOOLS["extract_docx"] = {
     "handler": tool_extract_docx,
 }
 
+# ── SAP Scope Item Catalog (offline governance: lookup + dependency graph) ─────
+SCOPE_CATALOG  = _load_json("catalog/scope_items.json",
+                            default={"scope_items": [], "retired_scope_items": []})
+_SCOPE_BY_ID   = {s["scope_item_id"]: s for s in SCOPE_CATALOG.get("scope_items", [])}
+_RETIRED_BY_ID = {s["scope_item_id"]: s for s in SCOPE_CATALOG.get("retired_scope_items", [])}
+_SCOPE_SOURCE  = ("SAP Scope Item Catalog (mcp-server/catalog/scope_items.json). Confirm current "
+                  "availability in the tenant's SAP Central Business Configuration and the SAP "
+                  "Best Practices Explorer (help.sap.com/docs/SAP_S4HANA_CLOUD).")
+
+def tool_lookup_scope_item(args):
+    sid = (args.get("scope_item_id") or "").strip().upper()
+    if not sid:
+        return {"error": "scope_item_id is required (e.g. J58, 1NT, BD9)"}
+    item = _SCOPE_BY_ID.get(sid)
+    if item:
+        lobs = sorted({c["lob"] for c in item.get("classifications", []) if c.get("lob")})
+        return {
+            "found": True, "verified": True, "retired": False,
+            "scope_item_id": sid,
+            "description":   item.get("description"),
+            "lines_of_business": lobs,
+            "business_areas": sorted({c["business_area"] for c in item.get("classifications", [])
+                                      if c.get("business_area")}),
+            "component":     item.get("component"),
+            "provisioning":  item.get("provisioning"),
+            "required_scope_items": [e["to"] for e in item.get("required_scope_items", [])],
+            "required_master_data": item.get("required_master_data", []),
+            "available_country_count": item.get("available_country_count"),
+            "source": _SCOPE_SOURCE,
+        }
+    if sid in _RETIRED_BY_ID:
+        return {
+            "found": True, "retired": True,
+            "scope_item_id": sid,
+            "description": _RETIRED_BY_ID[sid].get("description"),
+            "warning": "This scope item is RETIRED by SAP — do NOT use it in new designs. "
+                       "Find the current successor in SAP Best Practices Explorer.",
+            "source": _SCOPE_SOURCE,
+        }
+    return {
+        "found": False, "scope_item_id": sid,
+        "note": "Not in the catalog seed. Verify in SAP Central Business Configuration / "
+                "SAP Best Practices Explorer before using it.",
+        "source": _SCOPE_SOURCE,
+    }
+
+def tool_scope_item_dependencies(args):
+    sid = (args.get("scope_item_id") or "").strip().upper()
+    if not sid:
+        return {"error": "scope_item_id is required (e.g. J58, 1NT, BD9)"}
+    item = _SCOPE_BY_ID.get(sid)
+    if not item:
+        if sid in _RETIRED_BY_ID:
+            return {"scope_item_id": sid, "retired": True,
+                    "warning": "Retired scope item — do not use.", "source": _SCOPE_SOURCE}
+        return {"found": False, "scope_item_id": sid, "source": _SCOPE_SOURCE}
+    requires = [{
+        "scope_item_id": e["to"],
+        "conditional":   e.get("conditional", False),
+        "description":   (_SCOPE_BY_ID.get(e["to"], {}) or {}).get("description"),
+        "retired":       e["to"] in _RETIRED_BY_ID,
+    } for e in item.get("required_scope_items", [])]
+    required_by = [{
+        "scope_item_id": s["scope_item_id"], "description": s.get("description"),
+    } for s in SCOPE_CATALOG.get("scope_items", [])
+        if any(e["to"] == sid for e in s.get("required_scope_items", []))]
+    return {
+        "found": True, "scope_item_id": sid, "description": item.get("description"),
+        "requires": requires,
+        "required_by": required_by,
+        "requires_count": len(requires), "required_by_count": len(required_by),
+        "note": "Conditional (business-condition) dependencies are flagged. A retired "
+                "prerequisite means the design needs review.",
+        "source": _SCOPE_SOURCE,
+    }
+
+TOOLS["lookup_scope_item"] = {
+    "description": ("Resolve an SAP S/4HANA Cloud Public Edition scope item ID (e.g. J58, 1NT, BD9 — "
+                    "also the prefix of BPD file names) to its business meaning: description, line(s) of "
+                    "business, business area, application component, provisioning (Default/Optional), "
+                    "required master data, and country coverage. Flags RETIRED scope items as do-not-use. "
+                    "Use INSTEAD of guessing what a scope item covers."),
+    "schema": {"type": "object", "properties": {
+        "scope_item_id": {"type": "string", "description": "3-char scope item ID, e.g. J58, 1NT, BD9"}},
+        "required": ["scope_item_id"]},
+    "handler": tool_lookup_scope_item,
+}
+
+TOOLS["scope_item_dependencies"] = {
+    "description": ("Return the dependency graph for an SAP scope item: the scope items it REQUIRES "
+                    "(hard vs conditional business-condition dependencies) and the scope items that "
+                    "require IT (reverse dependents). Use to assess scope impact and prerequisites before "
+                    "committing a solution to a scope item."),
+    "schema": {"type": "object", "properties": {
+        "scope_item_id": {"type": "string", "description": "3-char scope item ID, e.g. J58, 1NT, BD9"}},
+        "required": ["scope_item_id"]},
+    "handler": tool_scope_item_dependencies,
+}
+
 def main():
     _METRICS["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     audit("server_start", {"mode": MODE, "python": sys.version.split()[0]})
