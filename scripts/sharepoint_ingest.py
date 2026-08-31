@@ -61,27 +61,65 @@ CHUNK_OVERLAP = 64
 SUPPORTED_EXT = {".docx", ".pdf", ".pptx", ".txt", ".md", ".xlsx"}
 
 # ── PHASES ────────────────────────────────────────────────────────────────────
-PHASES = ["prepare", "explore", "realize", "deploy", "run"]
+# SAP Activate: Discover / Prepare / Explore / Realize / Deploy / Run
+PHASES = ["discover", "prepare", "explore", "realize", "deploy", "run"]
 
-# Phase keyword hints from filenames (when no phase folder exists)
+# Phase keyword hints derived from SAP Activate roadmap (all workstreams)
 _PHASE_HINTS = [
-    ("prepare",  ["project charter", "kick off", "ko deck", "onboarding", "raci",
-                  "sow", "statement of work", "orion", "dda", "digital discovery",
-                  "roles matrix", "authorization matrix", "sterco"]),
-    ("explore",  ["kdd", "fit to standard", "f2s", "f2s deck", "workshop",
-                  "business process", "wricef", "architecture design",
-                  "solution confirmation", "user stor"]),
-    ("realize",  ["functional design", " fd ", "fd -", "fd sample", "tdd", "td ",
-                  "technical design", "rap", "cap code", "ui code", "form wizard",
-                  "interface", "iflow", "integration", "data migration",
-                  "data strategy", "data cleansing", "test strategy", "test case",
-                  "test script", "test data", "defect resolver", "code quality",
-                  "technical strategy"]),
-    ("deploy",   ["change impact", "change strategy", "training material", "kut",
-                  "eut", "communication template", "cutover", "copy reference",
-                  "talent agent", "deployment"]),
-    ("run",      ["run support", "incident", "service request", "release impact",
-                  "knowledge steward", "autonomous ops"]),
+    ("discover", [
+        "discover", "cloud trial", "cloud mindset", "discovery assessment",
+        "application value", "scoping", "solution scope", "value scoping",
+        "dda", "digital discovery assessment",
+    ]),
+    ("prepare",  [
+        "getting started", "onboarding", "project initiation", "project governance",
+        "project standards", "kick off", "ko deck", "project charter",
+        "team self-enablement", "tool access", "sap cloud alm", "sap cbc",
+        "starter system", "initial access", "business driven configuration",
+        "configuration assessment", "fit-to-standard analysis preparation",
+        "system preparation", "analytics approach", "analytics plan",
+        "data approach", "data plan", "integration setup", "enablement strategy",
+        "organizational change", "raci", "sow", "statement of work",
+        "roles matrix", "authorization matrix", "l4 plan", "sterco",
+    ]),
+    ("explore",  [
+        "fit-to-standard", "fit to standard", "f2s", "f2s deck",
+        "fit-to-standard analysis", "fit-to-standard documentation",
+        "identity and access management", "extension planning",
+        "integration planning", "integration design", "test planning",
+        "data load preparation", "learning needs analysis",
+        "analytics planning", "analytics design",
+        "kdd", "workshop", "business process", "wricef",
+        "architecture design", "solution confirmation", "user stor",
+        "customer execution", "standard processes", "bpd",
+    ]),
+    ("realize",  [
+        "required configuration", "solution configuration", "activate new scope",
+        "solution extension", "extension development", "extension deployment",
+        "test preparation", "test execution", "sprint planning", "sprint execution",
+        "data migration development", "data migration test",
+        "support operations", "handover plan",
+        "enablement content", "analytics configuration",
+        "functional design", " fd ", "fd -", "fd sample",
+        "technical design", "tdd", " td ",
+        "rap", "cap code", "ui code", "form wizard",
+        "interface", "iflow", "data strategy", "data cleansing",
+        "test strategy", "test case", "test script", "test data",
+        "defect resolver", "code quality", "technical strategy",
+    ]),
+    ("deploy",   [
+        "system go-live", "go-live", "cutover preparation", "production cutover",
+        "test execution", "release update cycles", "operations readiness",
+        "change impact", "change strategy", "training material",
+        "kut", "eut", "communication template", "cutover", "copy reference",
+        "talent agent", "deployment",
+    ]),
+    ("run",      [
+        "ongoing operations", "continuous improvement", "value management",
+        "release update", "activate new scope", "run support",
+        "incident", "service request", "release impact",
+        "knowledge steward", "autonomous ops",
+    ]),
 ]
 
 def detect_phase(path_str: str) -> str:
@@ -107,6 +145,7 @@ _AGENT_ROLE_KEYWORDS = [
     ("security_agent", [
         "security_agent", "security agent", "orion agent", "roles matrix",
         "authorization matrix", "role requirement", "roles & author",
+        "identity and access", "iam", "cloud trial",
     ]),
     ("solution_confirmation_agent", [
         "solution_confirmation_agent", "solution confirmation",
