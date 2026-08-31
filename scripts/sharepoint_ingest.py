@@ -26,7 +26,9 @@ Env vars:
     SHAREPOINT_SUBFOLDER  Subfolder path within the library
 
 Install:
-    pip3.11 install msal requests python-docx pymupdf python-pptx
+    pip3.11 install msal requests python-docx pymupdf python-pptx openpyxl
+    # Proper NER masking (recommended — else falls back to regex name masking):
+    pip3.11 install spacy && python3.11 -m spacy download en_core_web_lg
 """
 
 import os
@@ -297,49 +299,88 @@ log = logging.getLogger("sharepoint_ingest")
 _client_alternatives = "|".join(re.escape(c) for c in KNOWN_CLIENTS)
 
 # SAP / business vocabulary — capitalised words that are NOT person names.
-# Guards the greedy standalone-name rule from masking terms like "Financial
-# Close", "Supply Chain", "Master Data" (which would gut the RAG brain).
+# Two jobs: (1) guard the regex standalone-name fallback, (2) filter spaCy NER
+# so it never masks a business term like "Financial Close" as a PERSON/ORG.
 _BUSINESS_VOCAB = {
-    # process / org
-    "financial", "finance", "close", "closing", "accounting", "supply", "chain",
-    "master", "data", "cost", "center", "centre", "profit", "sales", "order",
-    "purchase", "purchasing", "business", "process", "project", "control",
-    "management", "system", "material", "customer", "vendor", "supplier",
-    "account", "general", "ledger", "asset", "inventory", "warehouse",
-    "production", "planning", "quality", "maintenance", "service", "procurement",
-    "sourcing", "manufacturing", "engineering", "analytics", "integration",
-    "configuration", "solution", "design", "workshop", "standard", "scope",
-    "requirement", "specification", "template", "reference", "document",
-    "report", "interface", "migration", "strategy", "enrichment", "cleansing",
-    "resolver", "handling", "posting", "transfer", "stock", "third", "party",
-    "logistics", "cloud", "public", "edition", "enterprise", "sector", "retail",
-    "baseline", "accelerator", "country", "company", "code", "cross", "plant",
-    "event", "responsibility", "situation", "operations", "operational",
-    "invoice", "billing", "delivery", "shipment", "goods", "receipt",
-    "contract", "condition", "pricing", "tax", "compliance", "governance",
-    "risk", "audit", "controlling", "treasury", "banking", "payment",
-    "receivable", "payable", "fixed", "depreciation", "revenue", "margin",
-    # sap-specific
-    "fiori", "activate", "hana", "clean", "core", "extensibility", "adaptation",
-    "workflow", "flexible", "situation", "output", "determination", "custom",
-    "field", "logic", "released", "object", "namespace", "transport", "tenant",
+    # finance / controlling
+    "financial", "finance", "close", "closing", "accounting", "account",
+    "general", "ledger", "asset", "controlling", "treasury", "banking",
+    "payment", "receivable", "payable", "fixed", "depreciation", "revenue",
+    "margin", "profit", "cost", "center", "centre", "profitability", "budget",
+    "actuals", "settlement", "allocation", "reconciliation", "dunning",
+    "credit", "debit", "journal", "posting", "clearing", "consolidation",
+    "group", "gaap", "ifrs", "currency", "exchange", "valuation", "accrual",
+    # sales / procurement / supply
+    "sales", "order", "purchase", "purchasing", "procurement", "sourcing",
+    "supplier", "vendor", "customer", "quotation", "contract", "requisition",
+    "delivery", "shipment", "shipping", "goods", "receipt", "issue", "billing",
+    "invoice", "pricing", "condition", "rebate", "returns", "fulfillment",
+    "supply", "chain", "logistics", "inventory", "warehouse", "stock",
+    "replenishment", "transfer", "transportation", "handling", "picking",
+    "packing", "putaway", "batch", "serial", "availability", "promising",
+    # manufacturing / plm / am
+    "manufacturing", "production", "planning", "process", "discrete", "repetitive",
+    "shop", "floor", "routing", "bom", "work", "resource", "capacity", "mrp",
+    "maintenance", "asset", "corrective", "preventive", "engineering",
+    "product", "development", "variant", "configuration", "quality",
+    "inspection", "notification", "defect", "calibration",
+    # org / master data / cross
+    "master", "data", "material", "business", "partner", "company", "code",
+    "plant", "organization", "organizational", "unit", "hierarchy", "cross",
+    "management", "system", "responsibility", "situation", "operations",
+    "operational", "compliance", "governance", "risk", "audit", "tax", "legal",
+    "third", "party", "enterprise", "sector", "retail", "baseline", "accelerator",
+    "country", "region", "global", "local", "central", "event", "condition",
+    # sap platform / clean core / extensibility
+    "sap", "s4hana", "s4", "hana", "fiori", "launchpad", "activate", "clean",
+    "core", "extensibility", "adaptation", "adapt", "workflow", "flexible",
+    "output", "determination", "custom", "field", "logic", "released", "object",
+    "namespace", "transport", "tenant", "badi", "cds", "rap", "abap", "odata",
+    "api", "btp", "cap", "steampunk", "keyuser", "developer", "sidebyside",
+    "analytical", "query", "app", "application", "standard", "scope", "item",
+    "solution", "cloud", "public", "edition", "private", "onpremise",
     # activate phases / delivery
     "discover", "prepare", "explore", "realize", "deploy", "run", "phase",
     "sprint", "cutover", "onboarding", "enablement", "adoption", "value",
-    "test", "testing", "unit", "acceptance", "regression", "scenario",
-    "change", "impact", "training", "communication", "deployment", "release",
-    "update", "cycle", "support", "incident", "defect", "handover", "readiness",
-    # documents
-    "functional", "technical", "charter", "matrix", "inventory", "roadmap",
-    "assessment", "discovery", "analysis", "approach", "plan", "guide",
-    "kickoff", "kick", "off", "deck", "status", "master", "power",
+    "test", "testing", "unit", "integration", "acceptance", "regression",
+    "scenario", "script", "case", "change", "impact", "training", "communication",
+    "deployment", "release", "update", "cycle", "support", "incident", "handover",
+    "readiness", "hypercare", "golive", "mock", "dress", "rehearsal",
+    # documents / delivery artifacts
+    "functional", "technical", "design", "specification", "charter", "matrix",
+    "inventory", "roadmap", "assessment", "discovery", "analysis", "approach",
+    "plan", "guide", "guideline", "kickoff", "kick", "off", "deck", "status",
+    "power", "workshop", "requirement", "requirements", "template", "reference",
+    "document", "documentation", "report", "interface", "migration", "strategy",
+    "enrichment", "cleansing", "resolver", "wricef", "ricefw", "raci", "sow",
+    "fit", "gap", "blueprint", "backlog", "story", "epic", "feature",
+    # geography words spaCy may tag as GPE/ORG in headings
+    "north", "south", "east", "west", "america", "americas", "europe", "asia",
+    "pacific", "emea", "apac", "united", "states", "kingdom",
 }
 
-def _mask_standalone_name(m: re.Match) -> str:
-    """Mask a capitalised word sequence only if no token is business vocabulary."""
+# Vendors / products / partners that spaCy will tag as ORG but must NEVER be
+# masked — masking these would destroy the SAP knowledge in the brain.
+_NEVER_MASK_ORGS = {
+    "sap", "s/4hana", "s4hana", "s/4", "fiori", "hana", "ariba", "fieldglass",
+    "concur", "successfactors", "sap successfactors", "sap ariba", "sap fieldglass",
+    "opentext", "vistex", "microsoft", "microsoft graph", "azure", "amazon",
+    "aws", "amazon web services", "bedrock", "google", "oracle", "accenture",
+    "ibm", "salesforce", "workday", "servicenow", "adobe", "openai", "anthropic",
+    "claude", "titan", "github", "gitlab", "jira", "confluence", "sharepoint",
+    "teams", "outlook", "excel", "powerpoint", "word", "python", "node", "nodejs",
+    "javascript", "ui5", "sapui5", "cap", "btp", "cpi",
+}
+
+# Regex fallback (used only when spaCy is unavailable): standalone Firstname
+# Lastname, guarded by the business-vocab allowlist.
+_STANDALONE_NAME_RE = re.compile(
+    r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b"
+)
+
+def _mask_standalone_name(m: "re.Match") -> str:
     phrase = m.group(0)
-    words = phrase.split()
-    if any(w.lower() in _BUSINESS_VOCAB for w in words):
+    if any(w.lower() in _BUSINESS_VOCAB for w in phrase.split()):
         return phrase          # looks like an SAP/business term — leave it
     return "[PERSON]"
 
@@ -378,10 +419,13 @@ _MASK_RULES = [
     (re.compile(rf"\bZ(?:{_client_alternatives})[_A-Z0-9]*\b", re.IGNORECASE), "[CLIENT_OBJECT]"),
     # Known client names (exact, case-insensitive)
     (re.compile(rf"\b(?:{_client_alternatives})\b", re.IGNORECASE), "[CLIENT]"),
-    # Generic company names (Siemens AG, Bosch GmbH, …)
+    # Generic company names (Siemens AG, Bosch GmbH, Contoso Industries, …)
+    # Legal-form abbreviations + strong full-word company suffixes that rarely
+    # collide with SAP terminology in a "Capword <suffix>" shape.
     (re.compile(
         r"\b[A-Z][A-Za-z&]+(?:\s+[A-Z][A-Za-z&]+)*\s+"
-        r"(?:AG|GmbH|Ltd|Inc|Corp|SE|NV|PLC|SA|LLC|LLP|BV|SAS|SpA)\b"
+        r"(?:AG|GmbH|Ltd|Inc|Corp|SE|NV|PLC|SA|LLC|LLP|BV|SAS|SpA"
+        r"|Corporation|Incorporated|Limited|Industries|Holdings|Enterprises)\b"
     ), "[CLIENT]"),
 
     # ── 4. FINANCIAL (rate before amount, so "$1,800/day" → RATE) ─────────────
@@ -407,9 +451,8 @@ _MASK_RULES = [
         r"(?i)(?:author|by|prepared by|created by|modified by|contact|owner|lead"
         r"|reviewed by|approved by|assigned to)\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
     ), "[PERSON]"),
-    # Standalone Firstname Lastname — guarded by business-vocab allowlist
-    (re.compile(r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b"),
-     _mask_standalone_name),
+    # NOTE: standalone Firstname-Lastname is handled by the spaCy NER pass in
+    # mask() (or the regex fallback _STANDALONE_NAME_RE if spaCy is unavailable).
 
     # ── 7. PHONE NUMBERS (greediest digits — LAST; needs + or phone keyword) ──
     # International: leading +country code
@@ -421,9 +464,98 @@ _MASK_RULES = [
     ), "[PHONE]"),
 ]
 
+# ── NER (proper person/org detection via spaCy) ───────────────────────────────
+# Loaded lazily and cached. Set SPACY_MODEL to override; en_core_web_lg gives the
+# best CPU accuracy without transformers. Only the NER pipe is kept (speed).
+_NER = "unset"   # sentinel until first load attempt
+
+def _get_ner():
+    global _NER
+    if _NER != "unset":
+        return _NER
+    try:
+        import spacy
+    except ImportError:
+        log.warning("spaCy not installed — using regex name fallback. For proper "
+                    "NER: pip3.11 install spacy && python3.11 -m spacy download en_core_web_lg")
+        _NER = None
+        return _NER
+    override = os.environ.get("SPACY_MODEL", "").strip()
+    candidates = [override] if override else ["en_core_web_lg", "en_core_web_sm"]
+    for name in candidates:
+        if not name:
+            continue
+        try:
+            _NER = spacy.load(name, disable=["parser", "lemmatizer", "tagger",
+                                             "attribute_ruler"])
+            # NER-only pipeline is light on memory — allow large documents.
+            _NER.max_length = 3_000_000
+            log.info("NER model loaded: %s", name)
+            return _NER
+        except OSError:
+            continue
+    log.warning("No spaCy model found — using regex name fallback. Install one: "
+                "python3.11 -m spacy download en_core_web_lg")
+    _NER = None
+    return _NER
+
+# Placeholder labels already inserted by the regex pass — the NER pass must never
+# re-mask these (e.g. spaCy tagging "EMP_ID" inside "[EMP_ID]" as an ORG).
+_MASK_LABELS = {
+    "CREDENTIAL", "EMAIL", "INTERNAL_URL", "SAP_TENANT_URL", "IP_ADDRESS",
+    "TRANSPORT", "LOGICAL_SYSTEM", "EMP_ID", "TICKET", "CONTRACT_REF",
+    "CLIENT_OBJECT", "CLIENT", "RATE", "AMOUNT", "PROJECT", "PERSON", "PHONE",
+}
+
+def _ner_mask(text: str, nlp) -> str:
+    """Mask PERSON (and unknown-client ORG) entities found by spaCy NER."""
+    doc = nlp(text)
+    spans = []
+    for ent in doc.ents:
+        etext = ent.text.strip()
+        if not etext or etext.startswith("["):      # already a mask token
+            continue
+        # skip our own placeholder labels (e.g. "EMP_ID" inside "[EMP_ID]")
+        if etext.strip("[]").upper() in _MASK_LABELS:
+            continue
+        toks = re.findall(r"[A-Za-z][A-Za-z&/.\-]*", etext)
+        low  = etext.lower()
+        if any(t.upper() in _MASK_LABELS for t in toks):
+            continue
+        # never touch SAP/business vocabulary or known vendors/products
+        if any(t.lower() in _BUSINESS_VOCAB for t in toks):
+            continue
+        if low in _NEVER_MASK_ORGS or any(t.lower() in _NEVER_MASK_ORGS for t in toks):
+            continue
+        if ent.label_ == "PERSON":
+            repl = "[PERSON]"
+        elif ent.label_ == "ORG":
+            # NER catches unknown client orgs the regex misses — but require a
+            # MULTI-WORD name so common single words that happen to be companies
+            # (e.g. "Reach", "Order") are never masked. Single-word clients belong
+            # in KNOWN_CLIENTS (exact match) instead.
+            if " " not in etext or not any(c.isupper() for c in etext):
+                continue
+            repl = "[CLIENT]"
+        else:
+            continue                                 # ignore GPE/DATE/etc.
+        spans.append((ent.start_char, ent.end_char, repl))
+    # apply right-to-left so offsets stay valid
+    for start, end, repl in sorted(spans, key=lambda s: s[0], reverse=True):
+        text = text[:start] + repl + text[end:]
+    return text
+
 def mask(text: str) -> str:
+    """Hybrid masking: regex for structured PII, spaCy NER for names/orgs."""
+    # 1. structured + known-entity regex rules
     for pattern, replacement in _MASK_RULES:
         text = pattern.sub(replacement, text)
+    # 2. proper NER pass for person/org names (fallback to regex if unavailable)
+    nlp = _get_ner()
+    if nlp is not None:
+        text = _ner_mask(text, nlp)
+    else:
+        text = _STANDALONE_NAME_RE.sub(_mask_standalone_name, text)
     return text
 
 # ── TEXT EXTRACTION ───────────────────────────────────────────────────────────
