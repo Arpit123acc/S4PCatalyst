@@ -296,106 +296,134 @@ log = logging.getLogger("sharepoint_ingest")
 # Build client name pattern from known list
 _client_alternatives = "|".join(re.escape(c) for c in KNOWN_CLIENTS)
 
+# SAP / business vocabulary — capitalised words that are NOT person names.
+# Guards the greedy standalone-name rule from masking terms like "Financial
+# Close", "Supply Chain", "Master Data" (which would gut the RAG brain).
+_BUSINESS_VOCAB = {
+    # process / org
+    "financial", "finance", "close", "closing", "accounting", "supply", "chain",
+    "master", "data", "cost", "center", "centre", "profit", "sales", "order",
+    "purchase", "purchasing", "business", "process", "project", "control",
+    "management", "system", "material", "customer", "vendor", "supplier",
+    "account", "general", "ledger", "asset", "inventory", "warehouse",
+    "production", "planning", "quality", "maintenance", "service", "procurement",
+    "sourcing", "manufacturing", "engineering", "analytics", "integration",
+    "configuration", "solution", "design", "workshop", "standard", "scope",
+    "requirement", "specification", "template", "reference", "document",
+    "report", "interface", "migration", "strategy", "enrichment", "cleansing",
+    "resolver", "handling", "posting", "transfer", "stock", "third", "party",
+    "logistics", "cloud", "public", "edition", "enterprise", "sector", "retail",
+    "baseline", "accelerator", "country", "company", "code", "cross", "plant",
+    "event", "responsibility", "situation", "operations", "operational",
+    "invoice", "billing", "delivery", "shipment", "goods", "receipt",
+    "contract", "condition", "pricing", "tax", "compliance", "governance",
+    "risk", "audit", "controlling", "treasury", "banking", "payment",
+    "receivable", "payable", "fixed", "depreciation", "revenue", "margin",
+    # sap-specific
+    "fiori", "activate", "hana", "clean", "core", "extensibility", "adaptation",
+    "workflow", "flexible", "situation", "output", "determination", "custom",
+    "field", "logic", "released", "object", "namespace", "transport", "tenant",
+    # activate phases / delivery
+    "discover", "prepare", "explore", "realize", "deploy", "run", "phase",
+    "sprint", "cutover", "onboarding", "enablement", "adoption", "value",
+    "test", "testing", "unit", "acceptance", "regression", "scenario",
+    "change", "impact", "training", "communication", "deployment", "release",
+    "update", "cycle", "support", "incident", "defect", "handover", "readiness",
+    # documents
+    "functional", "technical", "charter", "matrix", "inventory", "roadmap",
+    "assessment", "discovery", "analysis", "approach", "plan", "guide",
+    "kickoff", "kick", "off", "deck", "status", "master", "power",
+}
+
+def _mask_standalone_name(m: re.Match) -> str:
+    """Mask a capitalised word sequence only if no token is business vocabulary."""
+    phrase = m.group(0)
+    words = phrase.split()
+    if any(w.lower() in _BUSINESS_VOCAB for w in words):
+        return phrase          # looks like an SAP/business term — leave it
+    return "[PERSON]"
+
 _MASK_RULES = [
-    # ── CREDENTIALS (highest risk — run first) ────────────────────────────────
-    # password / key / token / secret followed by a value
+    # ── 1. CREDENTIALS (highest risk — first) ─────────────────────────────────
     (re.compile(
         r"(?i)(?:password|passwd|api[_\s]?key|access[_\s]?key|secret[_\s]?key"
         r"|token|bearer|credential|auth[_\s]?key)\s*[:=]\s*\S+",
     ), "[CREDENTIAL]"),
 
-    # ── CLIENT NAMES ──────────────────────────────────────────────────────────
-    # Known client names (exact match, case-insensitive)
-    (re.compile(rf"\b(?:{_client_alternatives})\b", re.IGNORECASE), "[CLIENT]"),
+    # ── 2. STRUCTURED IDENTIFIERS (specific formats — before greedy rules) ─────
+    # Email addresses
+    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[EMAIL]"),
+    # Internal/client URLs (not public SAP docs)
+    (re.compile(
+        r"https?://(?!help\.sap\.com|api\.sap\.com|cap\.cloud\.sap|ui5\.sap\.com"
+        r"|www\.sap\.com|discovery\.sap\.com)[^\s\"'<>]+"
+    ), "[INTERNAL_URL]"),
+    # SAP tenant URLs (myXXXXXX.s4hana.ondemand.com)
+    (re.compile(r"\bmy[A-Za-z0-9]+\.s4hana\.ondemand\.com\b"), "[SAP_TENANT_URL]"),
+    # IP addresses (v4) — before phone, so phone can't eat the digit groups
+    (re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"), "[IP_ADDRESS]"),
+    # SAP transport requests (e.g. NPLK900123) — before phone
+    (re.compile(r"\b[A-Z]{3}[KO]\d{6}\b"), "[TRANSPORT]"),
+    # SAP logical system names (client abbrev + CLNT + client no.) — before phone
+    (re.compile(r"\b[A-Z]{2,10}CLNT\d{3}\b"), "[LOGICAL_SYSTEM]"),
+    # Employee IDs (Accenture I/C format) — before phone
+    (re.compile(r"\b[IC]\d{6,7}\b"), "[EMP_ID]"),
+    # Project ticket IDs (PROJ-1234)
+    (re.compile(r"\b[A-Z]{2,6}-\d{3,}\b"), "[TICKET]"),
+    # PO / contract numbers
+    (re.compile(r"\b(?:PO|CONTRACT|ORDER)[-\s]?\d{4,}\b", re.IGNORECASE), "[CONTRACT_REF]"),
 
-    # Generic company names (Siemens AG, Bosch GmbH, etc.)
+    # ── 3. CLIENT / COMPANY NAMES ─────────────────────────────────────────────
+    # SAP namespace objects named after client (ZBOBST_, ZCDI_, …) — before client
+    (re.compile(rf"\bZ(?:{_client_alternatives})[_A-Z0-9]*\b", re.IGNORECASE), "[CLIENT_OBJECT]"),
+    # Known client names (exact, case-insensitive)
+    (re.compile(rf"\b(?:{_client_alternatives})\b", re.IGNORECASE), "[CLIENT]"),
+    # Generic company names (Siemens AG, Bosch GmbH, …)
     (re.compile(
         r"\b[A-Z][A-Za-z&]+(?:\s+[A-Z][A-Za-z&]+)*\s+"
         r"(?:AG|GmbH|Ltd|Inc|Corp|SE|NV|PLC|SA|LLC|LLP|BV|SAS|SpA)\b"
     ), "[CLIENT]"),
 
-    # SAP namespace objects named after client (ZBOBST_, ZCDI_, etc.)
-    (re.compile(rf"\bZ(?:{_client_alternatives})[_A-Z0-9]*\b", re.IGNORECASE), "[CLIENT_OBJECT]"),
+    # ── 4. FINANCIAL (rate before amount, so "$1,800/day" → RATE) ─────────────
+    (re.compile(
+        r"(?:USD|EUR|GBP|€|\$|£)\s?\d[\d,\.]+\s?(?:/\s?day|per\s+day)",
+        re.IGNORECASE
+    ), "[RATE]"),
+    (re.compile(
+        r"(?:USD|EUR|GBP|CHF|€|\$|£)\s?\d[\d,\.]*\s?(?:K|M|B|thousand|million)?",
+        re.IGNORECASE
+    ), "[AMOUNT]"),
 
-    # ── PERSON NAMES ──────────────────────────────────────────────────────────
-    # Titled names (Mr/Mrs/Dr/Prof etc.)
+    # ── 5. PROJECT CODENAMES (before the greedy standalone-name rule) ─────────
+    (re.compile(r"\bProject\s+[A-Z][A-Za-z]+\b"), "[PROJECT]"),
+
+    # ── 6. PERSON NAMES ───────────────────────────────────────────────────────
+    # Titled names (Mr/Mrs/Dr/Prof …)
     (re.compile(
         r"\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Eng)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b"
     ), "[PERSON]"),
-
     # Author/contact/owner fields
     (re.compile(
         r"(?i)(?:author|by|prepared by|created by|modified by|contact|owner|lead"
         r"|reviewed by|approved by|assigned to)\s*:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
     ), "[PERSON]"),
+    # Standalone Firstname Lastname — guarded by business-vocab allowlist
+    (re.compile(r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b"),
+     _mask_standalone_name),
 
-    # Standalone Firstname Lastname (two+ capitalised words)
-    (re.compile(r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})?\b"), "[PERSON]"),
-
-    # Employee IDs (Accenture I/C format: I123456, C123456)
-    (re.compile(r"\b[IC]\d{6,7}\b"), "[EMP_ID]"),
-
-    # ── CONTACT DETAILS ───────────────────────────────────────────────────────
-    # Email addresses
-    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[EMAIL]"),
-
-    # Phone numbers (international and local formats)
+    # ── 7. PHONE NUMBERS (greediest digits — LAST; needs + or phone keyword) ──
+    # International: leading +country code
+    (re.compile(r"\+\d{1,3}[\s\-.]?\(?\d{1,4}\)?(?:[\s\-.]?\d{2,4}){2,5}\b"), "[PHONE]"),
+    # Contextual: preceded by a phone/tel/mobile/fax label
     (re.compile(
-        r"(?:\+\d{1,3}[\s\-.]?)?"
-        r"(?:\(?\d{2,4}\)?[\s\-.]?)?"
-        r"\d{3,4}[\s\-.]?\d{3,4}[\s\-.]?\d{0,4}"
-        r"(?=\s|$|[,;])"
+        r"(?i)(?:phone|tel|telephone|mobile|cell|fax|call)\s*[:.]?\s*"
+        r"\+?[\d][\d\s\-.()]{6,}\d"
     ), "[PHONE]"),
-
-    # ── FINANCIAL ─────────────────────────────────────────────────────────────
-    # Budget/cost figures with currency (€500K, $1.2M, USD 250,000)
-    (re.compile(
-        r"(?:USD|EUR|GBP|CHF|€|\$|£)\s?\d[\d,\.]*\s?(?:K|M|B|thousand|million)?\b",
-        re.IGNORECASE
-    ), "[AMOUNT]"),
-
-    # Day rates (e.g. $1,800/day, €950 per day)
-    (re.compile(
-        r"(?:USD|EUR|GBP|€|\$|£)\s?\d[\d,\.]+\s?(?:/\s?day|per\s+day)",
-        re.IGNORECASE
-    ), "[RATE]"),
-
-    # PO / contract numbers
-    (re.compile(r"\b(?:PO|CONTRACT|ORDER)[-\s]?\d{4,}\b", re.IGNORECASE), "[CONTRACT_REF]"),
-
-    # ── TECHNICAL / INFRASTRUCTURE ────────────────────────────────────────────
-    # IP addresses (v4)
-    (re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"), "[IP_ADDRESS]"),
-
-    # Internal/client URLs and hostnames (not public SAP docs)
-    (re.compile(
-        r"https?://(?!help\.sap\.com|api\.sap\.com|cap\.cloud\.sap|ui5\.sap\.com"
-        r"|www\.sap\.com|discovery\.sap\.com)[^\s\"'<>]+"
-    ), "[INTERNAL_URL]"),
-
-    # SAP tenant URLs (myXXXXXX.s4hana.ondemand.com)
-    (re.compile(r"\bmy[A-Za-z0-9]+\.s4hana\.ondemand\.com\b"), "[SAP_TENANT_URL]"),
-
-    # SAP logical system names (often contain client abbreviation + CLNT + number)
-    (re.compile(r"\b[A-Z]{2,10}CLNT\d{3}\b"), "[LOGICAL_SYSTEM]"),
-
-    # SAP transport request numbers (e.g. NPLK900123)
-    (re.compile(r"\b[A-Z]{3}[KO]\d{6}\b"), "[TRANSPORT]"),
-
-    # ── PROJECT REFERENCES ────────────────────────────────────────────────────
-    # Project ticket IDs (PROJ-1234)
-    (re.compile(r"\b[A-Z]{2,6}-\d{3,}\b"), "[TICKET]"),
-
-    # Project codenames
-    (re.compile(r"\bProject\s+[A-Z][A-Za-z]+\b"), "[PROJECT]"),
 ]
 
 def mask(text: str) -> str:
     for pattern, replacement in _MASK_RULES:
-        if callable(replacement):
-            text = pattern.sub(replacement, text)
-        else:
-            text = pattern.sub(replacement, text)
+        text = pattern.sub(replacement, text)
     return text
 
 # ── TEXT EXTRACTION ───────────────────────────────────────────────────────────
