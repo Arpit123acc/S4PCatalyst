@@ -155,6 +155,18 @@ def detect_phase(path_str: str) -> str:
 
 # ── AGENT ROLES ───────────────────────────────────────────────────────────────
 # Each entry: (agent_role_key, [keywords to match in path or filename])
+# ── SAP STANDARD BPD DOCS ─────────────────────────────────────────────────────
+# SAP-delivered Business Process Documentation, named <SCOPE>_S4CLD<ver>_BPD_...
+# (e.g. 1MR_S4CLD2402_BPD_EN_US.docx). These are SAP STANDARD reference content —
+# separated from client delivery docs (source_system=sap_bpd, phase=Reference) and
+# linked back to the scope catalog by the scope item ID in the filename.
+_BPD_RE = re.compile(r"^([0-9A-Z]{2,4})_S4CLD\d+_BPD", re.IGNORECASE)
+
+def detect_sap_bpd(filename: str):
+    """Return the scope item ID if the file is an SAP-standard BPD, else None."""
+    m = _BPD_RE.match(filename.strip())
+    return m.group(1).upper() if m else None
+
 _AGENT_ROLE_KEYWORDS = [
     ("pmo_agent", [
         "pmo_agent", "pmo agent", "project charter", "kick off", "ko deck",
@@ -657,13 +669,20 @@ def process_local():
             continue
 
         rel_path       = str(f.relative_to(RAW_DIR))
-        phase          = detect_phase(rel_path)
-        agent_role     = detect_agent_role(rel_path)
-        deliverable    = detect_deliverable_type(rel_path)
+        bpd_scope      = detect_sap_bpd(f.name)
+        if bpd_scope:                       # SAP standard BPD — reference, not delivery
+            source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
+            deliverable, scope_item_id = "business_process_doc", bpd_scope
+        else:                               # client delivery document
+            source_system, scope_item_id = "sharepoint", None
+            phase       = detect_phase(rel_path)
+            agent_role  = detect_agent_role(rel_path)
+            deliverable = detect_deliverable_type(rel_path)
         content_type   = detect_content_type(f.name)
 
-        log.info("Processing: %s [phase=%s, agent=%s, deliverable=%s]",
-                 f.name, phase, agent_role, deliverable)
+        log.info("Processing: %s [src=%s, phase=%s, agent=%s, deliverable=%s%s]",
+                 f.name, source_system, phase, agent_role, deliverable,
+                 f", scope={scope_item_id}" if scope_item_id else "")
 
         text   = extract_text(f)
         text   = mask(text)
@@ -678,11 +697,13 @@ def process_local():
             out.write_text(json.dumps({
                 "id":              f"{doc_id}_{idx:04d}",
                 "source":          f.name,
+                "source_system":   source_system,
                 "relative_path":   rel_path,
                 "phase":           phase,
                 "agent_role":      agent_role,
                 "deliverable_type": deliverable,
                 "content_type":    content_type,
+                "scope_item_id":   scope_item_id,
                 "client":          "[CLIENT]",
                 "chunk_index":     idx,
                 "total_chunks":    len(chunks),
@@ -821,14 +842,21 @@ def process_graph():
     for item in files:
         name        = item["name"]
         folder_path = item.get("_folder_path", "")
-        phase       = detect_phase(folder_path)
-        agent_role  = detect_agent_role(folder_path)
-        deliverable = detect_deliverable_type(folder_path)
+        bpd_scope   = detect_sap_bpd(name)
+        if bpd_scope:                       # SAP standard BPD — reference, not delivery
+            source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
+            deliverable, scope_item_id = "business_process_doc", bpd_scope
+        else:                               # client delivery document
+            source_system, scope_item_id = "sharepoint", None
+            phase       = detect_phase(folder_path)
+            agent_role  = detect_agent_role(folder_path)
+            deliverable = detect_deliverable_type(folder_path)
         content_type = detect_content_type(name)
         dest        = RAW_DIR / name
 
-        log.info("Downloading: %s [phase=%s, agent=%s, deliverable=%s]",
-                 name, phase, agent_role, deliverable)
+        log.info("Downloading: %s [src=%s, phase=%s, agent=%s%s]",
+                 name, source_system, phase, agent_role,
+                 f", scope={scope_item_id}" if scope_item_id else "")
         download(token, did, item["id"], dest)
 
         text   = extract_text(dest)
@@ -844,11 +872,13 @@ def process_graph():
             out.write_text(json.dumps({
                 "id":              f"{doc_id}_{idx:04d}",
                 "source":          name,
+                "source_system":   source_system,
                 "folder_path":     folder_path,
                 "phase":           phase,
                 "agent_role":      agent_role,
                 "deliverable_type": deliverable,
                 "content_type":    content_type,
+                "scope_item_id":   scope_item_id,
                 "client":          "[CLIENT]",
                 "chunk_index":     idx,
                 "total_chunks":    len(chunks),
