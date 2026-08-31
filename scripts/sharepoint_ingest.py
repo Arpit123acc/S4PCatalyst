@@ -70,8 +70,92 @@ def detect_phase(path_str: str) -> str:
             return phase.capitalize()
     return "General"
 
+# ── AGENT ROLES ───────────────────────────────────────────────────────────────
+_AGENT_ROLE_MAP = [
+    ("pmo_agent",                   "PMO_Agent"),
+    ("security_agent",              "Security_Agent"),
+    ("solution_confirmation_agent", "Solution_Confirmation_Agent"),
+    ("functional_agent",            "Functional_Agent"),
+    ("build_agent",                 "Build_Agent"),
+    ("data_agent",                  "Data_Agent"),
+    ("qe_agent",                    "QE_Agent"),
+    ("change_talent_agent",         "Change_Talent_Agent"),
+    ("deployment_agent",            "Deployment_Agent"),
+    ("run_support_agent",           "Run_Support_Agent"),
+]
+
+def detect_agent_role(path_str: str) -> str:
+    p = path_str.lower()
+    for role_key, _ in _AGENT_ROLE_MAP:
+        if role_key in p:
+            return role_key
+    return "general"
+
+# ── DELIVERABLE TYPES ─────────────────────────────────────────────────────────
+_DELIVERABLE_MAP = [
+    ("project_charter",         "project_charter"),
+    ("ko_deck",                 "kickoff_deck"),
+    ("l4_plan",                 "project_plan"),
+    ("onboarding",              "onboarding_kit"),
+    ("raci",                    "raci_matrix"),
+    ("sow",                     "statement_of_work"),
+    ("roles",                   "roles_authorization"),
+    ("business_process",        "business_process_design"),
+    ("fit_to_standard",         "fit_to_standard"),
+    ("kdd",                     "kdd"),
+    ("workshop",                "workshop_analysis"),
+    ("wricef",                  "wricef_inventory"),
+    ("functional_design",       "functional_design"),
+    ("fd",                      "functional_design"),
+    ("config",                  "configuration"),
+    ("technical_design",        "technical_design"),
+    ("td",                      "technical_design"),
+    ("rap_code",                "rap_code"),
+    ("cap_code",                "cap_code"),
+    ("ui_code",                 "ui_code"),
+    ("form_wizard",             "form_wizard"),
+    ("interface",               "interface_spec"),
+    ("iflow",                   "integration_iflow"),
+    ("data_strategy",           "data_strategy"),
+    ("data_migration",          "data_migration"),
+    ("data_profiler",           "data_profiler"),
+    ("test_strategy",           "test_strategy"),
+    ("test_case",               "test_cases"),
+    ("test_data",               "test_data"),
+    ("change_impact",           "change_impact"),
+    ("change_strategy",         "change_strategy"),
+    ("training",                "training_material"),
+    ("communication",           "communication_template"),
+    ("cutover",                 "cutover_plan"),
+    ("copy_reference",          "copy_reference"),
+    ("defect",                  "defect_resolution"),
+    ("knowledge",               "knowledge_base"),
+    ("incident",                "incident_resolution"),
+]
+
+def detect_deliverable_type(path_str: str) -> str:
+    p = path_str.lower()
+    for keyword, deliverable in _DELIVERABLE_MAP:
+        if keyword in p:
+            return deliverable
+    return "reference_document"
+
+# ── CONTENT TYPE ──────────────────────────────────────────────────────────────
+_CONTENT_TYPE_KEYWORDS = {
+    "template": ["template", "templ", "blank", "format"],
+    "example":  ["sample", "example", "demo", "ver 1", "ver1"],
+    "reference": ["reference", "ref ", "guide", "handbook", "playbook"],
+    "methodology": ["approach", "strategy", "framework", "methodology", "process"],
+}
+
+def detect_content_type(filename: str) -> str:
+    f = filename.lower()
+    for ctype, keywords in _CONTENT_TYPE_KEYWORDS.items():
+        if any(kw in f for kw in keywords):
+            return ctype
+    return "document"
+
 # ── CLIENT NAMES ─────────────────────────────────────────────────────────────
-# Known client names — add more as needed
 KNOWN_CLIENTS = [
     "BOBST", "CAMPARI", "CUMMINS", "BUMA", "MARS",
     "Altor Damas", "CDI", "AXA",
@@ -197,47 +281,52 @@ def process_local():
         if not f.is_file() or f.suffix.lower() not in SUPPORTED_EXT:
             continue
 
-        # Detect phase and client from folder structure
-        rel_path  = str(f.relative_to(RAW_DIR))
-        phase     = detect_phase(rel_path)
-        client    = detect_client_from_path(rel_path)
+        rel_path       = str(f.relative_to(RAW_DIR))
+        phase          = detect_phase(rel_path)
+        agent_role     = detect_agent_role(rel_path)
+        deliverable    = detect_deliverable_type(rel_path)
+        content_type   = detect_content_type(f.name)
 
-        log.info("Processing: %s [phase=%s, client=%s]", f.name, phase, client)
+        log.info("Processing: %s [phase=%s, agent=%s, deliverable=%s]",
+                 f.name, phase, agent_role, deliverable)
 
         text   = extract_text(f)
         text   = mask(text)
         chunks = chunk(text)
 
-        doc_id = hashlib.md5(rel_path.encode()).hexdigest()[:8]
-
-        # Save chunks in phase-organised subfolders
-        phase_dir = CHUNKS_DIR / phase
-        phase_dir.mkdir(parents=True, exist_ok=True)
+        doc_id    = hashlib.md5(rel_path.encode()).hexdigest()[:8]
+        chunk_dir = CHUNKS_DIR / phase / agent_role
+        chunk_dir.mkdir(parents=True, exist_ok=True)
 
         for idx, c in enumerate(chunks):
-            out = phase_dir / f"{doc_id}_{idx:04d}.json"
+            out = chunk_dir / f"{doc_id}_{idx:04d}.json"
             out.write_text(json.dumps({
-                "id":          f"{doc_id}_{idx:04d}",
-                "source":      f.name,
-                "relative_path": rel_path,
-                "phase":       phase,
-                "client":      "[CLIENT]",   # never store actual client name
-                "chunk_index": idx,
-                "total_chunks": len(chunks),
-                "text":        c,
-                "ingested_at": datetime.utcnow().isoformat() + "Z",
+                "id":              f"{doc_id}_{idx:04d}",
+                "source":          f.name,
+                "relative_path":   rel_path,
+                "phase":           phase,
+                "agent_role":      agent_role,
+                "deliverable_type": deliverable,
+                "content_type":    content_type,
+                "client":          "[CLIENT]",
+                "chunk_index":     idx,
+                "total_chunks":    len(chunks),
+                "text":            c,
+                "ingested_at":     datetime.utcnow().isoformat() + "Z",
             }, ensure_ascii=False, indent=2))
 
         total_chunks += len(chunks)
         total_files  += 1
-        log.info("  -> %d chunks saved to chunks/%s/", len(chunks), phase)
+        log.info("  -> %d chunks saved to chunks/%s/%s/", len(chunks), phase, agent_role)
 
     log.info("Done. %d files, %d chunks across phases:", total_files, total_chunks)
-    for phase_dir in sorted(CHUNKS_DIR.iterdir()):
-        if phase_dir.is_dir():
-            count = len(list(phase_dir.glob("*.json")))
-            log.info("  %-12s %d chunks", phase_dir.name + ":", count)
-    log.info("Next: run Bedrock Titan embeddings once IAM role is ready.")
+    for p_dir in sorted(CHUNKS_DIR.rglob("*.json")):
+        pass  # counted below
+    for p_dir in sorted(CHUNKS_DIR.iterdir()):
+        if p_dir.is_dir():
+            count = len(list(p_dir.rglob("*.json")))
+            log.info("  %-12s %d chunks", p_dir.name + ":", count)
+    log.info("Next: run Bedrock Titan embeddings.")
 
 # ── TOKEN CACHE ───────────────────────────────────────────────────────────────
 def _load_cache():
@@ -358,9 +447,13 @@ def process_graph():
         name        = item["name"]
         folder_path = item.get("_folder_path", "")
         phase       = detect_phase(folder_path)
+        agent_role  = detect_agent_role(folder_path)
+        deliverable = detect_deliverable_type(folder_path)
+        content_type = detect_content_type(name)
         dest        = RAW_DIR / name
 
-        log.info("Downloading: %s [phase=%s]", name, phase)
+        log.info("Downloading: %s [phase=%s, agent=%s, deliverable=%s]",
+                 name, phase, agent_role, deliverable)
         download(token, did, item["id"], dest)
 
         text   = extract_text(dest)
@@ -368,32 +461,35 @@ def process_graph():
         chunks = chunk(text)
 
         doc_id    = hashlib.md5(f"{folder_path}/{name}".encode()).hexdigest()[:8]
-        phase_dir = CHUNKS_DIR / phase
-        phase_dir.mkdir(parents=True, exist_ok=True)
+        chunk_dir = CHUNKS_DIR / phase / agent_role
+        chunk_dir.mkdir(parents=True, exist_ok=True)
 
         for idx, c in enumerate(chunks):
-            out = phase_dir / f"{doc_id}_{idx:04d}.json"
+            out = chunk_dir / f"{doc_id}_{idx:04d}.json"
             out.write_text(json.dumps({
-                "id":           f"{doc_id}_{idx:04d}",
-                "source":       name,
-                "folder_path":  folder_path,
-                "phase":        phase,
-                "client":       "[CLIENT]",
-                "chunk_index":  idx,
-                "total_chunks": len(chunks),
-                "text":         c,
-                "ingested_at":  datetime.utcnow().isoformat() + "Z",
+                "id":              f"{doc_id}_{idx:04d}",
+                "source":          name,
+                "folder_path":     folder_path,
+                "phase":           phase,
+                "agent_role":      agent_role,
+                "deliverable_type": deliverable,
+                "content_type":    content_type,
+                "client":          "[CLIENT]",
+                "chunk_index":     idx,
+                "total_chunks":    len(chunks),
+                "text":            c,
+                "ingested_at":     datetime.utcnow().isoformat() + "Z",
             }, ensure_ascii=False, indent=2))
 
         total_chunks += len(chunks)
         total_files  += 1
-        log.info("  -> %d chunks [phase=%s]", len(chunks), phase)
+        log.info("  -> %d chunks [phase=%s, agent=%s]", len(chunks), phase, agent_role)
 
     log.info("Done. %d files, %d total chunks.", total_files, total_chunks)
-    for phase_dir in sorted(CHUNKS_DIR.iterdir()):
-        if phase_dir.is_dir():
-            count = len(list(phase_dir.glob("*.json")))
-            log.info("  %-12s %d chunks", phase_dir.name + ":", count)
+    for p_dir in sorted(CHUNKS_DIR.iterdir()):
+        if p_dir.is_dir():
+            count = len(list(p_dir.rglob("*.json")))
+            log.info("  %-12s %d chunks", p_dir.name + ":", count)
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 def main():
