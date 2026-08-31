@@ -52,8 +52,9 @@ MAX_CHARS   = 40_000                                        # Titan v2 ~8k token
 
 # Metadata fields carried from each chunk into the index sidecar.
 _META_FIELDS = [
-    "id", "source", "phase", "agent_role", "deliverable_type", "content_type",
-    "relative_path", "folder_path", "scope_item_id", "lob", "business_area",
+    "id", "source", "source_system", "phase", "agent_role", "deliverable_type",
+    "content_type", "relative_path", "folder_path", "scope_item_id", "lob",
+    "business_area",
 ]
 
 logging.basicConfig(level=logging.INFO,
@@ -109,6 +110,7 @@ def load_chunks(limit=None):
         if not text:
             continue
         meta = {k: data[k] for k in _META_FIELDS if k in data}
+        meta.setdefault("source_system", "sharepoint")   # multi-source tag
         meta["chunk_file"] = str(fp.relative_to(BRAIN_DIR))
         yield text, meta
 
@@ -139,6 +141,7 @@ def load_scope_items(limit=None):
         yield text, {
             "id":               f"scope_{it['scope_item_id']}",
             "source":           "SAP Scope Item Catalog",
+            "source_system":    "sap_scope_catalog",
             "scope_item_id":    it["scope_item_id"],
             "lob":              (it.get("classifications") or [{}])[0].get("lob"),
             "business_area":    (it.get("classifications") or [{}])[0].get("business_area"),
@@ -155,62 +158,64 @@ def main():
     ap.add_argument("--limit", type=int, default=None, help="Only embed the first N chunks (smoke test)")
     ap.add_argument("--dim", type=int, default=EMBED_DIM, help="Embedding dimensions (256/512/1024)")
     ap.add_argument("--no-scope", action="store_true", help="Skip the SAP scope-item catalog")
+    ap.add_argument("--backend", default=None, help="Vector store: faiss (default) | pgvector")
     args = ap.parse_args()
 
-    try:
-        import faiss
-        import numpy as np
-    except ImportError:
-        sys.exit("faiss/numpy not installed. Run: pip3.11 install boto3 faiss-cpu numpy")
+    from vectorstore import get_store    # pluggable backend (faiss/pgvector)
+    backend = (args.backend or os.environ.get("BRAIN_BACKEND", "faiss")).lower()
 
     client = bedrock_client()
-    log.info("Bedrock region=%s model=%s dim=%d", REGION, MODEL_ID, args.dim)
+    log.info("Bedrock region=%s model=%s dim=%d backend=%s", REGION, MODEL_ID, args.dim, backend)
+    try:
+        store = get_store(args.dim, load=False, backend=backend)
+    except ImportError as e:
+        sys.exit(f"Backend '{backend}' deps missing: {e}")
 
     sources = [("chunks", load_chunks(limit=args.limit))]
     if not args.no_scope:
         sources.append(("scope items", load_scope_items(limit=args.limit)))
 
-    vectors, metas = [], []
+    metas = []
     n = 0
     for label, gen in sources:
         start = n
+        buf_vecs, buf_metas = [], []
         for text, meta in gen:
-            vec = embed_text(client, text, args.dim)
-            vectors.append(vec)
-            metas.append(meta)
+            buf_vecs.append(embed_text(client, text, args.dim))
+            buf_metas.append(meta)
             n += 1
-            if n % 100 == 0:
+            if len(buf_vecs) >= 200:              # flush in batches (scales to huge corpora)
+                store.add(buf_vecs, buf_metas)
+                metas.extend(buf_metas); buf_vecs, buf_metas = [], []
                 log.info("  embedded %d...", n)
+        if buf_vecs:
+            store.add(buf_vecs, buf_metas)
+            metas.extend(buf_metas)
         log.info("  %s: %d embedded", label, n - start)
 
-    if not vectors:
+    if not metas:
         sys.exit("Nothing to embed. Run the ingest first "
                  "(python3.11 scripts/sharepoint_ingest.py --local).")
 
-    arr = np.array(vectors, dtype="float32")
-    index = faiss.IndexFlatIP(arr.shape[1])   # cosine via inner product on normed vecs
-    index.add(arr)
+    store.persist()
 
-    INDEX_DIR.mkdir(parents=True, exist_ok=True)
-    faiss.write_index(index, str(INDEX_PATH))
-    META_PATH.write_text(json.dumps(metas, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # breakdowns for the manifest
     def tally(field):
         out = {}
         for m in metas:
             out[m.get(field, "?")] = out.get(m.get(field, "?"), 0) + 1
         return dict(sorted(out.items(), key=lambda x: -x[1]))
 
+    INDEX_DIR.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps({
-        "model": MODEL_ID, "region": REGION, "dimensions": arr.shape[1],
-        "total_vectors": len(metas), "built_utc": datetime.now(timezone.utc).isoformat(),
+        "model": MODEL_ID, "region": REGION, "dimensions": args.dim, "backend": backend,
+        "total_vectors": store.count(), "built_utc": datetime.now(timezone.utc).isoformat(),
+        "by_source_system": tally("source_system"),
         "by_phase": tally("phase"), "by_agent_role": tally("agent_role"),
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    log.info("Done. %d vectors -> %s", len(metas), INDEX_PATH.relative_to(BASE_DIR))
-    log.info("Phases: %s", tally("phase"))
-    log.info("Agents: %s", tally("agent_role"))
+    log.info("Done. %d vectors via %s backend.", store.count(), backend)
+    log.info("Sources: %s", tally("source_system"))
+    log.info("Phases:  %s", tally("phase"))
 
 
 if __name__ == "__main__":

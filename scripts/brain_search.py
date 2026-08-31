@@ -35,19 +35,19 @@ MAX_CHARS  = 40_000
 
 @lru_cache(maxsize=1)
 def _load():
-    """Load and cache the FAISS index + metadata + Bedrock client."""
+    """Load and cache the vector store (pluggable backend) + Bedrock client."""
     try:
-        import faiss, boto3          # noqa: F401
+        import boto3
     except ImportError:
         sys.exit("Missing deps. Run: pip3.11 install boto3 faiss-cpu numpy")
-    if not INDEX_PATH.exists():
-        sys.exit(f"No index at {INDEX_PATH}. Build it first: "
-                 f"python3.11 scripts/embed_chunks.py")
-    index = faiss.read_index(str(INDEX_PATH))
-    metas = json.loads(META_PATH.read_text(encoding="utf-8"))
+    from vectorstore import get_store
+    backend = os.environ.get("BRAIN_BACKEND", "faiss").lower()
+    try:
+        store = get_store(0, load=True, backend=backend)   # dim inferred on load
+    except FileNotFoundError as e:
+        sys.exit(str(e))
     client = boto3.client("bedrock-runtime", region_name=REGION)
-    dim = index.d
-    return index, metas, client, dim
+    return store, client, getattr(store, "dim", 1024)
 
 
 def _embed_query(client, text, dim):
@@ -56,43 +56,22 @@ def _embed_query(client, text, dim):
     return json.loads(resp["body"].read())["embedding"]
 
 
-def search(query, k=5, phase=None, agent_role=None, deliverable_type=None):
+def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
+           source_system=None):
     """Return the top-k brain chunks for a query, optionally filtered by metadata.
 
-    Each hit: {score, id, source, phase, agent_role, deliverable_type, text_ref}.
-    Filters are applied after the vector search, so we over-fetch to keep k results.
+    Filters (applied by the backend): phase, agent_role, deliverable_type,
+    source_system (sharepoint / sap_scope_catalog / accelerator_hub / ...).
+    Each hit: {score, id, source, source_system, phase, agent_role, ...}.
     """
-    import numpy as np
-    index, metas, client, dim = _load()
-
-    filters = {"phase": phase, "agent_role": agent_role, "deliverable_type": deliverable_type}
-    active  = {f: v for f, v in filters.items() if v}
-    # over-fetch when filtering so enough survive; cap at corpus size
-    fetch = min(len(metas), k * 20 if active else k)
-
-    qv = np.array([_embed_query(client, query, dim)], dtype="float32")
-    scores, ids = index.search(qv, fetch)
-
-    hits = []
-    for score, idx in zip(scores[0], ids[0]):
-        if idx < 0:
-            continue
-        m = metas[idx]
-        if any(str(m.get(f, "")).lower() != str(v).lower() for f, v in active.items()):
-            continue
-        hits.append({
-            "score":            round(float(score), 4),
-            "id":               m.get("id"),
-            "source":           m.get("source"),
-            "phase":            m.get("phase"),
-            "agent_role":       m.get("agent_role"),
-            "deliverable_type": m.get("deliverable_type"),
-            "scope_item_id":    m.get("scope_item_id"),
-            "chunk_file":       m.get("chunk_file"),
-        })
-        if len(hits) >= k:
-            break
-    return hits
+    store, client, dim = _load()
+    qvec = _embed_query(client, query, dim)
+    filters = {"phase": phase, "agent_role": agent_role,
+               "deliverable_type": deliverable_type, "source_system": source_system}
+    raw = store.search(qvec, k, filters=filters)
+    keep = ("score", "id", "source", "source_system", "phase", "agent_role",
+            "deliverable_type", "scope_item_id", "chunk_file")
+    return [{k2: h.get(k2) for k2 in keep} for h in raw]
 
 
 def _read_chunk_text(chunk_file):
@@ -110,11 +89,14 @@ def main():
     ap.add_argument("--phase", help="Filter: Discover/Prepare/Explore/Realize/Deploy/Run")
     ap.add_argument("--agent", dest="agent_role", help="Filter: e.g. build_agent, qe_agent")
     ap.add_argument("--deliverable", dest="deliverable_type", help="Filter: e.g. test_strategy")
+    ap.add_argument("--source", dest="source_system",
+                    help="Filter: sharepoint | sap_scope_catalog | accelerator_hub | ...")
     ap.add_argument("--text", action="store_true", help="Print the matched chunk text")
     args = ap.parse_args()
 
     hits = search(args.query, k=args.k, phase=args.phase,
-                  agent_role=args.agent_role, deliverable_type=args.deliverable_type)
+                  agent_role=args.agent_role, deliverable_type=args.deliverable_type,
+                  source_system=args.source_system)
     if not hits:
         print("No matches (check filters or that the index is built).")
         return

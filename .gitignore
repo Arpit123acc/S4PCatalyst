@@ -10,6 +10,12 @@ output/
 input/*
 !input/Smart Search FD.md
 !input/Supplier PO Status Viewer FD.md
+
+# Public Cloud Brain — never publish. brain/sharepoint/raw/ holds the harvested
+# CLIENT documents; chunks/ holds masked derivatives; index/ holds the embeddings;
+# plus ingest logs and the SharePoint OAuth token cache. All runtime-generated and/or
+# client-derived. (The public SAP scope catalog lives in mcp-server/catalog/, tracked.)
+brain/
 node_modules/
 *.code-workspace
 webapp/data/btp-connection.json

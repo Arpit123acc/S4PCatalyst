@@ -55,6 +55,7 @@ def tool_search_brain(args):
             phase=args.get("phase"),
             agent_role=args.get("agent_role"),
             deliverable_type=args.get("deliverable_type"),
+            source_system=args.get("source_system"),
         )
     except SystemExit as exc:                     # brain_search exits if index absent
         return {"error": "Brain index not ready: %s" % exc}
@@ -86,7 +87,8 @@ TOOLS = {
             "top_k":            {"type": "integer", "description": "Number of results (default 5)"},
             "phase":            {"type": "string", "description": "Filter: Discover/Prepare/Explore/Realize/Deploy/Run"},
             "agent_role":       {"type": "string", "description": "Filter: e.g. build_agent, qe_agent, pmo_agent"},
-            "deliverable_type": {"type": "string", "description": "Filter: e.g. functional_design, test_strategy"}},
+            "deliverable_type": {"type": "string", "description": "Filter: e.g. functional_design, test_strategy"},
+            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | accelerator_hub | ..."}},
             "required": ["query"]},
         "handler": tool_search_brain,
     },
