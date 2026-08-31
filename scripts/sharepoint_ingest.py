@@ -34,6 +34,7 @@ Install:
 import os
 import sys
 import json
+import shutil
 import hashlib
 import logging
 import re
@@ -846,12 +847,27 @@ def process_graph():
             count = len(list(p_dir.rglob("*.json")))
             log.info("  %-12s %d chunks", p_dir.name + ":", count)
 
+# ── CLEAN ─────────────────────────────────────────────────────────────────────
+def clean_chunks():
+    """Wipe the chunks output dir so a re-run has no stale/mis-classified chunks.
+    Never touches raw/ (the uploaded source documents are preserved)."""
+    if CHUNKS_DIR.exists():
+        shutil.rmtree(CHUNKS_DIR)
+        log.info("Cleaned chunks dir: %s", CHUNKS_DIR)
+    CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
+
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", action="store_true",
                         help="Process files already in brain/sharepoint/raw/ (POC mode)")
+    parser.add_argument("--clean", action="store_true",
+                        help="Wipe chunks/ before ingest (avoids stale chunks from "
+                             "earlier runs with old masking/classification). raw/ is kept.")
     args = parser.parse_args()
+
+    if args.clean:
+        clean_chunks()
 
     if args.local:
         log.info("Running in LOCAL mode — processing files from %s", RAW_DIR)
