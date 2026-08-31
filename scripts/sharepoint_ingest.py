@@ -63,89 +63,166 @@ SUPPORTED_EXT = {".docx", ".pdf", ".pptx", ".txt", ".md", ".xlsx"}
 # ── PHASES ────────────────────────────────────────────────────────────────────
 PHASES = ["prepare", "explore", "realize", "deploy", "run"]
 
+# Phase keyword hints from filenames (when no phase folder exists)
+_PHASE_HINTS = [
+    ("prepare",  ["project charter", "kick off", "ko deck", "onboarding", "raci",
+                  "sow", "statement of work", "orion", "dda", "digital discovery",
+                  "roles matrix", "authorization matrix", "sterco"]),
+    ("explore",  ["kdd", "fit to standard", "f2s", "f2s deck", "workshop",
+                  "business process", "wricef", "architecture design",
+                  "solution confirmation", "user stor"]),
+    ("realize",  ["functional design", " fd ", "fd -", "fd sample", "tdd", "td ",
+                  "technical design", "rap", "cap code", "ui code", "form wizard",
+                  "interface", "iflow", "integration", "data migration",
+                  "data strategy", "data cleansing", "test strategy", "test case",
+                  "test script", "test data", "defect resolver", "code quality",
+                  "technical strategy"]),
+    ("deploy",   ["change impact", "change strategy", "training material", "kut",
+                  "eut", "communication template", "cutover", "copy reference",
+                  "talent agent", "deployment"]),
+    ("run",      ["run support", "incident", "service request", "release impact",
+                  "knowledge steward", "autonomous ops"]),
+]
+
 def detect_phase(path_str: str) -> str:
     p = path_str.lower()
+    # Folder name takes priority
     for phase in PHASES:
-        if phase in p:
+        if f"/{phase}/" in f"/{p}/" or p.startswith(phase + "/"):
+            return phase.capitalize()
+    # Fallback: filename keyword hints
+    for phase, hints in _PHASE_HINTS:
+        if any(h in p for h in hints):
             return phase.capitalize()
     return "General"
 
 # ── AGENT ROLES ───────────────────────────────────────────────────────────────
-_AGENT_ROLE_MAP = [
-    ("pmo_agent",                   "PMO_Agent"),
-    ("security_agent",              "Security_Agent"),
-    ("solution_confirmation_agent", "Solution_Confirmation_Agent"),
-    ("functional_agent",            "Functional_Agent"),
-    ("build_agent",                 "Build_Agent"),
-    ("data_agent",                  "Data_Agent"),
-    ("qe_agent",                    "QE_Agent"),
-    ("change_talent_agent",         "Change_Talent_Agent"),
-    ("deployment_agent",            "Deployment_Agent"),
-    ("run_support_agent",           "Run_Support_Agent"),
+# Each entry: (agent_role_key, [keywords to match in path or filename])
+_AGENT_ROLE_KEYWORDS = [
+    ("pmo_agent", [
+        "pmo_agent", "pmo agent", "project charter", "kick off", "ko deck",
+        "l4 plan", "l4plan", "onboarding kit", "onboarding", "sterco",
+        "raci", "sow", "statement of work", "project sow",
+    ]),
+    ("security_agent", [
+        "security_agent", "security agent", "orion agent", "roles matrix",
+        "authorization matrix", "role requirement", "roles & author",
+    ]),
+    ("solution_confirmation_agent", [
+        "solution_confirmation_agent", "solution confirmation",
+        "business process", "fit to standard", "f2s", "f2s deck",
+        "kdd", "digital discovery", "dda", "workshop", "wricef",
+        "architecture design", "user stor", "bdcq",
+    ]),
+    ("functional_agent", [
+        "functional_agent", "functional agent",
+        "functional design", " fd ", "fd -", "fd sample", "fd_",
+        "config wizard", "config rationale",
+    ]),
+    ("build_agent", [
+        "build_agent", "build agent",
+        "technical design", "tdd", " td ", "td ref", "td_",
+        "rap code", "cap code", "ui code", "form wizard",
+        "interface functional", "interface spec", "interface mapper",
+        "iflow", "integration iflow", "technical strategy",
+        "code quality", "impact analysis",
+    ]),
+    ("data_agent", [
+        "data_agent", "data agent",
+        "data migration", "data strategy", "data cleansing",
+        "data enrichment", "data profiler", "adcmc", "migration approach",
+    ]),
+    ("qe_agent", [
+        "qe_agent", "qe agent", "quality engineering",
+        "test strategy", "test case", "test script", "test data",
+        "test plan", "defect resolver", "defect resolution",
+    ]),
+    ("change_talent_agent", [
+        "change_talent_agent", "change talent",
+        "change impact", "change strategy", "training material",
+        "training plan", "kut ", "eut ", "communication template",
+        "talent agent",
+    ]),
+    ("deployment_agent", [
+        "deployment_agent", "deployment agent",
+        "cutover", "cutover plan", "copy reference", "task generator",
+    ]),
+    ("run_support_agent", [
+        "run_support_agent", "run support",
+        "defect resolver", "incident resolution", "service request",
+        "release impact", "knowledge steward", "autonomous ops",
+    ]),
 ]
 
 def detect_agent_role(path_str: str) -> str:
     p = path_str.lower()
-    for role_key, _ in _AGENT_ROLE_MAP:
-        if role_key in p:
+    for role_key, keywords in _AGENT_ROLE_KEYWORDS:
+        if any(kw in p for kw in keywords):
             return role_key
     return "general"
 
 # ── DELIVERABLE TYPES ─────────────────────────────────────────────────────────
-_DELIVERABLE_MAP = [
-    ("project_charter",         "project_charter"),
-    ("ko_deck",                 "kickoff_deck"),
-    ("l4_plan",                 "project_plan"),
-    ("onboarding",              "onboarding_kit"),
-    ("raci",                    "raci_matrix"),
-    ("sow",                     "statement_of_work"),
-    ("roles",                   "roles_authorization"),
-    ("business_process",        "business_process_design"),
-    ("fit_to_standard",         "fit_to_standard"),
-    ("kdd",                     "kdd"),
-    ("workshop",                "workshop_analysis"),
-    ("wricef",                  "wricef_inventory"),
-    ("functional_design",       "functional_design"),
-    ("fd",                      "functional_design"),
-    ("config",                  "configuration"),
-    ("technical_design",        "technical_design"),
-    ("td",                      "technical_design"),
-    ("rap_code",                "rap_code"),
-    ("cap_code",                "cap_code"),
-    ("ui_code",                 "ui_code"),
-    ("form_wizard",             "form_wizard"),
-    ("interface",               "interface_spec"),
-    ("iflow",                   "integration_iflow"),
-    ("data_strategy",           "data_strategy"),
-    ("data_migration",          "data_migration"),
-    ("data_profiler",           "data_profiler"),
-    ("test_strategy",           "test_strategy"),
-    ("test_case",               "test_cases"),
-    ("test_data",               "test_data"),
-    ("change_impact",           "change_impact"),
-    ("change_strategy",         "change_strategy"),
-    ("training",                "training_material"),
-    ("communication",           "communication_template"),
-    ("cutover",                 "cutover_plan"),
-    ("copy_reference",          "copy_reference"),
-    ("defect",                  "defect_resolution"),
-    ("knowledge",               "knowledge_base"),
-    ("incident",                "incident_resolution"),
+# Each entry: (deliverable_type, [keywords to match])
+_DELIVERABLE_KEYWORDS = [
+    ("project_charter",          ["project charter"]),
+    ("kickoff_deck",             ["kick off", "ko deck", "kickoff"]),
+    ("project_plan",             ["l4 plan", "l4plan", "project plan", "milestone"]),
+    ("onboarding_kit",           ["onboarding kit", "onboarding"]),
+    ("raci_matrix",              ["raci"]),
+    ("statement_of_work",        ["sow", "statement of work", "project sow"]),
+    ("roles_authorization",      ["roles matrix", "role requirement", "authorization matrix",
+                                  "roles & author"]),
+    ("discovery_assessment",     ["dda", "digital discovery", "discovery assessment"]),
+    ("business_process_design",  ["business process design", "business process"]),
+    ("fit_to_standard",          ["fit to standard", "f2s deck", "f2s ", "f2sdeck"]),
+    ("kdd",                      ["kdd deck", "kdd "]),
+    ("workshop_analysis",        ["workshop analysis", "design workshop", "workshop deck"]),
+    ("wricef_inventory",         ["wricef"]),
+    ("architecture_design",      ["architecture design"]),
+    ("functional_design",        ["functional design", " fd ", "fd -", "fd sample", "fd_"]),
+    ("configuration",            ["config wizard", "config rationale", "configuration"]),
+    ("technical_design",         ["technical design", "tdd ref", " tdd ", " td ref"]),
+    ("rap_code",                 ["rap code", "rap template"]),
+    ("cap_code",                 ["cap code", "cap template"]),
+    ("ui_code",                  ["ui code", "ui template", "fiori"]),
+    ("form_wizard",              ["form wizard", "adobe form", "form template"]),
+    ("interface_spec",           ["interface functional", "interface spec", "interface mapper",
+                                  "interface template"]),
+    ("integration_iflow",        ["iflow", "integration iflow", "integration flow"]),
+    ("technical_strategy",       ["technical strategy"]),
+    ("data_strategy",            ["data strategy"]),
+    ("data_migration",           ["data migration", "migration approach", "migration agent"]),
+    ("data_profiler",            ["data profiler", "adcmc"]),
+    ("data_cleansing",           ["data cleansing", "data enrichment"]),
+    ("test_strategy",            ["test strategy"]),
+    ("test_cases",               ["test case", "test script", "test scenario"]),
+    ("test_data",                ["test data"]),
+    ("change_impact",            ["change impact"]),
+    ("change_strategy",          ["change strategy"]),
+    ("training_material",        ["training material", "training plan", "kut ", "eut "]),
+    ("communication_template",   ["communication template"]),
+    ("cutover_plan",             ["cutover plan", "cutover approach"]),
+    ("copy_reference",           ["copy reference"]),
+    ("defect_resolution",        ["defect resolver", "defect resolution"]),
+    ("knowledge_base",           ["knowledge steward", "knowledge base"]),
+    ("incident_resolution",      ["incident resolution", "service request"]),
+    ("release_impact",           ["release impact"]),
 ]
 
 def detect_deliverable_type(path_str: str) -> str:
     p = path_str.lower()
-    for keyword, deliverable in _DELIVERABLE_MAP:
-        if keyword in p:
+    for deliverable, keywords in _DELIVERABLE_KEYWORDS:
+        if any(kw in p for kw in keywords):
             return deliverable
     return "reference_document"
 
 # ── CONTENT TYPE ──────────────────────────────────────────────────────────────
 _CONTENT_TYPE_KEYWORDS = {
-    "template": ["template", "templ", "blank", "format"],
-    "example":  ["sample", "example", "demo", "ver 1", "ver1"],
-    "reference": ["reference", "ref ", "guide", "handbook", "playbook"],
+    "template":    ["template", "templ", "blank", "format"],
+    "example":     ["sample", "example", "demo", "ver 1", "ver1", "ver 2", "ver2"],
+    "reference":   ["reference", "ref ", "guide", "handbook", "playbook"],
     "methodology": ["approach", "strategy", "framework", "methodology", "process"],
+    "assessment":  ["assessment", "results", "discovery", "analysis", "dda"],
 }
 
 def detect_content_type(filename: str) -> str:
