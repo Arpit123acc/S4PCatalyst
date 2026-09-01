@@ -191,6 +191,13 @@ def http_server(port=3001):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+            elif self.path in ("/mcp", "/"):
+                # Streamable HTTP spec: GET /mcp is for server-initiated messages.
+                # We don't push events, so return 405 — client should POST instead.
+                self.send_response(405)
+                self.send_header("Allow", "POST, OPTIONS")
+                self._cors()
+                self.end_headers()
             else:
                 self.send_error(404)
 
@@ -208,6 +215,7 @@ def http_server(port=3001):
 
             msg_id = msg.get("id")
             if msg_id is None:
+                # Notification — acknowledge without body
                 self.send_response(202)
                 self._cors()
                 self.end_headers()
@@ -223,15 +231,32 @@ def http_server(port=3001):
                 reply = {"jsonrpc": "2.0", "id": msg_id,
                          "error": {"code": -32603, "message": str(exc)}}
 
-            body = json.dumps(reply, ensure_ascii=False).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self._cors()
-            if msg.get("method") == "initialize":
-                self.send_header("Mcp-Session-Id", str(uuid.uuid4()))
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            # MCP Streamable HTTP: respond with SSE when client requests it (Claude Code does).
+            accept = self.headers.get("Accept", "")
+            body_json = json.dumps(reply, ensure_ascii=False)
+            session_id = str(uuid.uuid4()) if msg.get("method") == "initialize" else None
+
+            if "text/event-stream" in accept:
+                sse_body = ("data: " + body_json + "\n\n").encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self._cors()
+                if session_id:
+                    self.send_header("Mcp-Session-Id", session_id)
+                self.send_header("Content-Length", str(len(sse_body)))
+                self.end_headers()
+                self.wfile.write(sse_body)
+            else:
+                body_bytes = body_json.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self._cors()
+                if session_id:
+                    self.send_header("Mcp-Session-Id", session_id)
+                self.send_header("Content-Length", str(len(body_bytes)))
+                self.end_headers()
+                self.wfile.write(body_bytes)
 
     class _ThreadedServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
