@@ -116,10 +116,12 @@ def main():
                     m.get("source_system")) == (phase, agent, deliv, src_sys):
                 continue
             changed += 1
-            if args.dry_run:
-                continue
+            # update in memory always, so the "after" tally is accurate even in a
+            # dry run; only the on-disk writes below are gated by --dry-run
             m["phase"], m["agent_role"], m["deliverable_type"] = phase, agent, deliv
             m["source_system"], m["scope_item_id"] = src_sys, scope
+            if args.dry_run:
+                continue
             cf = m.get("chunk_file")                    # keep the chunk JSON consistent
             if cf:
                 fp = BRAIN_DIR / cf
