@@ -10,10 +10,11 @@ instance profile. It degrades gracefully: if the deps or index are missing, the
 tool returns a helpful message instead of crashing.
 
 Exposes one tool:
-    search_brain(query, top_k?, phase?, agent_role?, deliverable_type?)
+    search_brain(query, top_k?, phase?, agent_role?, deliverable_type?,
+                 source_system?, dedup?)
         → top matching chunks from the SharePoint delivery docs + SAP scope
-          catalog, with phase/agent/source metadata. All content was PII-masked
-          at ingest.
+          catalog, with phase/agent/source metadata. Deduplicates to distinct
+          source documents by default. All content was PII-masked at ingest.
 
 Run (registered via .mcp.json), or standalone:
     python3.11 mcp-server/brain_server.py --tool search_brain '{"query":"cutover plan"}'
@@ -56,6 +57,7 @@ def tool_search_brain(args):
             agent_role=args.get("agent_role"),
             deliverable_type=args.get("deliverable_type"),
             source_system=args.get("source_system"),
+            dedup_source=bool(args.get("dedup", True)),   # distinct docs by default (agent grounding)
         )
     except SystemExit as exc:                     # brain_search exits if index absent
         return {"error": "Brain index not ready: %s" % exc}
@@ -88,7 +90,8 @@ TOOLS = {
             "phase":            {"type": "string", "description": "Filter: Discover/Prepare/Explore/Realize/Deploy/Run"},
             "agent_role":       {"type": "string", "description": "Filter: e.g. build_agent, qe_agent, pmo_agent"},
             "deliverable_type": {"type": "string", "description": "Filter: e.g. functional_design, test_strategy"},
-            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | accelerator_hub | ..."}},
+            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | accelerator_hub | ..."},
+            "dedup":            {"type": "boolean", "description": "Collapse to one hit per source document (default true)"}},
             "required": ["query"]},
         "handler": tool_search_brain,
     },
