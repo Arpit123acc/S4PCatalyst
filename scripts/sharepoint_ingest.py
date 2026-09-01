@@ -142,6 +142,20 @@ _PHASE_HINTS = [
     ]),
 ]
 
+def _kw_hit(hay: str, keywords) -> bool:
+    """True if any keyword appears in hay (already lowercased). Short single-token
+    keywords (<=4 chars, no space) require word boundaries so they don't match
+    inside larger words — e.g. 'iam' in 'Miami', 'rap' in 'paragraph', 'sow' in
+    'sows'. Multi-word / longer keywords use plain substring matching."""
+    for kw in keywords:
+        if len(kw) <= 4 and " " not in kw:
+            if re.search(rf'(?<![a-z0-9]){re.escape(kw)}(?![a-z0-9])', hay):
+                return True
+        elif kw in hay:
+            return True
+    return False
+
+
 def detect_phase(path_str: str, text: str = "") -> str:
     p = path_str.lower().replace("\\", "/")
     # Folder name takes priority — matches plain (Realize/), numbered (4.Realize/),
@@ -153,7 +167,7 @@ def detect_phase(path_str: str, text: str = "") -> str:
     # generically-named doc (e.g. "Glossary.xlsx") is classified by what's inside.
     hay = p + "\n" + text[:_CONTENT_SCAN].lower()
     for phase, hints in _PHASE_HINTS:
-        if any(h in hay for h in hints):
+        if _kw_hit(hay, hints):
             return phase.capitalize()
     return "General"
 
@@ -164,7 +178,9 @@ def detect_phase(path_str: str, text: str = "") -> str:
 # (e.g. 1MR_S4CLD2402_BPD_EN_US.docx). These are SAP STANDARD reference content —
 # separated from client delivery docs (source_system=sap_bpd, phase=Reference) and
 # linked back to the scope catalog by the scope item ID in the filename.
-_BPD_RE = re.compile(r"^([0-9A-Z]{2,4})_S4CLD\d+_BPD", re.IGNORECASE)
+# Tolerate a leading "BPD " label and both release strings (S4CLD… and S4HANA…),
+# e.g. "BPD 35F_S4CLD2308_BPD_EN_US.docx", "2Q2_S4HANA2023_BPD_EN_XX.docx".
+_BPD_RE = re.compile(r"^(?:BPD[\s_-]+)?([0-9A-Z]{2,4})_S4(?:CLD|HANA)\d+_BPD", re.IGNORECASE)
 
 def detect_sap_bpd(filename: str):
     """Return the scope item ID if the file is an SAP-standard BPD, else None."""
@@ -231,7 +247,7 @@ _AGENT_ROLE_KEYWORDS = [
 def detect_agent_role(path_str: str, text: str = "") -> str:
     hay = path_str.lower() + "\n" + text[:_CONTENT_SCAN].lower()
     for role_key, keywords in _AGENT_ROLE_KEYWORDS:
-        if any(kw in hay for kw in keywords):
+        if _kw_hit(hay, keywords):
             return role_key
     return "general"
 
@@ -286,7 +302,7 @@ _DELIVERABLE_KEYWORDS = [
 def detect_deliverable_type(path_str: str, text: str = "") -> str:
     hay = path_str.lower() + "\n" + text[:_CONTENT_SCAN].lower()
     for deliverable, keywords in _DELIVERABLE_KEYWORDS:
-        if any(kw in hay for kw in keywords):
+        if _kw_hit(hay, keywords):
             return deliverable
     return "reference_document"
 

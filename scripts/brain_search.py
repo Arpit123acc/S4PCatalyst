@@ -62,18 +62,31 @@ def _embed_query(client, text, dim):
 
 
 def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
-           source_system=None):
+           source_system=None, dedup_source=False):
     """Return the top-k brain chunks for a query, optionally filtered by metadata.
 
     Filters (applied by the backend): phase, agent_role, deliverable_type,
     source_system (sharepoint / sap_scope_catalog / accelerator_hub / ...).
+    dedup_source=True collapses to one hit per source document (keeps the
+    highest-scoring chunk of each), so one big file can't fill every slot.
     Each hit: {score, id, source, source_system, phase, agent_role, ...}.
     """
     store, client, dim = _load()
     qvec = _embed_query(client, query, dim)
     filters = {"phase": phase, "agent_role": agent_role,
                "deliverable_type": deliverable_type, "source_system": source_system}
-    raw = store.search(qvec, k, filters=filters)
+    fetch = k * 8 if dedup_source else k          # over-fetch, then collapse dupes
+    raw = store.search(qvec, fetch, filters=filters)
+    if dedup_source:
+        seen, unique = set(), []
+        for h in raw:                             # raw is score-ordered → first wins
+            if h.get("source") in seen:
+                continue
+            seen.add(h.get("source"))
+            unique.append(h)
+            if len(unique) >= k:
+                break
+        raw = unique
     keep = ("score", "id", "source", "source_system", "phase", "agent_role",
             "deliverable_type", "scope_item_id", "chunk_file")
     return [{k2: h.get(k2) for k2 in keep} for h in raw]
@@ -96,12 +109,14 @@ def main():
     ap.add_argument("--deliverable", dest="deliverable_type", help="Filter: e.g. test_strategy")
     ap.add_argument("--source", dest="source_system",
                     help="Filter: sharepoint | sap_scope_catalog | accelerator_hub | ...")
+    ap.add_argument("--dedup", action="store_true",
+                    help="Collapse to one hit per source document")
     ap.add_argument("--text", action="store_true", help="Print the matched chunk text")
     args = ap.parse_args()
 
     hits = search(args.query, k=args.k, phase=args.phase,
                   agent_role=args.agent_role, deliverable_type=args.deliverable_type,
-                  source_system=args.source_system)
+                  source_system=args.source_system, dedup_source=args.dedup)
     if not hits:
         print("No matches (check filters or that the index is built).")
         return
