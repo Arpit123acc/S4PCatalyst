@@ -101,7 +101,7 @@ _PHASE_HINTS = [
         "analytics planning", "analytics design", "solution design workshop",
         "show-and-tell", "show and tell", "kdd", "workshop", "business process",
         "wricef", "architecture design", "solution confirmation", "user stor",
-        "customer execution", "standard processes", "bpd",
+        "customer execution", "standard processes",
     ]),
     ("realize",  [
         "required configuration", "solution configuration", "incremental build",
@@ -142,12 +142,13 @@ _PHASE_HINTS = [
 ]
 
 def detect_phase(path_str: str) -> str:
-    p = path_str.lower()
-    # Folder name takes priority
+    p = path_str.lower().replace("\\", "/")
+    # Folder name takes priority — matches plain (Realize/), numbered (4.Realize/),
+    # or prefixed (5.Deploy/) folder names anywhere in the path.
     for phase in PHASES:
-        if f"/{phase}/" in f"/{p}/" or p.startswith(phase + "/"):
+        if re.search(rf'(?:^|/)\d*\.?{phase}(?:/|$)', p):
             return phase.capitalize()
-    # Fallback: filename keyword hints
+    # Fallback: filename / content keyword hints
     for phase, hints in _PHASE_HINTS:
         if any(h in p for h in hints):
             return phase.capitalize()
