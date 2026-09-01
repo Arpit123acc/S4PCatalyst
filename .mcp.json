@@ -4,13 +4,7 @@
       "command": "python",
       "args": ["mcp-server/server.py"],
       "env": {
-        "S4PC_MODE": "offline"
-      }
-    },
-    "s4pc-brain": {
-      "command": "python",
-      "args": ["mcp-server/brain_server.py"],
-      "env": {
+        "S4PC_MODE": "offline",
         "AWS_REGION": "us-east-1"
       }
     }

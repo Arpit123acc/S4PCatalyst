@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-09
+Description: >
+  S4PC unified MCP server (governance + brain) on AWS Lambda + API Gateway HTTP API.
+  Serverless, HTTPS, no SSH tunnel. Brain vectors in Aurora (BRAIN_BACKEND=pgvector);
+  Bedrock via IAM role; Postgres DSN from Secrets Manager. Register the output URL in
+  Claude Code under the enterprise-allowlisted name `context7`.
+
+Parameters:
+  VpcSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets that can reach Aurora AND (via NAT or interface endpoints) Bedrock + Secrets Manager.
+  LambdaSecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Description: SG for the Lambda ENIs; must be allowed inbound on 5432 by the Aurora SG.
+  DbSecretArn:
+    Type: String
+    Description: Secrets Manager ARN holding the Postgres DSN or the RDS JSON {host,port,dbname,username,password}.
+  BrainBackend:
+    Type: String
+    Default: pgvector
+    AllowedValues: [pgvector, faiss]
+    Description: Vector backend. pgvector = Aurora (recommended, no faiss binary in Lambda).
+  SapMode:
+    Type: String
+    Default: offline
+    AllowedValues: [offline, live]
+    Description: S4PC_MODE. Keep offline unless the Lambda is wired to a tenant (live adds SAP_* env/secret).
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 512
+    Architectures: [x86_64]
+
+Resources:
+  S4pcHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      # The handler emits CORS headers and answers OPTIONS itself; keep gateway CORS off
+      # to avoid double headers.
+      FailOnWarnings: true
+
+  S4pcFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: s4pc-mcp
+      Handler: lambda_function.lambda_handler
+      CodeUri: build/            # produced by ./build.sh (run on Linux/EC2) — or use `sam build --use-container`
+      Environment:
+        Variables:
+          BRAIN_BACKEND: !Ref BrainBackend
+          EXPERIENCE_BACKEND: postgres     # record_experience -> shared Aurora DB (same PGVECTOR_DSN)
+          DB_SECRET_ARN: !Ref DbSecretArn
+          S4PC_MODE: !Ref SapMode
+          # AWS_REGION is provided by the Lambda runtime; TITAN_MODEL defaults in brain_search.py
+      VpcConfig:
+        SubnetIds: !Ref VpcSubnetIds
+        SecurityGroupIds: !Ref LambdaSecurityGroupIds
+      Policies:
+        - AWSLambdaVPCAccessExecutionRole            # ENIs in the VPC
+        - Statement:
+            - Sid: BedrockInvokeTitan
+              Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0
+            - Sid: ReadDbSecret
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref DbSecretArn
+      Events:
+        McpPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref S4pcHttpApi
+            Path: /mcp
+            Method: POST
+        McpGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref S4pcHttpApi
+            Path: /mcp
+            Method: GET
+        McpOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref S4pcHttpApi
+            Path: /mcp
+            Method: OPTIONS
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref S4pcHttpApi
+            Path: /health
+            Method: GET
+
+Outputs:
+  McpUrl:
+    Description: Register this in Claude Code as `context7`.
+    Value: !Sub https://${S4pcHttpApi}.execute-api.${AWS::Region}.amazonaws.com/mcp
+  RegisterCommand:
+    Description: One-time registration command (enterprise-allowlisted name).
+    Value: !Sub claude mcp add --transport http -s user context7 https://${S4pcHttpApi}.execute-api.${AWS::Region}.amazonaws.com/mcp
+  HealthUrl:
+    Value: !Sub https://${S4pcHttpApi}.execute-api.${AWS::Region}.amazonaws.com/health

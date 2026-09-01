@@ -1,0 +1,5 @@
+# S4PC Lambda deps — pgvector backend ONLY (no faiss on Lambda).
+# boto3 (Bedrock + Secrets Manager) is already provided by the Lambda Python runtime.
+# psycopg2-binary ships a manylinux wheel with libpq bundled — build on Linux (EC2)
+# or with `sam build --use-container` so the wheel matches the Lambda x86_64 runtime.
+psycopg2-binary==2.9.9

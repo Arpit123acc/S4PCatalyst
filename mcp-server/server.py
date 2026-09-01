@@ -55,7 +55,26 @@ CATALOG_APIS = _catalog_db.load_apis()
 CATALOG_BADIS = _catalog_db.load_badis()
 CATALOG_CDS   = _catalog_db.load_cds_views()
 LINT_RULES    = _catalog_db.load_lint_rules()
-EXPERIENCE    = _catalog_db.load_experience()
+
+# Experience store backend: sqlite (default — local/EC2, writes catalog.db + git seed) or
+# postgres (serverless — writes the shared Aurora DB, same PGVECTOR_DSN as the brain, so
+# record_experience works on Lambda's read-only filesystem). Default keeps the local/EC2 POC
+# byte-for-byte; postgres is opt-in via EXPERIENCE_BACKEND. Falls back to the sqlite seed if
+# postgres can't be reached, so the server always boots. (log_stderr isn't defined yet here.)
+_EXP_BACKEND = os.environ.get("EXPERIENCE_BACKEND", "sqlite").lower()
+_exp_store = _catalog_db
+if _EXP_BACKEND == "postgres":
+    try:
+        import experience_pg as _exp_store          # catalog/ already on sys.path
+        EXPERIENCE = _exp_store.load_experience()
+    except Exception as _eexc:
+        sys.stderr.write("[s4pc-mcp] EXPERIENCE_BACKEND=postgres unavailable (%s) — "
+                         "falling back to sqlite seed (read-mostly)\n" % _eexc)
+        sys.stderr.flush()
+        _EXP_BACKEND, _exp_store = "sqlite", _catalog_db
+        EXPERIENCE = _catalog_db.load_experience()
+else:
+    EXPERIENCE = _catalog_db.load_experience()
 
 # Authoritative documentation sources — cite these in every solution.
 REFERENCE_LINKS = {
@@ -155,10 +174,18 @@ GUARD = CONFIG.get("guardrails", {})
 MODE = os.environ.get("S4PC_MODE", CONFIG.get("mode", {}).get("default", "offline")).lower()
 ALLOW_WRITES = os.environ.get("S4PC_ALLOW_WRITES", "").lower() == "true" and GUARD.get("allow_writes", False)
 
-LOG_DIR = os.path.join(BASE_DIR, "logs")
+# On AWS Lambda the deployment package (BASE_DIR) is read-only — observability must go to
+# /tmp, the only writable path. Activates ONLY when AWS_LAMBDA_FUNCTION_NAME is set, so the
+# EC2 / local / stdio POC paths keep their existing logs/ location byte-for-byte.
+if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    LOG_DIR = "/tmp/s4pc-logs"
+    AUDIT_PATH = os.path.join(LOG_DIR, "audit.jsonl")
+    METRICS_PATH = os.path.join(LOG_DIR, "metrics.json")
+else:
+    LOG_DIR = os.path.join(BASE_DIR, "logs")
+    AUDIT_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("audit_log", "logs/audit.jsonl"))
+    METRICS_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("metrics_file", "logs/metrics.json"))
 os.makedirs(LOG_DIR, exist_ok=True)
-AUDIT_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("audit_log", "logs/audit.jsonl"))
-METRICS_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("metrics_file", "logs/metrics.json"))
 
 # --------------------------------------------------------- observability ---
 
@@ -511,6 +538,9 @@ def tool_extensibility_advisor(args):
     }
 
 def _save_experience(entry):
+    if _EXP_BACKEND == "postgres":
+        _exp_store.append_experience(entry)         # Aurora is the store; git seed exported nightly
+        return
     _catalog_db.append_experience(entry)
     _catalog_db.sync_experience_to_seed(entry)  # auto-sync seed so git diff is always ready
 
@@ -1153,6 +1183,11 @@ SERVER_INSTRUCTIONS = """S/4HANA Cloud PUBLIC Edition clean-core server. Rules f
     BAdIs linked by shared business concept). Use get_area_map to see the complete released-object landscape
     for a business area. Call sync_object_graph (offline) or sync_object_graph+live_enrich (live mode) after
     catalog changes to keep the graph current.
+12. Use search_brain (semantic RAG over the harvested SharePoint delivery knowledge + SAP scope catalog,
+    Bedrock Titan embeddings) to GROUND a deliverable in prior delivery experience. It is a reference layer,
+    NOT an authoritative object source — every SAP object name it surfaces still goes through
+    check_object_release_state and is re-verified on api.sap.com / the Custom Logic app / ADT. If it is
+    unavailable (deps/index absent on this host), continue with the governance tools — they are independent.
 """
 
 PROMPTS = {
@@ -1812,6 +1847,23 @@ TOOLS["scope_item_dependencies"] = {
         "required": ["scope_item_id"]},
     "handler": tool_scope_item_dependencies,
 }
+
+# ── Digital Brain (semantic RAG): merge the brain_server.py tool(s) ────────────
+# One unified MCP server so a SINGLE enterprise-allowlisted registration exposes
+# BOTH the offline governance tools above AND the Bedrock+FAISS brain search. The
+# brain's handlers share this server's contract (handler(args) -> dict, wrapped by
+# make_result), so they slot straight into TOOLS. Degrades gracefully: if the brain
+# deps/index are absent (e.g. running locally, not on the EC2/Bedrock host), the
+# tool returns a helpful message — the governance tools are unaffected.
+try:
+    if BASE_DIR not in sys.path:
+        sys.path.insert(0, BASE_DIR)
+    import brain_server as _brain_mod
+    for _bname, _bspec in _brain_mod.TOOLS.items():
+        TOOLS.setdefault(_bname, _bspec)
+    log_stderr("brain tools registered: %s" % ", ".join(sorted(_brain_mod.TOOLS)))
+except Exception as _bexc:
+    log_stderr("brain tools NOT registered (%s) — governance tools unaffected" % _bexc)
 
 def main():
     _METRICS["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
