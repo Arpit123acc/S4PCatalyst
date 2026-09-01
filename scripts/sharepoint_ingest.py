@@ -655,6 +655,68 @@ def chunk(text: str) -> list:
         i += CHUNK_WORDS - CHUNK_OVERLAP
     return chunks
 
+def _safe_str(s: str) -> str:
+    """Repair a filename/path carrying non-UTF-8 bytes (surrogate escapes from
+    Windows/Mac encodings — e.g. an en-dash saved as byte 0x96) so it can be
+    logged, stored in JSON, and read back as clean UTF-8 without a
+    UnicodeEncodeError. Undecodable bytes collapse to '?'."""
+    return s.encode("utf-8", "replace").decode("utf-8")
+
+
+def _ingest_one_local(f) -> int:
+    """Ingest a single local file into chunk JSONs. Returns the chunk count.
+    Raising is fine — the caller skips the file and keeps going."""
+    rel_path_raw   = str(f.relative_to(RAW_DIR))   # may hold surrogate bytes
+    rel_path       = _safe_str(rel_path_raw)        # clean UTF-8 for logs/JSON
+    safe_name      = _safe_str(f.name)
+    bpd_scope      = detect_sap_bpd(safe_name)
+    if bpd_scope:                       # SAP standard BPD — reference, not delivery
+        source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
+        deliverable, scope_item_id = "business_process_doc", bpd_scope
+    else:                               # client delivery document
+        source_system, scope_item_id = "sharepoint", None
+        phase       = detect_phase(rel_path)
+        agent_role  = detect_agent_role(rel_path)
+        deliverable = detect_deliverable_type(rel_path)
+    content_type   = detect_content_type(safe_name)
+
+    log.info("Processing: %s [src=%s, phase=%s, agent=%s, deliverable=%s%s]",
+             safe_name, source_system, phase, agent_role, deliverable,
+             f", scope={scope_item_id}" if scope_item_id else "")
+
+    text   = extract_text(f)
+    text   = mask(text)
+    chunks = chunk(text)
+
+    # hash the raw path (surrogatepass) so IDs stay unique even when a bad
+    # byte collapsed to '?' in the display name
+    doc_id    = hashlib.md5(rel_path_raw.encode("utf-8", "surrogatepass")).hexdigest()[:8]
+    chunk_dir = CHUNKS_DIR / phase / agent_role
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+
+    for idx, c in enumerate(chunks):
+        out = chunk_dir / f"{doc_id}_{idx:04d}.json"
+        out.write_text(json.dumps({
+            "id":              f"{doc_id}_{idx:04d}",
+            "source":          safe_name,
+            "source_system":   source_system,
+            "relative_path":   rel_path,
+            "phase":           phase,
+            "agent_role":      agent_role,
+            "deliverable_type": deliverable,
+            "content_type":    content_type,
+            "scope_item_id":   scope_item_id,
+            "client":          "[CLIENT]",
+            "chunk_index":     idx,
+            "total_chunks":    len(chunks),
+            "text":            c,
+            "ingested_at":     datetime.utcnow().isoformat() + "Z",
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    log.info("  -> %d chunks saved to chunks/%s/%s/", len(chunks), phase, agent_role)
+    return len(chunks)
+
+
 # ── LOCAL MODE (POC — files already on EC2) ───────────────────────────────────
 def process_local():
     """Process files already in brain/sharepoint/raw/ — no Graph API needed."""
@@ -665,57 +727,21 @@ def process_local():
     CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
     total_chunks, total_files = 0, 0
 
+    skipped = 0
     for f in sorted(RAW_DIR.rglob("*")):
         if not f.is_file() or f.suffix.lower() not in SUPPORTED_EXT:
             continue
-
-        rel_path       = str(f.relative_to(RAW_DIR))
-        bpd_scope      = detect_sap_bpd(f.name)
-        if bpd_scope:                       # SAP standard BPD — reference, not delivery
-            source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
-            deliverable, scope_item_id = "business_process_doc", bpd_scope
-        else:                               # client delivery document
-            source_system, scope_item_id = "sharepoint", None
-            phase       = detect_phase(rel_path)
-            agent_role  = detect_agent_role(rel_path)
-            deliverable = detect_deliverable_type(rel_path)
-        content_type   = detect_content_type(f.name)
-
-        log.info("Processing: %s [src=%s, phase=%s, agent=%s, deliverable=%s%s]",
-                 f.name, source_system, phase, agent_role, deliverable,
-                 f", scope={scope_item_id}" if scope_item_id else "")
-
-        text   = extract_text(f)
-        text   = mask(text)
-        chunks = chunk(text)
-
-        doc_id    = hashlib.md5(rel_path.encode()).hexdigest()[:8]
-        chunk_dir = CHUNKS_DIR / phase / agent_role
-        chunk_dir.mkdir(parents=True, exist_ok=True)
-
-        for idx, c in enumerate(chunks):
-            out = chunk_dir / f"{doc_id}_{idx:04d}.json"
-            out.write_text(json.dumps({
-                "id":              f"{doc_id}_{idx:04d}",
-                "source":          f.name,
-                "source_system":   source_system,
-                "relative_path":   rel_path,
-                "phase":           phase,
-                "agent_role":      agent_role,
-                "deliverable_type": deliverable,
-                "content_type":    content_type,
-                "scope_item_id":   scope_item_id,
-                "client":          "[CLIENT]",
-                "chunk_index":     idx,
-                "total_chunks":    len(chunks),
-                "text":            c,
-                "ingested_at":     datetime.utcnow().isoformat() + "Z",
-            }, ensure_ascii=False, indent=2))
-
-        total_chunks += len(chunks)
+        try:
+            n = _ingest_one_local(f)
+        except Exception as e:                 # one bad file never kills the run
+            log.warning("Skipping %s: %s", _safe_str(f.name), e)
+            skipped += 1
+            continue
+        total_chunks += n
         total_files  += 1
-        log.info("  -> %d chunks saved to chunks/%s/%s/", len(chunks), phase, agent_role)
 
+    if skipped:
+        log.warning("Skipped %d file(s) due to errors — see warnings above.", skipped)
     log.info("Done. %d files, %d chunks across phases:", total_files, total_chunks)
     for p_dir in sorted(CHUNKS_DIR.rglob("*.json")):
         pass  # counted below
