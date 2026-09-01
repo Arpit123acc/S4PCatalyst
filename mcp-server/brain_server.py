@@ -158,8 +158,96 @@ def cli():
         sys.exit(2)
     print(json.dumps(TOOLS[name]["handler"](json.loads(raw)), indent=2, ensure_ascii=False))
 
+def http_server(port=3001):
+    """Streamable-HTTP MCP transport — run on EC2, forward via SSH tunnel.
+    On EC2:  nohup python3.11 mcp-server/brain_server.py --http 3001 > brain/http.out 2>&1 &
+    Locally: SSH tunnel localhost:3001 -> EC2:3001  (see start-brain-tunnel.bat)
+    Register: claude mcp add s4pc-brain --transport http http://localhost:3001/mcp
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from socketserver import ThreadingMixIn
+    import uuid
+
+    class _Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            pass
+
+        def _cors(self):
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id")
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._cors()
+            self.end_headers()
+
+        def do_GET(self):
+            if self.path == "/health":
+                body = json.dumps({"status": "ok", "server": SERVER_NAME}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self._cors()
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_error(404)
+
+        def do_POST(self):
+            if self.path not in ("/mcp", "/"):
+                self.send_error(404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length)
+                msg = json.loads(raw)
+            except Exception as exc:
+                self.send_error(400, "Bad request: %s" % exc)
+                return
+
+            msg_id = msg.get("id")
+            if msg_id is None:
+                self.send_response(202)
+                self._cors()
+                self.end_headers()
+                return
+
+            try:
+                result = handle_request(msg)
+                reply = {"jsonrpc": "2.0", "id": msg_id, "result": result}
+            except ValueError as exc:
+                reply = {"jsonrpc": "2.0", "id": msg_id,
+                         "error": {"code": -32601, "message": str(exc)}}
+            except Exception as exc:
+                reply = {"jsonrpc": "2.0", "id": msg_id,
+                         "error": {"code": -32603, "message": str(exc)}}
+
+            body = json.dumps(reply, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._cors()
+            if msg.get("method") == "initialize":
+                self.send_header("Mcp-Session-Id", str(uuid.uuid4()))
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    class _ThreadedServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+
+    sys.stderr.write("[s4pc-brain] HTTP MCP server starting on port %d\n" % port)
+    sys.stderr.write("[s4pc-brain] Register: claude mcp add s4pc-brain --transport http http://localhost:%d/mcp\n" % port)
+    sys.stderr.flush()
+    srv = _ThreadedServer(("0.0.0.0", port), _Handler)
+    srv.serve_forever()
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--tool":
         cli()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--http":
+        port = int(sys.argv[2]) if len(sys.argv) > 2 else 3001
+        http_server(port)
     else:
         main()

@@ -1875,7 +1875,97 @@ def cli():
     sys.stdout.buffer.flush()
     sys.exit(0 if ok else 1)
 
+def http_server(port=3000):
+    """Streamable-HTTP MCP transport — for enterprise environments that block stdio servers.
+    Run locally: python mcp-server/server.py --http [port]
+    Then register: claude mcp add s4pc --transport http http://localhost:<port>/mcp
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from socketserver import ThreadingMixIn
+    import uuid
+
+    class _Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            pass  # suppress per-request logs; audit() captures what matters
+
+        def _cors(self):
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id")
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._cors()
+            self.end_headers()
+
+        def do_GET(self):
+            if self.path == "/health":
+                body = json.dumps({"status": "ok", "server": "s4pc", "mode": MODE}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self._cors()
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_error(404)
+
+        def do_POST(self):
+            if self.path not in ("/mcp", "/"):
+                self.send_error(404)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length)
+                msg = json.loads(raw)
+            except Exception as exc:
+                self.send_error(400, "Bad request: %s" % exc)
+                return
+
+            msg_id = msg.get("id")
+            if msg_id is None:
+                # Notification — acknowledge without a body
+                self.send_response(202)
+                self._cors()
+                self.end_headers()
+                return
+
+            try:
+                result = handle_request(msg)
+                reply = {"jsonrpc": "2.0", "id": msg_id, "result": result}
+            except ValueError as exc:
+                reply = {"jsonrpc": "2.0", "id": msg_id,
+                         "error": {"code": -32601, "message": str(exc)}}
+            except Exception as exc:
+                reply = {"jsonrpc": "2.0", "id": msg_id,
+                         "error": {"code": -32603, "message": "Internal error: %s" % exc}}
+
+            body = json.dumps(reply, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self._cors()
+            if msg.get("method") == "initialize":
+                self.send_header("Mcp-Session-Id", str(uuid.uuid4()))
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    class _ThreadedServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+
+    _METRICS["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    audit("server_start", {"mode": MODE, "transport": "http", "port": port})
+    log_stderr("HTTP MCP server started on port %d (mode=%s)" % (port, MODE))
+    log_stderr("Register with: claude mcp add s4pc --transport http http://localhost:%d/mcp" % port)
+    srv = _ThreadedServer(("0.0.0.0", port), _Handler)
+    srv.serve_forever()
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--tool":
         cli()
-    main()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--http":
+        port = int(sys.argv[2]) if len(sys.argv) > 2 else 3000
+        http_server(port)
+    else:
+        main()

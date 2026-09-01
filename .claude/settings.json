@@ -1,13 +1,24 @@
 {
-  "$comment": "Project-level Claude Code settings for the S4PC Catalyst. The hook below is a non-blocking clean-core guard — it logs ABAP code writes and flags classical / non-released patterns, but never blocks. macOS/Linux users: change 'python' to 'python3' if that is your interpreter.",
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import openpyxl; print\\('openpyxl OK'\\)\")",
+      "Bash(git commit -m ' *)",
+      "Bash(python -m spacy download en_core_web_sm)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "python .claude/hooks/clean_core_guard.py" }
+          {
+            "type": "command",
+            "command": "python .claude/hooks/clean_core_guard.py"
+          }
         ]
       }
     ]
-  }
+  },
+  "$comment": "Project-level Claude Code settings for the S4PC Catalyst. The hook below is a non-blocking clean-core guard — it logs ABAP code writes and flags classical / non-released patterns, but never blocks. macOS/Linux users: change 'python' to 'python3' if that is your interpreter."
 }
