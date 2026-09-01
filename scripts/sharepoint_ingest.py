@@ -142,13 +142,18 @@ _PHASE_HINTS = [
     ]),
 ]
 
+# Only these short tokens falsely match inside common words ('iam' in 'Miami'/
+# 'claim'; 'rap' in 'paragraph'/'therapy'). They alone require a word boundary —
+# every other keyword stays plain substring, so the validated content-based phase
+# distribution is preserved (a blanket boundary rule wrongly dumped ~15k chunks
+# back into General).
+_AMBIGUOUS_SHORT = {"iam", "rap"}
+
 def _kw_hit(hay: str, keywords) -> bool:
-    """True if any keyword appears in hay (already lowercased). Short single-token
-    keywords (<=4 chars, no space) require word boundaries so they don't match
-    inside larger words — e.g. 'iam' in 'Miami', 'rap' in 'paragraph', 'sow' in
-    'sows'. Multi-word / longer keywords use plain substring matching."""
+    """True if any keyword appears in hay (already lowercased). Tokens in
+    _AMBIGUOUS_SHORT must match on a word boundary; all others use substring."""
     for kw in keywords:
-        if len(kw) <= 4 and " " not in kw:
+        if kw in _AMBIGUOUS_SHORT:
             if re.search(rf'(?<![a-z0-9]){re.escape(kw)}(?![a-z0-9])', hay):
                 return True
         elif kw in hay:
