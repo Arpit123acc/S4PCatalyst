@@ -62,6 +62,7 @@ LOG_FILE   = BASE_DIR / "brain" / "ingest.log"
 CHUNK_WORDS   = 512
 CHUNK_OVERLAP = 64
 SUPPORTED_EXT = {".docx", ".pdf", ".pptx", ".txt", ".md", ".xlsx"}
+_CONTENT_SCAN = 20_000        # chars of doc text scanned for phase/role/deliverable hints
 
 # ── PHASES ────────────────────────────────────────────────────────────────────
 # SAP Activate: Discover / Prepare / Explore / Realize / Deploy / Run
@@ -141,16 +142,18 @@ _PHASE_HINTS = [
     ]),
 ]
 
-def detect_phase(path_str: str) -> str:
+def detect_phase(path_str: str, text: str = "") -> str:
     p = path_str.lower().replace("\\", "/")
     # Folder name takes priority — matches plain (Realize/), numbered (4.Realize/),
     # or prefixed (5.Deploy/) folder names anywhere in the path.
     for phase in PHASES:
         if re.search(rf'(?:^|/)\d*\.?{phase}(?:/|$)', p):
             return phase.capitalize()
-    # Fallback: filename / content keyword hints
+    # Fallback: keyword hints over the filename AND the document content, so a
+    # generically-named doc (e.g. "Glossary.xlsx") is classified by what's inside.
+    hay = p + "\n" + text[:_CONTENT_SCAN].lower()
     for phase, hints in _PHASE_HINTS:
-        if any(h in p for h in hints):
+        if any(h in hay for h in hints):
             return phase.capitalize()
     return "General"
 
@@ -225,10 +228,10 @@ _AGENT_ROLE_KEYWORDS = [
     ]),
 ]
 
-def detect_agent_role(path_str: str) -> str:
-    p = path_str.lower()
+def detect_agent_role(path_str: str, text: str = "") -> str:
+    hay = path_str.lower() + "\n" + text[:_CONTENT_SCAN].lower()
     for role_key, keywords in _AGENT_ROLE_KEYWORDS:
-        if any(kw in p for kw in keywords):
+        if any(kw in hay for kw in keywords):
             return role_key
     return "general"
 
@@ -280,10 +283,10 @@ _DELIVERABLE_KEYWORDS = [
     ("release_impact",           ["release impact"]),
 ]
 
-def detect_deliverable_type(path_str: str) -> str:
-    p = path_str.lower()
+def detect_deliverable_type(path_str: str, text: str = "") -> str:
+    hay = path_str.lower() + "\n" + text[:_CONTENT_SCAN].lower()
     for deliverable, keywords in _DELIVERABLE_KEYWORDS:
-        if any(kw in p for kw in keywords):
+        if any(kw in hay for kw in keywords):
             return deliverable
     return "reference_document"
 
@@ -669,23 +672,27 @@ def _ingest_one_local(f) -> int:
     rel_path_raw   = str(f.relative_to(RAW_DIR))   # may hold surrogate bytes
     rel_path       = _safe_str(rel_path_raw)        # clean UTF-8 for logs/JSON
     safe_name      = _safe_str(f.name)
+
+    # Extract + mask first, so classification can read the document content
+    # (not just the filename) — many delivery docs have generic names.
+    text   = extract_text(f)
+    text   = mask(text)
+
     bpd_scope      = detect_sap_bpd(safe_name)
     if bpd_scope:                       # SAP standard BPD — reference, not delivery
         source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
         deliverable, scope_item_id = "business_process_doc", bpd_scope
     else:                               # client delivery document
         source_system, scope_item_id = "sharepoint", None
-        phase       = detect_phase(rel_path)
-        agent_role  = detect_agent_role(rel_path)
-        deliverable = detect_deliverable_type(rel_path)
+        phase       = detect_phase(rel_path, text)
+        agent_role  = detect_agent_role(rel_path, text)
+        deliverable = detect_deliverable_type(rel_path, text)
     content_type   = detect_content_type(safe_name)
 
     log.info("Processing: %s [src=%s, phase=%s, agent=%s, deliverable=%s%s]",
              safe_name, source_system, phase, agent_role, deliverable,
              f", scope={scope_item_id}" if scope_item_id else "")
 
-    text   = extract_text(f)
-    text   = mask(text)
     chunks = chunk(text)
 
     # hash the raw path (surrogatepass) so IDs stay unique even when a bad
