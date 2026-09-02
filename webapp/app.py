@@ -2591,6 +2591,36 @@ def btp_cf_run(run_id, cf_args, label=None):
         _sh.rmtree(cf_home, ignore_errors=True)
 
 
+def _mcp_config_for_spawn():
+    """Resolve .mcp.json's interpreter to the one actually running this webapp.
+
+    The shipped .mcp.json uses "command": "python" for local dev, but that name does
+    not exist on every host (the Linux box has only python3 -> 3.9 and python3.11,
+    and the brain deps live on 3.11). When it cannot be launched, claude -p starts
+    with NO s4pc tools at all — every governance gate and the brain silently degrade
+    to the catalog fallback. Rewrite the command to sys.executable, which is by
+    definition the interpreter that imports this module's own deps.
+
+    Returns the path to pass to --mcp-config; falls back to the shipped file.
+    """
+    src = os.path.join(ROOT_DIR, ".mcp.json")
+    try:
+        with open(src, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        for srv in (cfg.get("mcpServers") or {}).values():
+            cmd = str(srv.get("command", ""))
+            # Only rewrite a bare interpreter name; leave an explicit path alone.
+            if os.path.basename(cmd).split(".")[0] in ("python", "python3", "py"):
+                srv["command"] = sys.executable
+        os.makedirs(ENGINE_LOG_DIR, exist_ok=True)
+        out = os.path.join(ENGINE_LOG_DIR, "mcp-resolved.json")
+        with open(out, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+        return out
+    except Exception:
+        return src
+
+
 def _spawn_claude(prompt, fd, kind, run_id=None):
     exe = engine_binary()
     if not exe:
@@ -2608,8 +2638,11 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
         allowed_tools += ["WebFetch", "WebSearch"]
         log_fh.write("[engine] side-by-side (BTP) run -> WebFetch/WebSearch enabled for developer-doc grounding\n")
         log_fh.flush()
+    mcp_cfg = _mcp_config_for_spawn()          # interpreter resolved to sys.executable
+    log_fh.write("[engine] mcp-config=%s\n" % mcp_cfg)
+    log_fh.flush()
     cmd = [exe, "-p", prompt, "--output-format", "stream-json", "--verbose",
-           "--mcp-config", ".mcp.json", "--strict-mcp-config",   # load ONLY the s4pc governance server
+           "--mcp-config", mcp_cfg, "--strict-mcp-config",   # load ONLY the s4pc governance server
            "--permission-mode", "acceptEdits", "--allowedTools"] + allowed_tools
     try:
         _env = dict(os.environ, **_btp_env())
