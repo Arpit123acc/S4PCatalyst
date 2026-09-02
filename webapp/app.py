@@ -2637,6 +2637,64 @@ def _mcp_config_for_spawn():
         return src
 
 
+MCP_MIN_TOOLS = 20          # 24 governance + search_brain; a real load is ~25
+
+def mcp_preflight(timeout=60):
+    """Confirm the MCP server the pipeline is about to spawn actually serves its tools.
+
+    This guards a failure mode that is invisible from the UI. Because claude -p runs with
+    --strict-mcp-config, a server that cannot launch does not error the run — the model
+    simply has no s4pc tools, falls back to the static JSON catalogs, and the run still
+    completes reporting PASS. Every gate (check_object_release_state, abap_cloud_lint) and
+    the whole Digital Brain go quiet with nothing surfacing to the operator.
+
+    Returns (ok, detail). Callers should refuse to start a run when ok is False rather
+    than produce a deliverable whose gates never ran.
+    """
+    cfg_path = _mcp_config_for_spawn()
+    try:
+        with open(cfg_path, encoding="utf-8") as fh:
+            servers = (json.load(fh).get("mcpServers") or {})
+        name, srv = next(iter(servers.items()))
+    except Exception as exc:
+        return False, "cannot read MCP config %s (%s)" % (cfg_path, exc)
+    cmd = [str(srv.get("command") or "")] + [str(a) for a in (srv.get("args") or [])]
+    if not cmd[0]:
+        return False, "MCP config %r has no command" % name
+    handshake = (
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":'
+        '"2024-11-05","capabilities":{},"clientInfo":{"name":"preflight","version":"1"}}}\n'
+        '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n')
+    env = dict(os.environ, **{str(k): str(v) for k, v in (srv.get("env") or {}).items()})
+    env.pop("ANTHROPIC_API_KEY", None)
+    try:
+        proc = subprocess.run(cmd, cwd=ROOT_DIR, input=handshake, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, timeout=timeout, env=env)
+    except OSError as exc:
+        # The classic case: .mcp.json names an interpreter that isn't installed.
+        return False, "cannot launch %s (%s)" % (" ".join(cmd), exc)
+    except subprocess.TimeoutExpired:
+        return False, "%s did not respond within %ss" % (cmd[0], timeout)
+    for line in (proc.stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            continue
+        if msg.get("id") != 2:
+            continue
+        tools = [t.get("name") for t in ((msg.get("result") or {}).get("tools") or [])]
+        if len(tools) < MCP_MIN_TOOLS:
+            return False, "MCP server served only %d tools (expected >= %d)" % (
+                len(tools), MCP_MIN_TOOLS)
+        return True, "%d tools, search_brain=%s" % (
+            len(tools), "search_brain" in tools)
+    return False, "no tools/list response from %s (stderr: %s)" % (
+        cmd[0], (proc.stderr or "").strip()[-300:] or "none")
+
+
 def _spawn_claude(prompt, fd, kind, run_id=None):
     exe = engine_binary()
     if not exe:
@@ -2840,6 +2898,13 @@ def pipeline_start(fd_path):
             return {"error": "FD file is empty or too short — add your Functional Design content first."}, 400
     except OSError as _e:
         return {"error": "Cannot read FD file: %s" % _e}, 400
+    # Refuse to start rather than produce a deliverable whose governance gates never ran.
+    _mcp_ok, _mcp_detail = mcp_preflight()
+    MCP.audit("mcp_preflight", {"ok": _mcp_ok, "detail": _mcp_detail, "fd": fd_path})
+    if not _mcp_ok:
+        return {"error": "MCP governance server is not available, so the release-state and "
+                         "ABAP-lint gates cannot run. Refusing to start — a run without these "
+                         "gates looks identical to a passing one. Detail: %s" % _mcp_detail}, 503
     try:
         rid = _seed_run_skeleton(fd_path)
     except Exception:
