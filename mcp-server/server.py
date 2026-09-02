@@ -377,6 +377,15 @@ def tool_check_object_release_state(args):
         "object_name": name,
         "verdict": "NOT_VERIFIED",
         "verified": False,
+        # How the verdict was reached. A verdict is only as good as its evidence:
+        #   rule                  — categorical clean-core rule (BAPI, classical table). Certain.
+        #   catalog_hit           — exact match in catalog.db (Hub-synced). Strong.
+        #   naming_heuristic_only — the NAME matches a released-object pattern and nothing else.
+        #                           Zero catalog backing, so it cannot distinguish a real released
+        #                           object missing from the catalog from a name that does not exist.
+        #   none                  — nothing matched.
+        "evidence": "none",
+        "requires_tenant_confirmation": True,
         "source": "seed catalogs + released-VDM naming heuristic — offline check",
         "released_objects_reference": refs,
         "how_to_verify": [
@@ -389,6 +398,7 @@ def tool_check_object_release_state(args):
     # Categorical clean-core NO — BAPIs
     if name.startswith("BAPI_") or obj_type == "bapi":
         result.update(verdict="NOT_AVAILABLE", verified=True,
+            evidence="rule", requires_tenant_confirmation=False,
             reason="BAPIs are not released in S/4HANA Cloud Public Edition. No exceptions.",
             alternative="Search released APIs for the same business object (search_released_apis).",
             source="SAP clean-core rule: only released APIs/BAdIs are consumable in Public Cloud")
@@ -397,21 +407,22 @@ def tool_check_object_release_state(args):
     tmap = _table_map()
     if name in tmap:
         result.update(verdict="NOT_AVAILABLE", verified=True,
+            evidence="rule", requires_tenant_confirmation=False,
             reason="Classical SAP table %s is not released for Public Cloud custom code." % name,
             alternative="Use released CDS view(s): %s (confirm C1 on the Released CDS Views list / ADT)." % ", ".join(tmap[name]))
         return result
     # Seed-catalog hits
     for api in (CATALOG_APIS.get("apis") or []):
         if (api.get("name") or "").upper() == name:
-            result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released APIs; confirm on the SAP Business Accelerator Hub.", details=api)
+            result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released APIs; confirm on the SAP Business Accelerator Hub.", details=api)
             return result
     for badi in (CATALOG_BADIS.get("badis") or []):
         if (badi.get("name") or "").upper() == name:
-            result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released BAdIs — availability still depends on your release/scope; confirm on the List of BAdIs.", details=badi)
+            result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released BAdIs — availability still depends on your release/scope; confirm on the List of BAdIs.", details=badi)
             return result
     for view in (CATALOG_CDS.get("views") or []):
         if (view.get("name") or "").upper() == name:
-            result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released CDS views; confirm C1 on the Released CDS Views list / ADT Released Objects.", details=view)
+            result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released CDS views; confirm C1 on the Released CDS Views list / ADT Released Objects.", details=view)
             return result
     # Naming-convention heuristic — do NOT dead-end standard released VDM views as NOT_VERIFIED.
     # Private views (P_*) are generally not released; interface/consumption views are.
@@ -423,27 +434,38 @@ def tool_check_object_release_state(args):
         return result
     if obj_type in ("cds", "cds_view", "view") or re.match(r"^[ICARE]_[A-Z0-9][A-Z0-9_]{2,}$", name):
         result.update(verdict="LIKELY_RELEASED", verified=False,
-            reason=("Not in the offline seed, but the name matches SAP's RELEASED VDM CDS-view convention "
+            evidence="naming_heuristic_only",
+            reason=("Not in the catalog, but the name matches SAP's RELEASED VDM CDS-view convention "
                     "(I_ interface / C_ consumption / A_ / R_ / E_ views) — the standard clean-core way to read "
-                    "S/4HANA data. Treat as released for design purposes and CONFIRM the exact view's C1 release "
-                    "on the Released CDS Views list / ADT Released Objects / View Browser before finalizing."),
-            note=("A seed miss is NOT 'unreleased'. Only NOT_AVAILABLE (BAPIs, classical tables, enhancement "
-                  "points, Smart Forms) forces a redesign — a CDS view marked LIKELY_RELEASED is a "
-                  "confirm-in-tenant item, not a blocker."))
+                    "S/4HANA data. Usable as a design placeholder, but this verdict rests on the NAME ALONE."),
+            evidence_warning=("NAME-PATTERN MATCH ONLY — no catalog entry backs this. The same verdict is "
+                              "returned for a view that does not exist, so it cannot be reported as 'released'. "
+                              "Cross-check with semantic_search / get_object_graph: if neither returns this view "
+                              "or a near neighbour, treat the NAME ITSELF as unconfirmed and say so explicitly "
+                              "in the deliverable."),
+            note=("A catalog miss is NOT 'unreleased'. Only NOT_AVAILABLE (BAPIs, classical tables, enhancement "
+                  "points, Smart Forms) forces a redesign — but a heuristic-only LIKELY_RELEASED is a "
+                  "MUST-confirm-in-tenant item and must appear in the tenant verification checklist."))
         return result
     # API-shaped names (OData / SOAP / event services) — confirm on the SAP Business Accelerator Hub.
     if obj_type in ("api", "odata", "soap", "service", "event") \
        or name.startswith(("API_", "CE_")) or name.endswith(("_SRV", "_IN", "_OUT")):
         result.update(verdict="LIKELY_RELEASED", verified=False,
-            reason=("Not in the offline seed, but the name matches SAP's released OData/SOAP/event API naming "
-                    "(API_*/*_SRV, SOAP *_IN/*_OUT, events CE_*). Released S/4HANA Cloud APIs are published on "
-                    "the SAP Business Accelerator Hub — treat as released for design and CONFIRM the exact "
-                    "service and its communication scenario on the Hub + the tenant Communication Arrangements "
-                    "app before use."),
+            evidence="naming_heuristic_only",
+            reason=("Not in the catalog, but the name matches SAP's released OData/SOAP/event API naming "
+                    "(API_*/*_SRV, SOAP *_IN/*_OUT, events CE_*). Usable as a design placeholder, but this "
+                    "verdict rests on the NAME ALONE."),
+            evidence_warning=("NAME-PATTERN MATCH ONLY — no catalog entry backs this. Any well-formed API_* "
+                              "string gets this verdict, including one that does not exist, so it cannot be "
+                              "reported as 'released'. Cross-check with search_released_apis on the business "
+                              "keywords (not the name): if that returns count 0, the NAME ITSELF is unconfirmed "
+                              "— state that in the deliverable and keep it as an open verification item rather "
+                              "than presenting it as a released object."),
             hub_overview_url="https://api.sap.com/api/%s/overview" % name,
             hub_all_apis_url=REFERENCE_LINKS["sap_business_accelerator_hub"]["url"],
-            note=("A seed miss is NOT 'unreleased'. Finalise every API against the SAP Business Accelerator Hub "
-                  "(api.sap.com) — the authoritative public list of released S/4HANA Cloud APIs."))
+            note=("A catalog miss is NOT 'unreleased'. Finalise every API against the SAP Business Accelerator "
+                  "Hub (api.sap.com) — the authoritative public list of released S/4HANA Cloud APIs. A "
+                  "heuristic-only verdict MUST appear in the tenant verification checklist."))
         return result
     # BAdI-shaped enhancement names not in the seed
     if obj_type == "badi" or re.match(r"^[A-Z]{2,}_[A-Z0-9_]{3,}$", name):
@@ -987,7 +1009,10 @@ TOOLS = {
         "description": ("Clean-core gate: check whether an object (BAPI, table, API, BAdI, CDS view) is usable in "
                         "S/4HANA Cloud Public Edition custom code. Returns NOT_AVAILABLE for BAPIs/classical tables "
                         "with the released alternative, LIKELY_RELEASED for catalog hits, NOT_VERIFIED otherwise. "
-                        "Call this for EVERY object referenced in a technical design."),
+                        "ALWAYS read the 'evidence' field alongside the verdict: 'catalog_hit' means a real entry "
+                        "backs it; 'naming_heuristic_only' means ONLY the name pattern matched, so a fabricated "
+                        "name returns the same verdict — cross-check it and report it as 'name unconfirmed', never "
+                        "as released. Call this for EVERY object referenced in a technical design."),
         "schema": {"type": "object", "properties": {
             "object_name": {"type": "string", "description": "e.g. BAPI_SALESORDER_CREATEFROMDAT2, VBAK, I_SalesDocument, API_BUSINESS_PARTNER"},
             "object_type": {"type": "string", "description": "Optional: bapi | table | api | badi | cds_view | auto"}},
