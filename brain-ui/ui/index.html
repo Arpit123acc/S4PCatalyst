@@ -243,6 +243,7 @@
     "url": "https://brain.example.com/mcp",
     "headers": { "x-api-key": "&lt;issued-key&gt;" } } } }</code></pre>
     <p class="note" id="prov"></p>
+    <p class="note" id="backup" style="border-top:0;padding-top:0;margin-top:6px"></p>
   </div>
 </div>
 
@@ -326,6 +327,18 @@ function renderTiles(s) {
     `Embeddings: ${s.embed_model} (${s.region}), via the host IAM role — no API keys. ` +
     `Backend: ${s.backend} (switch with BRAIN_BACKEND). All content PII-masked at ingest; ` +
     `re-verify any SAP object name on api.sap.com or SAP Help before use.`;
+
+  // brain/ is git-ignored and is not restored by bootstrap, so a stale backup would
+  // otherwise only be discovered at the moment a restore is needed. Show it here.
+  const bk = $("backup");
+  if (!bk) return;
+  if (s.backup_at) {
+    bk.innerHTML = `Last backup to S3: <b>${esc(s.backup_at)}</b> (${s.backup_age_hours}h ago)` +
+      (s.backup_stale ? ` — <b style="color:var(--critical)">STALE</b>, check the cron job` : "");
+  } else {
+    bk.innerHTML = `<b style="color:var(--critical)">No successful S3 backup recorded.</b> ` +
+      `Run <code>bash scripts/backup_brain.sh</code>.`;
+  }
 }
 
 function fillFilters(s) {

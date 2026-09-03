@@ -85,5 +85,30 @@ module.exports = {
       error_file: '/home/ec2-user/.pm2/logs/brain-ui-err.log',
       time: true,
     },
+    {
+      // Scheduled brain backup to S3 — NOT a long-running service.
+      //
+      // Why PM2 and not cron: this host has no cron at all (crond is inactive and
+      // crontab is not installed — Amazon Linux 2023 ships systemd timers instead),
+      // and adding a systemd timer needs sudo and would put a second scheduler on a
+      // box whose stated rule is one supervisor. PM2 is already here and already
+      // survives reboot via pm2-ec2-user.service.
+      //
+      // autorestart:false + cron_restart is the PM2 idiom for a periodic one-shot:
+      // PM2 launches it on the schedule, the script exits, and PM2 leaves it stopped
+      // until the next tick. A 'stopped' status for this entry is CORRECT, not a fault.
+      name: 'brain-backup',
+      cwd: '/home/ec2-user/s4pc',
+      script: 'scripts/backup_brain.sh',
+      interpreter: 'bash',
+      cron_restart: '15 2 * * *',       // 02:15 UTC daily
+      autorestart: false,
+      env: {
+        AWS_REGION: 'us-east-1',
+      },
+      out_file: '/home/ec2-user/.pm2/logs/brain-backup-out.log',
+      error_file: '/home/ec2-user/.pm2/logs/brain-backup-err.log',
+      time: true,
+    },
   ],
 };

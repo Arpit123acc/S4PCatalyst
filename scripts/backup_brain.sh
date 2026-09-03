@@ -72,6 +72,12 @@ if [ -z "$DRY" ]; then
   aws s3 cp "$MANIFEST" "s3://$BUCKET/$PREFIX/MANIFEST.txt" --only-show-errors
   rm -f "$MANIFEST"
   echo "== manifest written to s3://$BUCKET/$PREFIX/MANIFEST.txt"
+
+  # Success marker, read by brain-ui so a STALE backup is visible in the UI rather
+  # than being discovered when a restore is already needed. Written last, only on
+  # success — `set -e` means a failed sync never reaches this line, so an old
+  # timestamp is a truthful signal that the last run failed.
+  date -u +%Y-%m-%dT%H:%M:%SZ > brain/.last_backup
 fi
 
 echo "== done"

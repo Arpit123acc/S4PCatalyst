@@ -39,6 +39,11 @@ sys.path.insert(0, str(BASE_DIR / "scripts"))
 INDEX_DIR  = BASE_DIR / "brain" / "index"
 META_PATH  = INDEX_DIR / "metadata.json"
 INDEX_PATH = INDEX_DIR / "faiss.index"
+BACKUP_MARKER = BASE_DIR / "brain" / ".last_backup"   # written by scripts/backup_brain.sh
+
+# brain/ is git-ignored and not restored by bootstrap, so a stale backup is a real
+# risk that is otherwise invisible until a restore is needed. Surface its age here.
+BACKUP_STALE_HOURS = 36        # daily cron + headroom for one missed run
 
 # Facets worth charting. Order is the display order in the UI.
 FACETS = ("source_system", "phase", "agent_role", "deliverable_type", "content_type")
@@ -78,8 +83,25 @@ def build_stats():
         "scope_items":  len({m.get("scope_item_id") for m in metas if m.get("scope_item_id")}),
         "facets":       {f: _facet_counts(metas, f) for f in FACETS},
     }
+    stats.update(_backup_status())
     _stats_cache = stats
     return stats
+
+
+def _backup_status():
+    """Age of the last successful S3 backup. Not cached with the rest — it changes."""
+    import datetime
+    if not BACKUP_MARKER.exists():
+        return {"backup_at": None, "backup_age_hours": None, "backup_stale": True}
+    try:
+        ts = datetime.datetime.strptime(
+            BACKUP_MARKER.read_text(encoding="utf-8").strip(), "%Y-%m-%dT%H:%M:%SZ")
+    except Exception:
+        return {"backup_at": None, "backup_age_hours": None, "backup_stale": True}
+    age = (datetime.datetime.utcnow() - ts).total_seconds() / 3600.0
+    return {"backup_at": ts.strftime("%Y-%m-%d %H:%M UTC"),
+            "backup_age_hours": round(age, 1),
+            "backup_stale": age > BACKUP_STALE_HOURS}
 
 
 def run_search(payload):
@@ -153,6 +175,10 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(200, {"status": "ok", "service": "brain-explorer"})
         if path == "/api/stats":
             stats = build_stats()
+            if "error" not in stats:
+                # build_stats() is cached, but backup age must not be — re-read the
+                # marker each request or the UI would show a frozen "hours ago".
+                stats = dict(stats, **_backup_status())
             return self._send(500 if "error" in stats else 200, stats)
         return self._send(404, {"error": "not found"})
 
