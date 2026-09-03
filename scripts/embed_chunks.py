@@ -156,7 +156,12 @@ def load_scope_items(limit=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--limit", type=int, default=None, help="Only embed the first N chunks (smoke test)")
+    ap.add_argument("--limit", type=int, default=None,
+                    help="Only embed the first N chunks (smoke test). Will REFUSE to publish "
+                         "if that would shrink the live index — see --allow-shrink.")
+    ap.add_argument("--allow-shrink", action="store_true",
+                    help="Permit publishing an index smaller than the live one. Only for a "
+                         "deliberate rebuild from a reduced corpus.")
     ap.add_argument("--dim", type=int, default=EMBED_DIM, help="Embedding dimensions (256/512/1024)")
     ap.add_argument("--no-scope", action="store_true", help="Skip the SAP scope-item catalog")
     ap.add_argument("--backend", default=None, help="Vector store: faiss (default) | pgvector")
@@ -200,6 +205,26 @@ def main():
     if not metas:
         sys.exit("Nothing to embed. Run the ingest first "
                  "(python3.11 scripts/sharepoint_ingest.py --local).")
+
+    # A smoke test must never become a publish. `--limit 200` embeds 200 chunks and
+    # then persist() swaps them over the live index -- which is exactly how a
+    # 49,438-vector brain got replaced by a 200-vector one on 2026-09-03 (recovered
+    # from the .prev rollback copy). Refuse to shrink the index unless it is asked
+    # for explicitly. Same principle as the mismatch guard in vectorstore.persist():
+    # publishing something worse than what is already live is not a valid outcome.
+    existing = 0
+    if META_PATH.exists():
+        try:
+            existing = len(json.loads(META_PATH.read_text(encoding="utf-8")))
+        except Exception:
+            existing = 0
+    if existing > len(metas) and not args.allow_shrink:
+        sys.exit(
+            "REFUSING to publish: this build has %d vectors but the live index has %d.\n"
+            "  A partial build (--limit / --no-scope / a source that yielded nothing) would\n"
+            "  replace the whole brain. Re-run without --limit for a real rebuild, or pass\n"
+            "  --allow-shrink if you genuinely intend a smaller index.\n"
+            "  Nothing was written; the live index is untouched." % (len(metas), existing))
 
     store.persist()
 

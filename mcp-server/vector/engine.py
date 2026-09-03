@@ -126,12 +126,14 @@ def _build_bedrock(documents):
     with ThreadPoolExecutor(max_workers=8) as pool:   # 8 keeps well inside Bedrock limits
         list(pool.map(_one, range(len(texts))))
 
+    if any(v is None for v in vectors):
+        raise RuntimeError("%d of %d documents failed to embed — refusing to publish a "
+                           "partial index" % (sum(1 for v in vectors if v is None), len(vectors)))
     emb = np.array(vectors, dtype="float32")
-    np.save(EMBED_PATH, emb)
     meta = [{"id": d["id"], "type": d["type"], "metadata": d.get("metadata", {})}
             for d in documents]
-    _write_json(INDEX_PATH, {"engine": "bedrock", "model": TITAN_MODEL,
-                             "dim": TITAN_DIM, "docs": meta})
+    _publish(emb, {"engine": "bedrock", "model": TITAN_MODEL,
+                   "dim": TITAN_DIM, "docs": meta})
     return len(documents)
 
 
@@ -158,12 +160,11 @@ def _build_dense(documents):
         texts, batch_size=64, show_progress_bar=True,
         normalize_embeddings=True, convert_to_numpy=True,
     )
-    np.save(EMBED_PATH, emb.astype(np.float32))
     meta = [
         {"id": d["id"], "type": d["type"], "metadata": d.get("metadata", {})}
         for d in documents
     ]
-    _write_json(INDEX_PATH, {"engine": "dense", "model": MODEL_NAME, "docs": meta})
+    _publish(emb.astype(np.float32), {"engine": "dense", "model": MODEL_NAME, "docs": meta})
     return len(documents)
 
 
@@ -313,6 +314,44 @@ def _write_json(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, ensure_ascii=False, separators=(",", ":"))
+
+
+def _publish(matrix, header):
+    """Publish a matrix+metadata pair atomically: temp files, validate, swap.
+
+    Same hazard as scripts/vectorstore.py: index.json's `docs` list is positional,
+    1:1 with the rows of index.npy, so writing them straight over the live files
+    leaves a silently mismatched index if the build dies between the two writes --
+    every hit would return the wrong document. Validate, then swap both together,
+    then roll back if the second swap fails.
+    """
+    import numpy as np
+    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
+    emb_tmp, idx_tmp = EMBED_PATH + ".tmp.npy", INDEX_PATH + ".tmp"
+    np.save(emb_tmp, matrix)
+    _write_json(idx_tmp, header)
+
+    rows = np.load(emb_tmp).shape[0]
+    if rows != len(header.get("docs") or []):
+        for p in (emb_tmp, idx_tmp):
+            if os.path.exists(p):
+                os.remove(p)
+        raise RuntimeError("refusing to publish a mismatched index: %d rows vs %d docs"
+                           % (rows, len(header.get("docs") or [])))
+
+    emb_prev, idx_prev = EMBED_PATH + ".prev", INDEX_PATH + ".prev"
+    had_prev = os.path.exists(EMBED_PATH) and os.path.exists(INDEX_PATH)
+    if had_prev:
+        os.replace(EMBED_PATH, emb_prev)
+        os.replace(INDEX_PATH, idx_prev)
+    try:
+        os.replace(emb_tmp, EMBED_PATH)
+        os.replace(idx_tmp, INDEX_PATH)
+    except Exception:
+        if had_prev:
+            os.replace(emb_prev, EMBED_PATH)
+            os.replace(idx_prev, INDEX_PATH)
+        raise
 
 
 # ── public API ─────────────────────────────────────────────────────────────────

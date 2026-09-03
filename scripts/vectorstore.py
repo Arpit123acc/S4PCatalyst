@@ -71,10 +71,50 @@ class FaissStore(VectorStore):
         self.metas.extend(metadatas)
 
     def persist(self):
+        """Write the index atomically: build to temp files, validate, then swap.
+
+        Writing straight over the live files meant a rebuild that died partway
+        (throttling, a dropped connection, OOM) left the brain corrupt with no
+        rollback -- and a full rebuild is ~20 minutes over 49k chunks, so the
+        window is not small.
+
+        The two files must move TOGETHER. metadata.json is positional, 1:1 with the
+        vectors in faiss.index, so a half-completed swap is not a clean failure --
+        it is a silently mismatched index where every hit returns the wrong
+        document. Hence: validate the pair, keep the previous pair, swap, and roll
+        back if the second swap fails.
+        """
         INDEX_DIR.mkdir(parents=True, exist_ok=True)
-        self._faiss.write_index(self.index, str(self.INDEX_PATH))
-        self.META_PATH.write_text(json.dumps(self.metas, ensure_ascii=False, indent=2),
-                                  encoding="utf-8")
+        idx_tmp  = self.INDEX_PATH.with_suffix(self.INDEX_PATH.suffix + ".tmp")
+        meta_tmp = self.META_PATH.with_suffix(self.META_PATH.suffix + ".tmp")
+
+        self._faiss.write_index(self.index, str(idx_tmp))
+        meta_tmp.write_text(json.dumps(self.metas, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+
+        # Validate the pair before it becomes live, not after.
+        written = self._faiss.read_index(str(idx_tmp))
+        if written.ntotal != len(self.metas):
+            idx_tmp.unlink(missing_ok=True); meta_tmp.unlink(missing_ok=True)
+            raise RuntimeError(
+                "refusing to publish a mismatched index: %d vectors vs %d metadata "
+                "entries" % (written.ntotal, len(self.metas)))
+
+        idx_prev  = self.INDEX_PATH.with_suffix(self.INDEX_PATH.suffix + ".prev")
+        meta_prev = self.META_PATH.with_suffix(self.META_PATH.suffix + ".prev")
+        had_prev = self.INDEX_PATH.exists() and self.META_PATH.exists()
+        if had_prev:
+            os.replace(self.INDEX_PATH, idx_prev)
+            os.replace(self.META_PATH, meta_prev)
+        try:
+            os.replace(idx_tmp, self.INDEX_PATH)
+            os.replace(meta_tmp, self.META_PATH)
+        except Exception:
+            if had_prev:                     # put the working index back
+                os.replace(idx_prev, self.INDEX_PATH)
+                os.replace(meta_prev, self.META_PATH)
+            raise
+        # Keep .prev on disk as the rollback copy; the next successful build replaces it.
 
     def search(self, vector, k, filters=None):
         import numpy as np
