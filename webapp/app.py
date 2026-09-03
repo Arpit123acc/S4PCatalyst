@@ -797,12 +797,33 @@ _FINDINGS_SCHEMA = (
     "FINDINGS SCHEMA — use these EXACT field names every time you write a finding to run.json findings[]:\n"
     '  {"id":"F-01","severity":"Critical|Major|Minor|Info","source":"<gate or step name e.g. Gate 1>",\n'
     '   "description":"<plain English: what the problem is — one sentence>",\n'
-    '   "resolution":"<what the developer must do — one to three numbered steps>",\n'
+    '   "established":"<what the TOOLS already determined, naming the tool and the value — e.g.\n'
+    '                   \'search_released_apis: communication_scenario = SAP_COM_0103\'. Use \'\' ONLY if\n'
+    "                   the tools genuinely returned nothing for this finding.>\",\n"
+    '   "resolution":"<what a HUMAN must do that no tool can do — one to three numbered steps>",\n'
     '   "verify":"<how to confirm it is fixed — one sentence>",\n'
     '   "status":"Open|Resolved"}\n'
     "  severity values: Critical = blocks build/deploy; Major = serious gap; Minor = improvement; Info = note only.\n"
+    "  severity measures IMPACT, not how hard it was to find. A Major whose answer a tool already\n"
+    "  supplied is still Major — put the answer in 'established' and keep the severity.\n"
     "  status: Open = not yet fixed; Resolved = fixed in this phase.\n"
     "  NEVER use values like 'blocker_for_build', 'gate2_fix_applied', 'minor_open' — use the labels above.\n"
+    "\n"
+    "  RESOLUTION DISCIPLINE — read before writing any resolution:\n"
+    "  Ask first: what did the tools already tell me? Put that in 'established'. Then 'resolution'\n"
+    "  carries ONLY what a tool cannot do. A resolution that tells the human to go and find\n"
+    "  something a tool already returned is a DEFECT: it hides completed work and invents manual\n"
+    "  effort. There are only three legitimate human actions:\n"
+    "    (a) confirm actual state in the tenant (a value the offline catalog cannot know),\n"
+    "    (b) make a business decision (e.g. what 'open purchase order' means for this client),\n"
+    "    (c) authorise a scope change (e.g. adding an API the FD did not list).\n"
+    "  If the human action is not one of (a), (b) or (c), you have not finished using the tools —\n"
+    "  go back and use them (search_released_apis / semantic_search / get_object_graph /\n"
+    "  search_brain / check_object_release_state) before writing the finding.\n"
+    "  WRONG: established:'' | resolution:'1. Search for the communication scenario for API_X.'\n"
+    "  RIGHT: established:'search_released_apis: API_X -> SAP_COM_0103'\n"
+    "         resolution:'1. Correct the FD from SAP_COM_0009 to SAP_COM_0103. 2. Confirm the\n"
+    "         Communication Arrangement exists in the tenant.'\n"
 )
 
 _SBPA_PHASE_B_INSTRUCTIONS = (

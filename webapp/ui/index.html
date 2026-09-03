@@ -937,7 +937,7 @@ async function submitDecision(runId){
   if((cp.approach_options||[]).length&&!selectedApproach){$("#cp-msg").textContent="Please select an approach before approving.";return;}
   $("#cp-msg").textContent="Recording decision + resuming pipeline…";
   const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({run:runId,checkpoint:cp.checkpoint||"CP",decision:decision.value,notes:$("#cp-notes").value,selected_approach:selectedApproach})}).then(x=>x.json());
+    body:JSON.stringify({run:runId,checkpoint:cp.checkpoint||"CP",decision:decision.value,notes:withMaterialNote($("#cp-notes").value),selected_approach:selectedApproach})}).then(x=>x.json());
   $("#cp-msg").textContent=r.ok?"✓ "+r.message:"✕ "+(r.error||"failed");
   loadJobs();
 }
@@ -1006,12 +1006,19 @@ async function submitFindingsReview(runId,checkpoint){
   if(msg)msg.textContent="Recording decision + resuming pipeline…";
   var notes=(document.getElementById("cp-notes")||{}).value||"";
   var r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes})}).then(function(x){return x.json();});
+    body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:withMaterialNote(notes)})}).then(function(x){return x.json();});
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"resumed"):"✕ "+(r.error||"failed");
   loadJobs();
 }
 function checkpointHtml(r,cp){
-  const mat=cp.material?"<p style='font-size:.76rem;margin-bottom:8px'>Review material: <a onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(cp.material)+"\")'>"+esc(cp.material)+"</a></p>":"";
+  // The review material used to be a bare link with nowhere to respond: a reviewer who wanted a
+  // change to the DOCUMENT (not to a code file) had no way to say so, even though the checkpoint
+  // asks them to review it. Give it the same comment box the code files get — class 'code-comment'
+  // so the existing collectors pick it up with no change to them.
+  const mat=cp.material?"<div style='margin-bottom:10px'>"+
+    "<p style='font-size:.76rem;margin:0 0 4px'>Review material: <a onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(cp.material)+"\")'>"+esc(cp.material)+"</a></p>"+
+    "<textarea class='code-comment' data-id='MATERIAL' data-file='"+esc(cp.material)+"' oninput='updateCodeComments()' placeholder='Comment on "+esc(cp.material)+" (optional) — what should change in the document?' style='min-height:38px;font-size:.8rem'></textarea>"+
+    "</div>":"";
   let h="<div class='card' style='border:2px solid var(--amber);background:#fffaf2;margin-bottom:18px'>"+
     "<h3>✋ "+esc(cp.checkpoint||"Checkpoint")+" — your decision is needed</h3>"+
     "<p style='margin:8px 0;color:var(--ink);font-size:.84rem'>"+esc(cp.summary||"")+"</p>"+mat;
@@ -1109,6 +1116,19 @@ function checkpointHtml(r,cp){
   }
   return h+"</div>";
 }
+// Only submitCodeReview() collects .code-comment boxes. The naming / checklist / findings
+// checkpoints post a plain 'notes' string, so fold any comment on the review material into that
+// instead of silently dropping what the reviewer typed.
+function materialCommentNote(){
+  var el=document.querySelector(".code-comment[data-id='MATERIAL']");
+  var v=el?(el.value||"").trim():"";
+  return v?("["+(el.dataset.file||"review material")+"] "+v):"";
+}
+function withMaterialNote(notes){
+  var m=materialCommentNote();
+  if(!m)return notes||"";
+  return (notes&&notes.trim())?(notes.trim()+"\n"+m):m;
+}
 function updateCodeComments(){
   var items=Array.prototype.slice.call(document.querySelectorAll(".code-comment"));
   var n=0,comments={};
@@ -1190,7 +1210,7 @@ async function submitNaming(runId,checkpoint){
     await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,contract:contract,selected_approach:selectedApproach})});
   }
   var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
-  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:notes,selected_approach:selectedApproach})}).then(x=>x.json());
+  const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:withMaterialNote(notes),selected_approach:selectedApproach})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");
   loadJobs();
 }
@@ -1216,7 +1236,7 @@ async function submitChecklist(runId,checkpoint){
   var notesEl=document.getElementById("cp-notes");
   const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",checklist_confirmed:true,
-      notes:(notesEl&&notesEl.value)?notesEl.value:("All "+items.length+" BTP prerequisites confirmed deployed & active.")})}).then(x=>x.json());
+      notes:withMaterialNote((notesEl&&notesEl.value)?notesEl.value:("All "+items.length+" BTP prerequisites confirmed deployed & active."))})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+r.message:"✕ "+(r.error||"failed");
   loadJobs();
 }
@@ -1524,6 +1544,9 @@ function normalizeFinding(f){
     severity:sev,
     source:f.source||f.capability||f.gate||f.step||"",
     description:f.description||f.problem||f.summary||f.message||"",
+    // What the governance tools already answered. Shown separately from 'resolution' so a reader
+    // can see the finding is half-solved instead of assuming the whole thing is manual work.
+    established:f.established||f.already_established||f.tool_findings||"",
     resolution:f.resolution||f.action||f.fix||f.recommendation||"",
     verify:f.verify||f.how_to_verify||"",
     status:f.status||(resolved?"Resolved":"Open"),
@@ -1540,6 +1563,9 @@ function renderFindings(){
   const sevChip={Critical:"red",Major:"amber",Minor:"amber",Info:"blue"};
   $("#ex-findings").innerHTML=all.filter(f=>EX_SEV==="All"||f.severity===EX_SEV).map(f=>{
     var verifyHtml=f.verify?"<div style='font-size:.68rem;color:var(--muted);margin-top:3px'>Verify: "+esc(f.verify)+"</div>":"";
+    // Already answered by the tools — surfaced so a Major finding whose value the catalog supplied
+    // does not read as untouched manual work.
+    var estHtml=f.established?"<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #0ea5e9;padding-left:6px;color:var(--ink)'><b>Already determined</b>: "+esc(f.established)+"</div>":"";
     var raw=f._raw||{};
     // Your own review input + what the pipeline actually did about it
     var yours=raw.developer_input?"<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #7c3aed;padding-left:6px;color:var(--ink)'><b>Your input</b>"+
@@ -1550,7 +1576,7 @@ function renderFindings(){
       "<td><b>"+esc(f.id)+"</b></td>"+
       "<td><span class='chip "+(sevChip[f.severity]||"gray")+"'>"+esc(f.severity||"—")+"</span></td>"+
       "<td style='white-space:nowrap;font-size:.72rem'>"+esc(f.source)+"</td>"+
-      "<td>"+esc(f.description)+yours+applied+"</td>"+
+      "<td>"+esc(f.description)+estHtml+yours+applied+"</td>"+
       "<td style='color:var(--muted)'>"+esc(f.resolution)+verifyHtml+"</td>"+
       "<td><span class='chip "+stChip+"'>"+esc(f.status)+"</span></td>"+
     "</tr>";}).join("")||"<tr><td colspan='6' style='color:var(--muted)'>No findings in this filter.</td></tr>";
