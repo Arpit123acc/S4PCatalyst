@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — AWS Production Architecture</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#f0f2f5;
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;
+  padding:36px 24px 56px;
+  color:#14121c;
+}
+
+/* ── HEADER ── */
+.hdr{text-align:center;margin-bottom:28px}
+.hdr-title{font-size:1.18rem;font-weight:800;color:#1a1a2e;letter-spacing:.01em}
+.hdr-sub{font-size:.76rem;color:#6b6685;margin-top:4px}
+.hdr-badge{
+  display:inline-block;margin-top:8px;
+  background:#fff3cd;border:1.5px solid #e0a030;
+  border-radius:6px;padding:3px 12px;
+  font-size:.7rem;font-weight:700;color:#7a5000;
+}
+
+/* ── FULL WIDTH CANVAS ── */
+.canvas{width:100%;max-width:1260px;display:flex;flex-direction:column;gap:10px}
+
+/* ── GLOBAL EDGE LAYER ── */
+.edge-layer{
+  background:#fff8f0;border:2px solid #e0a030;border-radius:12px;
+  padding:12px 16px;
+}
+.layer-label{
+  font-size:.67rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;
+  margin-bottom:10px;
+}
+.edge-layer .layer-label{color:#c07800}
+.edge-row{display:flex;gap:10px;align-items:stretch}
+
+/* ── GENERIC CHIP ── */
+.chip{
+  border:1.5px solid;border-radius:9px;padding:9px 12px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  flex:1;text-align:center;
+}
+.chip-title{font-size:.8rem;font-weight:800;margin-bottom:2px}
+.chip-sub{font-size:.66rem;color:#6b6685;line-height:1.35}
+.chip.amber{border-color:#e0a030;background:#fffdf4}.chip.amber .chip-title{color:#8a5800}
+.chip.blue{border-color:#2980b9;background:#f2f8ff}.chip.blue .chip-title{color:#1a6fa8}
+.chip.green{border-color:#27ae60;background:#f4fff8}.chip.green .chip-title{color:#0f7a3d}
+.chip.red{border-color:#e74c3c;background:#fff5f5}.chip.red .chip-title{color:#a93226}
+.chip.purple{border-color:#8e44ad;background:#fdf4ff}.chip.purple .chip-title{color:#6c3483}
+.chip.gray{border-color:#999;background:#f8f8f8}.chip.gray .chip-title{color:#444}
+.chip.teal{border-color:#1abc9c;background:#f0fffe}.chip.teal .chip-title{color:#0e8e72}
+.chip.navy{border-color:#34495e;background:#f4f6f8}.chip.navy .chip-title{color:#2c3e50}
+
+/* ── VPC ── */
+.vpc{
+  border:2.5px solid #3498db;border-radius:14px;
+  background:#f7fbff;padding:14px 14px 12px;
+}
+.vpc .layer-label{color:#1a6fa8}
+
+/* AZ row */
+.az-row{display:flex;gap:10px;margin-bottom:10px}
+.az{
+  flex:1;border:1.5px dashed #bbd4f0;border-radius:10px;
+  padding:10px 10px 8px;background:#fff;
+}
+.az-label{
+  font-size:.64rem;font-weight:800;color:#4a8ec2;
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;
+}
+
+/* tier rows within AZ */
+.tier-row{display:flex;gap:8px;margin-bottom:8px}
+.tier-row:last-child{margin-bottom:0}
+.tier-chip{
+  flex:1;border:1.5px solid;border-radius:8px;
+  padding:8px 10px;text-align:center;
+}
+.tier-chip.pub{border-color:#27ae60;background:#f4fff8}
+.tier-chip.pub .tc-title{color:#0a6b37;font-size:.78rem;font-weight:800}
+.tier-chip.app{border-color:#8e44ad;background:#fdf4ff}
+.tier-chip.app .tc-title{color:#6c3483;font-size:.78rem;font-weight:800}
+.tier-chip.data{border-color:#e67e22;background:#fff9f2}
+.tier-chip.data .tc-title{color:#b94e00;font-size:.78rem;font-weight:800}
+.tc-sub{font-size:.64rem;color:#888;margin-top:1px;line-height:1.3}
+.badge-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;justify-content:center}
+.mini-badge{
+  font-size:.62rem;font-weight:700;padding:2px 7px;border-radius:4px;
+  border:1px solid;
+}
+.mini-badge.g{border-color:#27ae60;color:#0a6b37;background:#f4fff8}
+.mini-badge.p{border-color:#8e44ad;color:#6c3483;background:#fdf4ff}
+.mini-badge.o{border-color:#e67e22;color:#b94e00;background:#fff9f2}
+.mini-badge.b{border-color:#2980b9;color:#1a6fa8;background:#f2f8ff}
+
+/* ── AWS MANAGED SERVICES ── */
+.managed{
+  background:#f4fff8;border:2px solid #27ae60;border-radius:12px;
+  padding:12px 14px;
+}
+.managed .layer-label{color:#0a6b37}
+.managed-row{display:flex;gap:10px}
+
+/* ── EXTERNAL ── */
+.external{
+  background:#fdf4ff;border:2px solid #8e44ad;border-radius:12px;
+  padding:12px 14px;
+}
+.external .layer-label{color:#6c3483}
+.ext-row{display:flex;gap:10px}
+
+/* ── FLOW ARROWS ── */
+.flow-row{
+  display:flex;align-items:center;justify-content:center;
+  gap:6px;padding:2px 0;
+}
+.f-arrow{
+  display:flex;align-items:center;gap:0;
+}
+.f-line{height:2px;background:#9b59b6;width:30px}
+.f-head{width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #9b59b6}
+.f-lbl{font-size:.67rem;color:#6b6685;font-weight:600;padding:0 6px;white-space:nowrap}
+
+/* ── TRAFFIC FLOW ── */
+.flow-bar{
+  background:#fff;border:1.5px solid #c0b8e8;border-radius:10px;
+  padding:10px 18px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;
+}
+.fl{display:flex;align-items:center;gap:5px}
+.fl-box{
+  border:1.5px solid;border-radius:6px;padding:4px 10px;
+  font-size:.71rem;font-weight:700;white-space:nowrap;
+}
+.fl-box.c{border-color:#9b59b6;color:#6c3483;background:#fdf4ff}
+.fl-box.n{border-color:#27ae60;color:#0a6b37;background:#f4fff8}
+.fl-box.a{border-color:#2980b9;color:#1a6fa8;background:#f2f8ff}
+.fl-box.d{border-color:#e67e22;color:#b94e00;background:#fff9f2}
+.fl-arrow{color:#bbb;font-size:.9rem;font-weight:900}
+.fl-sep{width:1px;height:20px;background:#e0d8f0;margin:0 4px}
+
+/* ── SECURITY SIDEBAR ── */
+.main-body{display:flex;gap:10px}
+.vpc-col{flex:1}
+.side-col{display:flex;flex-direction:column;gap:10px;width:168px;flex-shrink:0}
+.side-card{border:1.5px solid;border-radius:10px;padding:10px 12px}
+.side-card.sec{border-color:#e74c3c;background:#fff5f5}
+.side-card.obs{border-color:#1abc9c;background:#f0fffe}
+.side-card .sc-title{font-size:.78rem;font-weight:800;margin-bottom:6px}
+.side-card.sec .sc-title{color:#a93226}
+.side-card.obs .sc-title{color:#0e8e72}
+.sc-item{font-size:.67rem;color:#555;margin-bottom:3px;padding-left:8px;position:relative}
+.sc-item::before{content:"·";position:absolute;left:0;color:#aaa}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-title">S4PC Catalyst — AWS Production Architecture</div>
+  <div class="hdr-sub">Agentic SAP Delivery Accelerator &nbsp;·&nbsp; Multi-AZ &nbsp;·&nbsp; AWS Well-Architected</div>
+  <div class="hdr-badge">Business Proposal · Enterprise Grade · Region: ap-south-1 (or your preferred AWS region)</div>
+</div>
+
+<div class="canvas">
+
+  <!-- ① GLOBAL EDGE LAYER -->
+  <div class="edge-layer">
+    <div class="layer-label">① Global Edge &amp; Entry</div>
+    <div class="edge-row">
+      <div class="chip amber">
+        <div class="chip-title">Route 53</div>
+        <div class="chip-sub">DNS routing<br>health-check failover</div>
+      </div>
+      <div class="chip amber">
+        <div class="chip-title">CloudFront</div>
+        <div class="chip-sub">CDN · UI assets (S3 origin)<br>API passthrough (ALB origin)</div>
+      </div>
+      <div class="chip red">
+        <div class="chip-title">AWS WAF</div>
+        <div class="chip-sub">OWASP rules · rate limiting<br>IP allowlist for clients</div>
+      </div>
+      <div class="chip amber">
+        <div class="chip-title">ACM</div>
+        <div class="chip-sub">TLS/SSL certificate<br>auto-renewal</div>
+      </div>
+      <div class="chip blue">
+        <div class="chip-title">S3 (UI Bucket)</div>
+        <div class="chip-sub">Static UI assets<br>OAC — private, no public access</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARROW -->
+  <div class="flow-row">
+    <div class="f-arrow"><div class="f-line"></div><div class="f-head"></div></div>
+    <div class="f-lbl">HTTPS traffic into VPC</div>
+    <div class="f-arrow"><div class="f-line"></div><div class="f-head"></div></div>
+  </div>
+
+  <!-- ② VPC + SIDE SECURITY/OBS -->
+  <div class="main-body">
+
+    <!-- VPC -->
+    <div class="vpc-col">
+      <div class="vpc">
+        <div class="layer-label">② AWS VPC — Private Boundary (Multi-AZ)</div>
+
+        <!-- AZ ROW -->
+        <div class="az-row">
+
+          <!-- AZ-1 -->
+          <div class="az">
+            <div class="az-label">Availability Zone 1</div>
+
+            <!-- Public subnet: ALB -->
+            <div class="tier-row">
+              <div class="tier-chip pub">
+                <div class="tc-title">Public Subnet — ALB</div>
+                <div class="tc-sub">Application Load Balancer<br>HTTPS termination · health checks</div>
+                <div class="badge-row">
+                  <span class="mini-badge g">Port 443</span>
+                  <span class="mini-badge g">Security Group</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- App subnet: EC2 -->
+            <div class="tier-row">
+              <div class="tier-chip app">
+                <div class="tc-title">Private Subnet — App Tier</div>
+                <div class="tc-sub">EC2 Auto Scaling Group<br>app.py · claude CLI · mcp-server</div>
+                <div class="badge-row">
+                  <span class="mini-badge p">m5.xlarge</span>
+                  <span class="mini-badge p">4 vCPU / 16 GB</span>
+                  <span class="mini-badge p">IMDSv2</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Data subnet -->
+            <div class="tier-row">
+              <div class="tier-chip data">
+                <div class="tc-title">Private Subnet — Data Tier</div>
+                <div class="tc-sub">RDS PostgreSQL + pgvector<br>Primary instance</div>
+                <div class="badge-row">
+                  <span class="mini-badge o">db.r6g.large</span>
+                  <span class="mini-badge o">Multi-AZ</span>
+                </div>
+              </div>
+              <div class="tier-chip data">
+                <div class="tc-title">Private Subnet — Cache</div>
+                <div class="tc-sub">ElastiCache Redis<br>Brain index · session cache</div>
+                <div class="badge-row">
+                  <span class="mini-badge o">cache.r6g.large</span>
+                  <span class="mini-badge o">Cluster mode</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- AZ-2 -->
+          <div class="az">
+            <div class="az-label">Availability Zone 2</div>
+
+            <!-- Public subnet: ALB -->
+            <div class="tier-row">
+              <div class="tier-chip pub">
+                <div class="tc-title">Public Subnet — ALB</div>
+                <div class="tc-sub">Cross-zone load balancing<br>Sticky sessions (pipeline runs)</div>
+                <div class="badge-row">
+                  <span class="mini-badge g">Failover</span>
+                  <span class="mini-badge g">Health check /ping</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- App subnet: EC2 -->
+            <div class="tier-row">
+              <div class="tier-chip app">
+                <div class="tc-title">Private Subnet — App Tier</div>
+                <div class="tc-sub">EC2 Auto Scaling Group<br>Scale out per concurrent runs</div>
+                <div class="badge-row">
+                  <span class="mini-badge p">m5.xlarge</span>
+                  <span class="mini-badge p">ASG min 2 / max 10</span>
+                  <span class="mini-badge p">IAM Role</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Data subnet: standby -->
+            <div class="tier-row">
+              <div class="tier-chip data">
+                <div class="tc-title">Private Subnet — Data Tier</div>
+                <div class="tc-sub">RDS Standby Replica<br>Auto failover &lt; 60s</div>
+                <div class="badge-row">
+                  <span class="mini-badge o">Synchronous repl.</span>
+                  <span class="mini-badge o">Automated backups</span>
+                </div>
+              </div>
+              <div class="tier-chip data">
+                <div class="tc-title">Private Subnet — Cache</div>
+                <div class="tc-sub">ElastiCache Replica<br>Read scale-out</div>
+                <div class="badge-row">
+                  <span class="mini-badge o">Auto-failover</span>
+                  <span class="mini-badge o">Encryption at rest</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+        <!-- end az-row -->
+
+      </div>
+      <!-- end vpc -->
+    </div>
+    <!-- end vpc-col -->
+
+    <!-- SIDE COL: Security + Observability -->
+    <div class="side-col">
+
+      <div class="side-card sec">
+        <div class="sc-title">Security &amp; Identity</div>
+        <div class="sc-item">IAM Roles + Instance Profile</div>
+        <div class="sc-item">AWS Secrets Manager (Graph API, SAP creds)</div>
+        <div class="sc-item">Security Groups (least-privilege)</div>
+        <div class="sc-item">VPC NACLs</div>
+        <div class="sc-item">KMS — EBS, RDS, S3 encryption</div>
+        <div class="sc-item">IMDSv2 enforced</div>
+        <div class="sc-item">AWS Config + GuardDuty</div>
+        <div class="sc-item">No API keys in files or logs</div>
+      </div>
+
+      <div class="side-card obs">
+        <div class="sc-title">Observability</div>
+        <div class="sc-item">CloudWatch Metrics + Logs</div>
+        <div class="sc-item">CloudWatch Alarms (CPU, latency)</div>
+        <div class="sc-item">CloudTrail (API audit)</div>
+        <div class="sc-item">ALB Access Logs → S3</div>
+        <div class="sc-item">RDS Performance Insights</div>
+        <div class="sc-item">Bedrock invocation logs</div>
+        <div class="sc-item">Pipeline run audit (run.json)</div>
+      </div>
+
+    </div>
+    <!-- end side-col -->
+
+  </div>
+  <!-- end main-body -->
+
+  <!-- ARROW -->
+  <div class="flow-row">
+    <div class="f-arrow"><div class="f-line"></div><div class="f-head"></div></div>
+    <div class="f-lbl">VPC → AWS managed services (VPC Endpoints, no internet hop)</div>
+    <div class="f-arrow"><div class="f-line"></div><div class="f-head"></div></div>
+  </div>
+
+  <!-- ③ AWS MANAGED SERVICES -->
+  <div class="managed">
+    <div class="layer-label">③ AWS Managed Services (consumed via VPC Endpoints)</div>
+    <div class="managed-row">
+      <div class="chip red">
+        <div class="chip-title">Amazon Bedrock</div>
+        <div class="chip-sub">Claude Sonnet — LLM inference<br>Titan Embeddings — doc indexing<br>No GPU on our side</div>
+      </div>
+      <div class="chip blue">
+        <div class="chip-title">Amazon S3</div>
+        <div class="chip-sub">Deliverables · pipeline outputs<br>SharePoint harvest cache<br>ALB / CloudTrail logs</div>
+      </div>
+      <div class="chip green">
+        <div class="chip-title">AWS Secrets Manager</div>
+        <div class="chip-sub">Graph API credentials<br>SAP comm. user creds<br>Rotated automatically</div>
+      </div>
+      <div class="chip teal">
+        <div class="chip-title">Amazon SES</div>
+        <div class="chip-sub">Pipeline run notifications<br>Human checkpoint alerts<br>CP1 / CP2 / CP3 emails</div>
+      </div>
+      <div class="chip navy">
+        <div class="chip-title">AWS Backup</div>
+        <div class="chip-sub">RDS automated backups<br>S3 versioning<br>Cross-region DR copy</div>
+      </div>
+      <div class="chip amber">
+        <div class="chip-title">AWS KMS</div>
+        <div class="chip-sub">EBS, RDS, S3<br>encryption keys<br>Customer managed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARROW -->
+  <div class="flow-row">
+    <div class="f-arrow"><div class="f-line"></div><div class="f-head"></div></div>
+    <div class="f-lbl">API calls over internet (TLS)</div>
+    <div class="f-arrow"><div class="f-line"></div><div class="f-head"></div></div>
+  </div>
+
+  <!-- ④ EXTERNAL -->
+  <div class="external">
+    <div class="layer-label">④ External Systems</div>
+    <div class="ext-row">
+      <div class="chip purple">
+        <div class="chip-title">SharePoint Online</div>
+        <div class="chip-sub">Microsoft Graph API<br>Harvested S/4HANA Cloud docs<br>Azure AD App Registration</div>
+      </div>
+      <div class="chip blue">
+        <div class="chip-title">SAP S/4HANA Cloud</div>
+        <div class="chip-sub">Public Edition (3-system)<br>OData / SOAP released APIs<br>Business events (CE_*)</div>
+      </div>
+      <div class="chip gray">
+        <div class="chip-title">SAP Business Accelerator Hub</div>
+        <div class="chip-sub">api.sap.com<br>Released API verification<br>Read-only reference</div>
+      </div>
+      <div class="chip gray">
+        <div class="chip-title">Client Browser</div>
+        <div class="chip-sub">Pipeline UI<br>Human checkpoints (CP1/2/3)<br>Run approvals &amp; reviews</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑤ TRAFFIC FLOW LEGEND -->
+  <div class="flow-bar">
+    <div class="fl">
+      <div class="fl-box c">Browser</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box a">CloudFront + WAF</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box a">ALB</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box n">EC2 app.py</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box n">claude -p (stdio)</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box n">mcp-server (stdio)</div>
+    </div>
+    <div class="fl-sep"></div>
+    <div class="fl">
+      <div class="fl-box n">EC2</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box a">Bedrock (VPC Endpoint)</div>
+    </div>
+    <div class="fl-sep"></div>
+    <div class="fl">
+      <div class="fl-box n">EC2</div>
+      <div class="fl-arrow">→</div>
+      <div class="fl-box d">RDS pgvector + ElastiCache</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -9,7 +9,7 @@
       "name": "s4pc-catalyst",
       "source": "./plugins/s4pc-catalyst",
       "description": "Clean-core RICEFW pipeline, extensibility decisions, clean-core reviews and FD creation for S/4HANA Cloud Public Edition.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "S4PC Catalyst Team"
       }

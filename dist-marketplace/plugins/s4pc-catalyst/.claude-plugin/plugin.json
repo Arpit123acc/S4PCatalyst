@@ -1,7 +1,7 @@
 {
   "name": "s4pc-catalyst",
   "description": "S/4HANA Cloud Public Edition clean-core delivery toolkit \u2014 run /run-pipeline, /create-fd, /extensibility, /clean-core-review with released-object governance, gates and human checkpoints.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "S4PC Catalyst Team"
   },

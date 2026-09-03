@@ -34,7 +34,10 @@ CLAUDE_MD = os.path.join(REPO, "CLAUDE.md")
 
 PLUGIN_NAME = "s4pc-catalyst"
 MARKETPLACE_NAME = "s4pc-tools"
-VERSION = "1.0.0"
+# Bump on every rebuild that changes plugin behaviour — a teammate's cached copy has
+# no other signal that it is stale. 1.1.0: loopback bind + path containment + opt-in
+# API-key auth in the MCP server, and entity linking on search_brain.
+VERSION = "1.1.0"
 OWNER = "S4PC Catalyst Team"          # <- edit to your team name if you like
 
 DIST = os.path.join(REPO, "dist-marketplace")

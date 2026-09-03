@@ -29,15 +29,26 @@ The `s4pc` MCP server (offline-first, zero-dependency, see [${CLAUDE_PLUGIN_ROOT
 governance layer. Use it as follows — these are gates, not suggestions:
 
 1. **Never name an SAP object from memory.** Before referencing any API/BAdI/table/CDS view, call
-   `check_object_release_state`. Read the verdict precisely: `NOT_AVAILABLE` (BAPI, classical
-   table, enhancement point) is the only blocker → redesign. `LIKELY_RELEASED` (seed hit or a
-   standard released name — **CDS views** I_/C_/A_/R_/E_, or **APIs** API_*/*_SRV/SOAP *_IN/_OUT/
-   events CE_*) is **released** → record it as such and add a "confirm on the Released CDS Views
-   list / SAP Business Accelerator Hub / ADT" note. `NOT_VERIFIED` means the offline server can't
-   confirm it — look it up on the authoritative list for its type and label it "to verify in
-   tenant"; it does **not** mean "unreleased". Never downgrade a standard released CDS view (e.g.
-   `I_MaterialStock`) or a released API (e.g. `API_CLFN_PRODUCT_SRV`) to "not verified" —
-   finalise APIs from the SAP Business Accelerator Hub (api.sap.com).
+   `check_object_release_state`. **Read the `verdict` AND the `evidence` field — a verdict is only
+   as good as its evidence.**
+   - `NOT_AVAILABLE` (`evidence: rule` — BAPI, classical table, enhancement point) is the only
+     blocker → redesign.
+   - `LIKELY_RELEASED` + **`evidence: catalog_hit`** → **released.** Record it as such and add a
+     "confirm on the Released CDS Views list / SAP Business Accelerator Hub / ADT" note.
+   - `LIKELY_RELEASED` + **`evidence: naming_heuristic_only`** → **NOT established as released.**
+     The verdict came from the NAME pattern alone with no catalog entry behind it, so a fabricated
+     name (`API_TOTALLY_MADE_UP_THING`) scores identically to a real one. Usable as a **design
+     placeholder**, but you must (a) cross-check with `search_released_apis` on the *business
+     keywords* (not the name) / `semantic_search` / `get_object_graph`, (b) write it in the
+     deliverable as "name unconfirmed — verify on api.sap.com / Released CDS Views list", never as
+     released, and (c) put it in the tenant verification checklist. If the cross-check returns
+     nothing, say plainly that the object may not exist.
+   - `NOT_VERIFIED` means the offline server can't confirm it — look it up on the authoritative
+     list for its type and label it "to verify in tenant"; it does **not** mean "unreleased".
+
+   Never downgrade a **`catalog_hit`** CDS view (e.g. `I_MaterialStock`) or API (e.g.
+   `API_CLFN_PRODUCT_SRV`) to "not verified" — finalise APIs from the SAP Business Accelerator Hub
+   (api.sap.com). Equally, never promote a `naming_heuristic_only` hit to "released".
 2. **Lint every ABAP snippet** with `abap_cloud_lint` before showing it. A `FAIL` verdict means
    redesign, not apology text.
 3. **Every extensibility decision** goes through `extensibility_advisor` and is documented with
@@ -157,6 +168,37 @@ message volume, SBPA process instances). Recommend the winner and say why the ot
 EXP-ids you applied. At the package step, `record_experience` for anything non-obvious the run
 taught (source = the run id) — this is how the pipeline compounds.
 
+**Digital Brain — client document RAG (`search_brain`, Layer 4).** Beyond the catalog/graph/experience
+layers, the brain holds the harvested **client documents** (SharePoint FDs, TDs, standards, prior
+specs) as Bedrock+FAISS vectors. Use it at the steps where a client document is the best source of
+truth — it degrades gracefully (a helpful message) when the brain host/index is absent, so always
+call it and continue if offline:
+- **Intake (step 1):** `search_brain(query=<requirement>)` for prior client context that informs scope.
+- **Solution proposal (step 2):** `search_brain(query=<capability + APIs/events/BAdIs>,
+  deliverable_type="functional_design")` to pull the released objects the client's OWN FDs reference,
+  and `search_brain(deliverable_type="technical_design")` for a proven solution shape from a past TD.
+- **Object inventory (step 3):** `search_brain(deliverable_type="functional_design")` to see whether a
+  client FD already names the API/event/BAdI — often resolves a `NOT_VERIFIED` faster; still confirm
+  the name with `check_object_release_state`.
+- **Build (step 6):** `search_brain(deliverable_type="technical_design")` to reuse a proven
+  implementation pattern from a past TD.
+- **Technical design (step 10):** `search_brain(deliverable_type="technical_design")` to reuse a past
+  TD's section structure and depth (never copy client-specific content).
+Filters: `deliverable_type`, `source_system` (`sharepoint`/`sap_bpd`/`sap_scope_catalog`), `phase`
+(`Discover`/`Prepare`/`Explore`/`Realize`/`Deploy`/`Run`), `agent_role`, `dedup` (default true —
+over-fetches so a narrow filter still yields). The corpus (~49k chunks / ~2.5k docs) is tagged with
+these `deliverable_type` values — target the family that fits the step:
+- **Requirement / API / event / BAdI (FD family):** `functional_design`, `business_process_design`,
+  `fit_to_standard`, `configuration`, `integration_iflow`, `wricef_inventory`.
+- **Solution shape / implementation (TD family):** `technical_design`, `architecture_design`,
+  `configuration`, `integration_iflow`, `ui_code`.
+- **Also present:** `reference_document`, `data_migration`, `test_cases`, `cutover_plan`,
+  `project_plan`, `raci_matrix`, `discovery_assessment`, `kdd`, `statement_of_work`.
+Filtering is applied **after** the vector search, so a small slice (e.g. `technical_design` ≈ 29 chunks)
+can return little — when it does, **use the unfiltered results** (they are ranked by relevance and a
+same-topic doc still ranks high). Always cite the source document, and keep the released-object rules: a
+brain hit is a lead to verify, never a substitute for `check_object_release_state`.
+
 **Citations:** released **CDS views** → the SAP Help **Released CDS Views** list
 (`https://help.sap.com/docs/SAP_S4HANA_CLOUD/c0c54048d35849128be8e872df5bea6d/5418de55938d1d22e10000000a44147b.html`)
 + ADT Released Objects / View Browser; **BAdIs** → the SAP Help **List of BAdIs**
@@ -234,10 +276,19 @@ assume approval; never continue on silence.
    when the MCP is blocked. Read the verdict correctly — a seed miss is not a failure:
    - `NOT_AVAILABLE` → the object is categorically unusable (BAPI, classical table, enhancement
      point, Smart Form). Redesign with the returned alternative. **Only this verdict blocks.**
-   - `LIKELY_RELEASED` → in the seed OR matches SAP's released naming — **CDS views** (I_/C_/A_/R_/E_)
-     or **APIs** (API_*, *_SRV, SOAP *_IN/*_OUT, events CE_*). Record it as **released** and add a
-     one-line "confirm on the Released CDS Views list / SAP Business Accelerator Hub / ADT" note —
-     do NOT write it up as "not verified".
+   - `LIKELY_RELEASED` + `evidence: catalog_hit` → an exact match in `catalog.db`. Record it as
+     **released** and add a one-line "confirm on the Released CDS Views list / SAP Business
+     Accelerator Hub / ADT" note — do NOT write it up as "not verified".
+   - `LIKELY_RELEASED` + `evidence: naming_heuristic_only` → the name matches SAP's released
+     convention (**CDS** I_/C_/A_/R_/E_, **APIs** API_*, *_SRV, SOAP *_IN/*_OUT, events CE_*) but
+     **nothing in the catalog backs it**, so a fabricated name scores identically to a real one.
+     Use it as a design placeholder, then: (a) cross-check with `search_released_apis` on the
+     *business keywords* (not the name) / `semantic_search` / `get_object_graph`; (b) write it as
+     "name unconfirmed — verify on api.sap.com / Released CDS Views list", **never** as released;
+     (c) list it in the Tenant verification checklist. If the cross-check finds nothing, say the
+     object may not exist and raise a Major finding.
+   - **Always carry `evidence` into the Evidence column of `03-release-verdicts.md`.** A verdict
+     without its evidence is not reviewable.
    - `NOT_VERIFIED` → genuinely unknown to this offline server. Do not guess: look it up on the
      authoritative list for its object type, then record it as released (with the citation) or
      as a tenant-verification item — never as "unreleased".
@@ -252,8 +303,11 @@ assume approval; never continue on silence.
 4. **GATE 1: Release check** — the gate FAILS only on a `NOT_AVAILABLE` object (→ redesign).
    `LIKELY_RELEASED` and `NOT_VERIFIED` objects PASS the gate but each gets a line in the
    deliverable's **Tenant verification checklist** with its authoritative source URL. Never
-   report a released standard CDS view (e.g. `I_MaterialStock`, `I_Product`, `I_SalesOrder`) as
-   "not verified / not released" — that is the mistake this gate exists to prevent.
+   report a `catalog_hit` standard CDS view (e.g. `I_MaterialStock`, `I_Product`, `I_SalesOrder`) as
+   "not verified / not released" — that is the mistake this gate exists to prevent. The mirror-image
+   mistake is just as bad: an object with `evidence: naming_heuristic_only` written up as
+   "released" without a keyword/semantic cross-check is a **gate defect** — record a Major finding
+   and correct the wording to "name unconfirmed".
 5. ✋ **CHECKPOINT 1 — Solution approval.** Show: proposal table (capability → mode → objects →
    verdicts), the **Custom-Object Naming Contract** (exact names to be created), open questions,
    alternatives considered. The human approves the approach **and the object names** (possibly
@@ -517,9 +571,11 @@ the webapp, not in this chat:
    seed snapshots kept for Claude-readable fallback and may be stale if `sync_hub.py` has been run
    since initial setup — they are still reliable for offline release checks.
    Per object: matches a `forbidden_patterns.json` entry (BAPI / classical table / enhancement
-   point / Smart Form) → `NOT_AVAILABLE`; in a catalog OR matches released naming (CDS
-   `I_/C_/A_/R_/E_`, APIs `API_*`/`*_SRV`/SOAP `*_IN`/`*_OUT`, events `CE_*`) → `LIKELY_RELEASED`;
-   otherwise → `NOT_VERIFIED`. **Do NOT run the `check_object_release_state` CLI once per object,
+   point / Smart Form) → `NOT_AVAILABLE` (`evidence: rule`); found **in** a catalog file →
+   `LIKELY_RELEASED` (`evidence: catalog_hit`); **not** in a catalog but matches released naming
+   (CDS `I_/C_/A_/R_/E_`, APIs `API_*`/`*_SRV`/SOAP `*_IN`/`*_OUT`, events `CE_*`) →
+   `LIKELY_RELEASED` (`evidence: naming_heuristic_only` — name-only, so write "name unconfirmed",
+   never "released"); otherwise → `NOT_VERIFIED`. **Do NOT run the `check_object_release_state` CLI once per object,
    and do NOT probe for a Python interpreter (`where python`, `py --version`, `cd`, etc.)** — the
    JSON seeds are on disk; a few `Read`s replace all of it. The only tool you may
    shell out to is `abap_cloud_lint`, and only at the Lint step (step 9).

@@ -188,10 +188,26 @@ def _total(data):
 
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 
+# The Hub's state vocabulary differs BY ARTIFACT TYPE, which is easy to miss:
+#   CDSVIEW / BADI  -> "RELEASED"
+#   API / Event     -> "ACTIVE"   (no API or Event artifact is ever "RELEASED")
+# Filtering on RELEASED alone therefore discarded every usable API (874 ACTIVE) and
+# event (143 ACTIVE) while silently reporting "0 released", which is why the apis table
+# never grew past its 74 seed rows and genuinely released APIs fell through to a
+# naming_heuristic_only verdict. Excluded: DEPRECATED (not upgrade-safe) and BETA
+# (no stable release contract, so it must not be presented as released).
+USABLE_STATES  = {"RELEASED", "ACTIVE"}
+EXCLUDED_STATES = {"DEPRECATED", "BETA"}
+
+
 def fetch_type(api_key, artifact_type, dry_run=False):
-    """Fetch all RELEASED artifacts of artifact_type, paginated."""
+    """Fetch all usable artifacts of artifact_type, paginated.
+
+    "Usable" means State is RELEASED or ACTIVE — see USABLE_STATES for why both.
+    """
     print("  %-8s ... " % artifact_type, end="", flush=True)
     all_items, skip = [], 0
+    skipped = {}
 
     while True:
         data = _get(ARTIFACT_PATH, api_key, {
@@ -206,9 +222,14 @@ def fetch_type(api_key, artifact_type, dry_run=False):
         if not page:
             break
 
-        # keep only RELEASED state
-        released = [e for e in page if (e.get("State") or "").upper() == "RELEASED"]
-        all_items.extend(released)
+        # Keep RELEASED or ACTIVE; count what was dropped so a state vocabulary we do
+        # not recognise shows up in the output instead of vanishing as a silent zero.
+        for e in page:
+            st = (e.get("State") or "NONE").upper()
+            if st in USABLE_STATES:
+                all_items.append(e)
+            else:
+                skipped[st] = skipped.get(st, 0) + 1
 
         total = _total(data)
         if total and len(all_items) >= total:
@@ -219,7 +240,13 @@ def fetch_type(api_key, artifact_type, dry_run=False):
         if not dry_run:
             time.sleep(0.2)
 
-    print("%d released" % len(all_items))
+    detail = ", ".join("%s %d" % (k, v) for k, v in sorted(skipped.items()))
+    print("%d usable%s" % (len(all_items), (" (skipped: %s)" % detail) if detail else ""))
+    if skipped and not (set(skipped) <= EXCLUDED_STATES):
+        # An unfamiliar state means the Hub changed its vocabulary again — say so loudly
+        # rather than under-reporting the catalog by an unknown amount.
+        print("           WARNING: unrecognised state(s) %s — check whether these are usable"
+              % ", ".join(sorted(set(skipped) - EXCLUDED_STATES)))
     return all_items
 
 

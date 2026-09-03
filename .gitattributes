@@ -1,0 +1,22 @@
+# Windows batch files MUST check out with CRLF. With LF endings cmd.exe cannot match
+# a `goto` label — start-brain-tunnel.bat's retry loop failed with "The system cannot
+# find the batch label specified - loop" for exactly this reason. Without this rule the
+# next person to clone the repo hits the same bug.
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# Shell scripts run on the Linux delivery host; CRLF breaks the shebang.
+*.sh            text eol=lf
+
+# Let git normalise the rest, and keep binaries out of it.
+*               text=auto
+*.png           binary
+*.jpg           binary
+*.pdf           binary
+*.docx          binary
+*.xlsx          binary
+*.pptx          binary
+*.ppk           binary
+*.index         binary
+*.npy           binary
+*.db            binary

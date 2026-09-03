@@ -24,9 +24,11 @@ import json
 import os
 import re
 import sys
+import hmac
 import time
 import base64
 import hashlib
+import threading
 import traceback
 import urllib.request
 import urllib.error
@@ -55,7 +57,26 @@ CATALOG_APIS = _catalog_db.load_apis()
 CATALOG_BADIS = _catalog_db.load_badis()
 CATALOG_CDS   = _catalog_db.load_cds_views()
 LINT_RULES    = _catalog_db.load_lint_rules()
-EXPERIENCE    = _catalog_db.load_experience()
+
+# Experience store backend: sqlite (default — local/EC2, writes catalog.db + git seed) or
+# postgres (serverless — writes the shared Aurora DB, same PGVECTOR_DSN as the brain, so
+# record_experience works on Lambda's read-only filesystem). Default keeps the local/EC2 POC
+# byte-for-byte; postgres is opt-in via EXPERIENCE_BACKEND. Falls back to the sqlite seed if
+# postgres can't be reached, so the server always boots. (log_stderr isn't defined yet here.)
+_EXP_BACKEND = os.environ.get("EXPERIENCE_BACKEND", "sqlite").lower()
+_exp_store = _catalog_db
+if _EXP_BACKEND == "postgres":
+    try:
+        import experience_pg as _exp_store          # catalog/ already on sys.path
+        EXPERIENCE = _exp_store.load_experience()
+    except Exception as _eexc:
+        sys.stderr.write("[s4pc-mcp] EXPERIENCE_BACKEND=postgres unavailable (%s) — "
+                         "falling back to sqlite seed (read-mostly)\n" % _eexc)
+        sys.stderr.flush()
+        _EXP_BACKEND, _exp_store = "sqlite", _catalog_db
+        EXPERIENCE = _catalog_db.load_experience()
+else:
+    EXPERIENCE = _catalog_db.load_experience()
 
 # Authoritative documentation sources — cite these in every solution.
 REFERENCE_LINKS = {
@@ -155,10 +176,18 @@ GUARD = CONFIG.get("guardrails", {})
 MODE = os.environ.get("S4PC_MODE", CONFIG.get("mode", {}).get("default", "offline")).lower()
 ALLOW_WRITES = os.environ.get("S4PC_ALLOW_WRITES", "").lower() == "true" and GUARD.get("allow_writes", False)
 
-LOG_DIR = os.path.join(BASE_DIR, "logs")
+# On AWS Lambda the deployment package (BASE_DIR) is read-only — observability must go to
+# /tmp, the only writable path. Activates ONLY when AWS_LAMBDA_FUNCTION_NAME is set, so the
+# EC2 / local / stdio POC paths keep their existing logs/ location byte-for-byte.
+if os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    LOG_DIR = "/tmp/s4pc-logs"
+    AUDIT_PATH = os.path.join(LOG_DIR, "audit.jsonl")
+    METRICS_PATH = os.path.join(LOG_DIR, "metrics.json")
+else:
+    LOG_DIR = os.path.join(BASE_DIR, "logs")
+    AUDIT_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("audit_log", "logs/audit.jsonl"))
+    METRICS_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("metrics_file", "logs/metrics.json"))
 os.makedirs(LOG_DIR, exist_ok=True)
-AUDIT_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("audit_log", "logs/audit.jsonl"))
-METRICS_PATH = os.path.join(BASE_DIR, CONFIG.get("observability", {}).get("metrics_file", "logs/metrics.json"))
 
 # --------------------------------------------------------- observability ---
 
@@ -177,11 +206,20 @@ def _redact(obj):
         return [_redact(v) for v in obj]
     return obj
 
+# Identity of the HTTP caller being served on this thread, for the audit trail.
+# Thread-local because the HTTP transport is threaded. stdio leaves it unset, which
+# correctly reads as a same-host process rather than a network caller.
+_CALLER = threading.local()
+
+def _current_caller():
+    return getattr(_CALLER, "name", None) or "local"
+
 def audit(event, detail):
     rec = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "event": event,
         "mode": MODE,
+        "caller": _current_caller(),
         "detail": _redact(detail),
     }
     try:
@@ -227,6 +265,84 @@ def rate_limit_ok():
 
 class GuardrailViolation(Exception):
     pass
+
+
+# ------------------------------------------------------- HTTP authentication ---
+# The HTTP transport is unauthenticated unless S4PC_API_KEYS is set. Unset means
+# "auth disabled", so the loopback + SSH-tunnel setup and the stdio pipeline path
+# keep working untouched — but anything reachable by more than the tunnel MUST set
+# it. See docs/brain-endpoint-setup.md.
+#
+#   S4PC_API_KEYS = "name:secret[:tool,tool,...];name2:secret2"
+#
+# Entries are ';'-separated, fields ':'-separated, the optional tool allowlist
+# ','-separated. Omitting the allowlist grants every tool, so a client-facing key
+# should always carry one — several tools read files or reach SAP/BTP.
+
+def _parse_api_keys():
+    entries = []
+    for chunk in os.environ.get("S4PC_API_KEYS", "").split(";"):
+        parts = [p.strip() for p in chunk.strip().split(":")]
+        if len(parts) < 2 or not parts[0] or not parts[1]:
+            continue
+        tools = None
+        if len(parts) > 2 and parts[2]:
+            tools = {t.strip() for t in parts[2].split(",") if t.strip()}
+        entries.append((parts[0], parts[1], tools))
+    return entries
+
+def _authenticate(headers):
+    """-> (ok, caller_name, allowed_tools|None). No keys configured -> auth disabled."""
+    entries = _parse_api_keys()
+    if not entries:
+        return True, "anonymous", None
+    presented = (headers.get("x-api-key") or "").strip()
+    if not presented:
+        auth = headers.get("Authorization", "")
+        if auth[:7].lower() == "bearer ":
+            presented = auth[7:].strip()
+    if not presented:
+        return False, None, None
+    for name, secret, tools in entries:
+        # compare_digest on every entry — no early exit, so timing does not leak
+        # which key prefix was close.
+        if hmac.compare_digest(presented, secret):
+            return True, name, tools
+    return False, None, None
+
+
+# ------------------------------------------------------------ path containment ---
+# file_probe and extract_docx take a caller-supplied path and return file contents.
+# They exist to read pipeline inputs and deliverables, so they are confined to those
+# directories: uncontained, they are arbitrary file read for anyone who can reach the
+# transport — including, via /proc/<pid>/environ, the credentials the security model
+# deliberately keeps out of files.
+_REPO_ROOT = os.path.dirname(BASE_DIR)
+
+def _file_roots():
+    override = os.environ.get("S4PC_FILE_ROOTS", "")
+    roots = override.split(os.pathsep) if override else [
+        os.path.join(_REPO_ROOT, "input"), os.path.join(_REPO_ROOT, "output")]
+    return [os.path.realpath(r) for r in roots if r.strip()]
+
+def _safe_read_path(file_path, default_rel):
+    """Resolve a caller-supplied path and confine it to the permitted roots.
+
+    realpath() before the check, so a symlink planted inside a root cannot point out
+    of it, and '..' cannot climb out.
+    """
+    if not file_path:
+        file_path = os.path.join(_REPO_ROOT, *default_rel)
+    resolved = os.path.realpath(file_path)
+    for root in _file_roots():
+        if resolved == root or resolved.startswith(root + os.sep):
+            return resolved
+    audit("path_denied", {"requested": str(file_path)[:200]})
+    raise GuardrailViolation(
+        "Path is outside the permitted roots (%s). These tools read pipeline inputs "
+        "and deliverables only; widen deliberately with S4PC_FILE_ROOTS."
+        % os.pathsep.join(_file_roots()))
+
 
 def require_live():
     if MODE != "live":
@@ -350,6 +466,15 @@ def tool_check_object_release_state(args):
         "object_name": name,
         "verdict": "NOT_VERIFIED",
         "verified": False,
+        # How the verdict was reached. A verdict is only as good as its evidence:
+        #   rule                  — categorical clean-core rule (BAPI, classical table). Certain.
+        #   catalog_hit           — exact match in catalog.db (Hub-synced). Strong.
+        #   naming_heuristic_only — the NAME matches a released-object pattern and nothing else.
+        #                           Zero catalog backing, so it cannot distinguish a real released
+        #                           object missing from the catalog from a name that does not exist.
+        #   none                  — nothing matched.
+        "evidence": "none",
+        "requires_tenant_confirmation": True,
         "source": "seed catalogs + released-VDM naming heuristic — offline check",
         "released_objects_reference": refs,
         "how_to_verify": [
@@ -362,6 +487,7 @@ def tool_check_object_release_state(args):
     # Categorical clean-core NO — BAPIs
     if name.startswith("BAPI_") or obj_type == "bapi":
         result.update(verdict="NOT_AVAILABLE", verified=True,
+            evidence="rule", requires_tenant_confirmation=False,
             reason="BAPIs are not released in S/4HANA Cloud Public Edition. No exceptions.",
             alternative="Search released APIs for the same business object (search_released_apis).",
             source="SAP clean-core rule: only released APIs/BAdIs are consumable in Public Cloud")
@@ -370,21 +496,22 @@ def tool_check_object_release_state(args):
     tmap = _table_map()
     if name in tmap:
         result.update(verdict="NOT_AVAILABLE", verified=True,
+            evidence="rule", requires_tenant_confirmation=False,
             reason="Classical SAP table %s is not released for Public Cloud custom code." % name,
             alternative="Use released CDS view(s): %s (confirm C1 on the Released CDS Views list / ADT)." % ", ".join(tmap[name]))
         return result
     # Seed-catalog hits
     for api in (CATALOG_APIS.get("apis") or []):
         if (api.get("name") or "").upper() == name:
-            result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released APIs; confirm on the SAP Business Accelerator Hub.", details=api)
+            result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released APIs; confirm on the SAP Business Accelerator Hub.", details=api)
             return result
     for badi in (CATALOG_BADIS.get("badis") or []):
         if (badi.get("name") or "").upper() == name:
-            result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released BAdIs — availability still depends on your release/scope; confirm on the List of BAdIs.", details=badi)
+            result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released BAdIs — availability still depends on your release/scope; confirm on the List of BAdIs.", details=badi)
             return result
     for view in (CATALOG_CDS.get("views") or []):
         if (view.get("name") or "").upper() == name:
-            result.update(verdict="LIKELY_RELEASED", reason="Found in seed catalog of released CDS views; confirm C1 on the Released CDS Views list / ADT Released Objects.", details=view)
+            result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released CDS views; confirm C1 on the Released CDS Views list / ADT Released Objects.", details=view)
             return result
     # Naming-convention heuristic — do NOT dead-end standard released VDM views as NOT_VERIFIED.
     # Private views (P_*) are generally not released; interface/consumption views are.
@@ -396,27 +523,38 @@ def tool_check_object_release_state(args):
         return result
     if obj_type in ("cds", "cds_view", "view") or re.match(r"^[ICARE]_[A-Z0-9][A-Z0-9_]{2,}$", name):
         result.update(verdict="LIKELY_RELEASED", verified=False,
-            reason=("Not in the offline seed, but the name matches SAP's RELEASED VDM CDS-view convention "
+            evidence="naming_heuristic_only",
+            reason=("Not in the catalog, but the name matches SAP's RELEASED VDM CDS-view convention "
                     "(I_ interface / C_ consumption / A_ / R_ / E_ views) — the standard clean-core way to read "
-                    "S/4HANA data. Treat as released for design purposes and CONFIRM the exact view's C1 release "
-                    "on the Released CDS Views list / ADT Released Objects / View Browser before finalizing."),
-            note=("A seed miss is NOT 'unreleased'. Only NOT_AVAILABLE (BAPIs, classical tables, enhancement "
-                  "points, Smart Forms) forces a redesign — a CDS view marked LIKELY_RELEASED is a "
-                  "confirm-in-tenant item, not a blocker."))
+                    "S/4HANA data. Usable as a design placeholder, but this verdict rests on the NAME ALONE."),
+            evidence_warning=("NAME-PATTERN MATCH ONLY — no catalog entry backs this. The same verdict is "
+                              "returned for a view that does not exist, so it cannot be reported as 'released'. "
+                              "Cross-check with semantic_search / get_object_graph: if neither returns this view "
+                              "or a near neighbour, treat the NAME ITSELF as unconfirmed and say so explicitly "
+                              "in the deliverable."),
+            note=("A catalog miss is NOT 'unreleased'. Only NOT_AVAILABLE (BAPIs, classical tables, enhancement "
+                  "points, Smart Forms) forces a redesign — but a heuristic-only LIKELY_RELEASED is a "
+                  "MUST-confirm-in-tenant item and must appear in the tenant verification checklist."))
         return result
     # API-shaped names (OData / SOAP / event services) — confirm on the SAP Business Accelerator Hub.
     if obj_type in ("api", "odata", "soap", "service", "event") \
        or name.startswith(("API_", "CE_")) or name.endswith(("_SRV", "_IN", "_OUT")):
         result.update(verdict="LIKELY_RELEASED", verified=False,
-            reason=("Not in the offline seed, but the name matches SAP's released OData/SOAP/event API naming "
-                    "(API_*/*_SRV, SOAP *_IN/*_OUT, events CE_*). Released S/4HANA Cloud APIs are published on "
-                    "the SAP Business Accelerator Hub — treat as released for design and CONFIRM the exact "
-                    "service and its communication scenario on the Hub + the tenant Communication Arrangements "
-                    "app before use."),
+            evidence="naming_heuristic_only",
+            reason=("Not in the catalog, but the name matches SAP's released OData/SOAP/event API naming "
+                    "(API_*/*_SRV, SOAP *_IN/*_OUT, events CE_*). Usable as a design placeholder, but this "
+                    "verdict rests on the NAME ALONE."),
+            evidence_warning=("NAME-PATTERN MATCH ONLY — no catalog entry backs this. Any well-formed API_* "
+                              "string gets this verdict, including one that does not exist, so it cannot be "
+                              "reported as 'released'. Cross-check with search_released_apis on the business "
+                              "keywords (not the name): if that returns count 0, the NAME ITSELF is unconfirmed "
+                              "— state that in the deliverable and keep it as an open verification item rather "
+                              "than presenting it as a released object."),
             hub_overview_url="https://api.sap.com/api/%s/overview" % name,
             hub_all_apis_url=REFERENCE_LINKS["sap_business_accelerator_hub"]["url"],
-            note=("A seed miss is NOT 'unreleased'. Finalise every API against the SAP Business Accelerator Hub "
-                  "(api.sap.com) — the authoritative public list of released S/4HANA Cloud APIs."))
+            note=("A catalog miss is NOT 'unreleased'. Finalise every API against the SAP Business Accelerator "
+                  "Hub (api.sap.com) — the authoritative public list of released S/4HANA Cloud APIs. A "
+                  "heuristic-only verdict MUST appear in the tenant verification checklist."))
         return result
     # BAdI-shaped enhancement names not in the seed
     if obj_type == "badi" or re.match(r"^[A-Z]{2,}_[A-Z0-9_]{3,}$", name):
@@ -511,6 +649,9 @@ def tool_extensibility_advisor(args):
     }
 
 def _save_experience(entry):
+    if _EXP_BACKEND == "postgres":
+        _exp_store.append_experience(entry)         # Aurora is the store; git seed exported nightly
+        return
     _catalog_db.append_experience(entry)
     _catalog_db.sync_experience_to_seed(entry)  # auto-sync seed so git diff is always ready
 
@@ -957,7 +1098,10 @@ TOOLS = {
         "description": ("Clean-core gate: check whether an object (BAPI, table, API, BAdI, CDS view) is usable in "
                         "S/4HANA Cloud Public Edition custom code. Returns NOT_AVAILABLE for BAPIs/classical tables "
                         "with the released alternative, LIKELY_RELEASED for catalog hits, NOT_VERIFIED otherwise. "
-                        "Call this for EVERY object referenced in a technical design."),
+                        "ALWAYS read the 'evidence' field alongside the verdict: 'catalog_hit' means a real entry "
+                        "backs it; 'naming_heuristic_only' means ONLY the name pattern matched, so a fabricated "
+                        "name returns the same verdict — cross-check it and report it as 'name unconfirmed', never "
+                        "as released. Call this for EVERY object referenced in a technical design."),
         "schema": {"type": "object", "properties": {
             "object_name": {"type": "string", "description": "e.g. BAPI_SALESORDER_CREATEFROMDAT2, VBAK, I_SalesDocument, API_BUSINESS_PARTNER"},
             "object_type": {"type": "string", "description": "Optional: bapi | table | api | badi | cds_view | auto"}},
@@ -1153,6 +1297,11 @@ SERVER_INSTRUCTIONS = """S/4HANA Cloud PUBLIC Edition clean-core server. Rules f
     BAdIs linked by shared business concept). Use get_area_map to see the complete released-object landscape
     for a business area. Call sync_object_graph (offline) or sync_object_graph+live_enrich (live mode) after
     catalog changes to keep the graph current.
+12. Use search_brain (semantic RAG over the harvested SharePoint delivery knowledge + SAP scope catalog,
+    Bedrock Titan embeddings) to GROUND a deliverable in prior delivery experience. It is a reference layer,
+    NOT an authoritative object source — every SAP object name it surfaces still goes through
+    check_object_release_state and is re-verified on api.sap.com / the Custom Logic app / ADT. If it is
+    unavailable (deps/index absent on this host), continue with the governance tools — they are independent.
 """
 
 PROMPTS = {
@@ -1435,10 +1584,8 @@ def _read_zip_with_bad_eocd(raw):
 def tool_extract_docx(args):
     """Pipeline helper: extract plain text from a .docx (ZIP+XML) or text/md file."""
     import zipfile as _zf, io as _io
-    file_path = args.get("file_path", "")
-    if not file_path:
-        file_path = os.path.join(BASE_DIR, "..", "input", "FD Test AI Stock Monitoring.docx.md")
-    file_path = os.path.abspath(file_path)
+    file_path = _safe_read_path(args.get("file_path", ""),
+                                ("input", "FD Test AI Stock Monitoring.docx.md"))
     with open(file_path, "rb") as fh:
         raw_bytes = fh.read()
     header = raw_bytes[:4]
@@ -1502,10 +1649,8 @@ def tool_extract_docx(args):
 def tool_file_probe(args):
     """Probe a file: size, header bytes, search for key strings."""
     import struct
-    file_path = args.get("file_path", "")
-    if not file_path:
-        file_path = os.path.join(BASE_DIR, "..", "input", "FD Test AI Stock Monitoring.docx.md")
-    file_path = os.path.abspath(file_path)
+    file_path = _safe_read_path(args.get("file_path", ""),
+                                ("input", "FD Test AI Stock Monitoring.docx.md"))
     with open(file_path, "rb") as fh:
         raw = fh.read()
     size = len(raw)
@@ -1714,6 +1859,175 @@ TOOLS["extract_docx"] = {
     "handler": tool_extract_docx,
 }
 
+# ── SAP Scope Item Catalog (offline governance: lookup + dependency graph) ─────
+SCOPE_CATALOG  = _load_json("catalog/scope_items.json",
+                            default={"scope_items": [], "retired_scope_items": []})
+_SCOPE_BY_ID   = {s["scope_item_id"]: s for s in SCOPE_CATALOG.get("scope_items", [])}
+_RETIRED_BY_ID = {s["scope_item_id"]: s for s in SCOPE_CATALOG.get("retired_scope_items", [])}
+_SCOPE_SOURCE  = ("SAP Scope Item Catalog (mcp-server/catalog/scope_items.json). Confirm current "
+                  "availability in the tenant's SAP Central Business Configuration and the SAP "
+                  "Best Practices Explorer (help.sap.com/docs/SAP_S4HANA_CLOUD).")
+
+def tool_lookup_scope_item(args):
+    sid = (args.get("scope_item_id") or "").strip().upper()
+    if not sid:
+        return {"error": "scope_item_id is required (e.g. J58, 1NT, BD9)"}
+    item = _SCOPE_BY_ID.get(sid)
+    if item:
+        lobs = sorted({c["lob"] for c in item.get("classifications", []) if c.get("lob")})
+        return {
+            "found": True, "verified": True, "retired": False,
+            "scope_item_id": sid,
+            "description":   item.get("description"),
+            "lines_of_business": lobs,
+            "business_areas": sorted({c["business_area"] for c in item.get("classifications", [])
+                                      if c.get("business_area")}),
+            "component":     item.get("component"),
+            "provisioning":  item.get("provisioning"),
+            "required_scope_items": [e["to"] for e in item.get("required_scope_items", [])],
+            "required_master_data": item.get("required_master_data", []),
+            "available_country_count": item.get("available_country_count"),
+            "source": _SCOPE_SOURCE,
+        }
+    if sid in _RETIRED_BY_ID:
+        return {
+            "found": True, "retired": True,
+            "scope_item_id": sid,
+            "description": _RETIRED_BY_ID[sid].get("description"),
+            "warning": "This scope item is RETIRED by SAP — do NOT use it in new designs. "
+                       "Find the current successor in SAP Best Practices Explorer.",
+            "source": _SCOPE_SOURCE,
+        }
+    return {
+        "found": False, "scope_item_id": sid,
+        "note": "Not in the catalog seed. Verify in SAP Central Business Configuration / "
+                "SAP Best Practices Explorer before using it.",
+        "source": _SCOPE_SOURCE,
+    }
+
+def tool_scope_item_dependencies(args):
+    sid = (args.get("scope_item_id") or "").strip().upper()
+    if not sid:
+        return {"error": "scope_item_id is required (e.g. J58, 1NT, BD9)"}
+    item = _SCOPE_BY_ID.get(sid)
+    if not item:
+        if sid in _RETIRED_BY_ID:
+            return {"scope_item_id": sid, "retired": True,
+                    "warning": "Retired scope item — do not use.", "source": _SCOPE_SOURCE}
+        return {"found": False, "scope_item_id": sid, "source": _SCOPE_SOURCE}
+    requires = [{
+        "scope_item_id": e["to"],
+        "conditional":   e.get("conditional", False),
+        "description":   (_SCOPE_BY_ID.get(e["to"], {}) or {}).get("description"),
+        "retired":       e["to"] in _RETIRED_BY_ID,
+    } for e in item.get("required_scope_items", [])]
+    required_by = [{
+        "scope_item_id": s["scope_item_id"], "description": s.get("description"),
+    } for s in SCOPE_CATALOG.get("scope_items", [])
+        if any(e["to"] == sid for e in s.get("required_scope_items", []))]
+    return {
+        "found": True, "scope_item_id": sid, "description": item.get("description"),
+        "requires": requires,
+        "required_by": required_by,
+        "requires_count": len(requires), "required_by_count": len(required_by),
+        "note": "Conditional (business-condition) dependencies are flagged. A retired "
+                "prerequisite means the design needs review.",
+        "source": _SCOPE_SOURCE,
+    }
+
+TOOLS["lookup_scope_item"] = {
+    "description": ("Resolve an SAP S/4HANA Cloud Public Edition scope item ID (e.g. J58, 1NT, BD9 — "
+                    "also the prefix of BPD file names) to its business meaning: description, line(s) of "
+                    "business, business area, application component, provisioning (Default/Optional), "
+                    "required master data, and country coverage. Flags RETIRED scope items as do-not-use. "
+                    "Use INSTEAD of guessing what a scope item covers."),
+    "schema": {"type": "object", "properties": {
+        "scope_item_id": {"type": "string", "description": "3-char scope item ID, e.g. J58, 1NT, BD9"}},
+        "required": ["scope_item_id"]},
+    "handler": tool_lookup_scope_item,
+}
+
+TOOLS["scope_item_dependencies"] = {
+    "description": ("Return the dependency graph for an SAP scope item: the scope items it REQUIRES "
+                    "(hard vs conditional business-condition dependencies) and the scope items that "
+                    "require IT (reverse dependents). Use to assess scope impact and prerequisites before "
+                    "committing a solution to a scope item."),
+    "schema": {"type": "object", "properties": {
+        "scope_item_id": {"type": "string", "description": "3-char scope item ID, e.g. J58, 1NT, BD9"}},
+        "required": ["scope_item_id"]},
+    "handler": tool_scope_item_dependencies,
+}
+
+# ── Digital Brain (semantic RAG): merge the brain_server.py tool(s) ────────────
+# One unified MCP server so a SINGLE enterprise-allowlisted registration exposes
+# BOTH the offline governance tools above AND the Bedrock+FAISS brain search. The
+# brain's handlers share this server's contract (handler(args) -> dict, wrapped by
+# make_result), so they slot straight into TOOLS. Degrades gracefully: if the brain
+# deps/index are absent (e.g. running locally, not on the EC2/Bedrock host), the
+# tool returns a helpful message — the governance tools are unaffected.
+try:
+    if BASE_DIR not in sys.path:
+        sys.path.insert(0, BASE_DIR)
+    import brain_server as _brain_mod
+    for _bname, _bspec in _brain_mod.TOOLS.items():
+        TOOLS.setdefault(_bname, _bspec)
+    log_stderr("brain tools registered: %s" % ", ".join(sorted(_brain_mod.TOOLS)))
+
+    # ── Entity linking ────────────────────────────────────────────────────────
+    # A retrieved delivery document names SAP objects, but a 2024 FD citing API_X says
+    # nothing about whether API_X is released TODAY — the reader has to notice the name
+    # and check it separately, which is the step that gets skipped. Annotate every hit
+    # with a CURRENT verdict for the objects its text mentions.
+    #
+    # Done here rather than in brain_server.py on purpose: this module owns the catalog,
+    # so brain_server stays pure retrieval. Wrapping also means the annotation cannot
+    # change what was retrieved or how it was ranked — it only adds a field.
+    def _wrap_search_brain(_inner):
+        def _handler(args):
+            payload = _inner(args)
+            if not isinstance(payload, dict) or not payload.get("results"):
+                return payload
+            try:
+                import entity_link                       # noqa: PLC0415
+                import brain_search                      # scripts/ is on sys.path via brain_server
+            except Exception:
+                return payload                           # annotation is additive; never fatal
+            memo = {}
+            def _resolve(name):
+                if name not in memo:
+                    memo[name] = tool_check_object_release_state({"object_name": name})
+                return memo[name]
+            flagged = 0
+            for hit in payload["results"]:
+                try:
+                    text = brain_search._read_chunk_text(hit.get("chunk_file"))
+                except Exception:
+                    continue
+                if not text:
+                    continue
+                found = entity_link.annotate(text, _resolve)
+                if found:
+                    hit["objects_mentioned"] = found
+                    flagged += sum(1 for f in found
+                                   if f.get("verdict") == "NOT_AVAILABLE"
+                                   or f.get("evidence") == "naming_heuristic_only")
+            payload["objects_note"] = (
+                "objects_mentioned lists SAP object names found IN the retrieved text, each "
+                "with its verdict from the live catalog as of now — not as of when the "
+                "document was written. Treat it as a lead, not as the document's own claim: "
+                "%d mentioned object(s) are NOT_AVAILABLE or name-unconfirmed. Re-verify on "
+                "api.sap.com / the Released CDS Views list before using any of them."
+                % flagged)
+            return payload
+        return _handler
+
+    if "search_brain" in TOOLS:
+        TOOLS["search_brain"] = dict(TOOLS["search_brain"],
+                                     handler=_wrap_search_brain(TOOLS["search_brain"]["handler"]))
+        log_stderr("entity linking active on search_brain")
+except Exception as _bexc:
+    log_stderr("brain tools NOT registered (%s) — governance tools unaffected" % _bexc)
+
 def main():
     _METRICS["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     audit("server_start", {"mode": MODE, "python": sys.version.split()[0]})
@@ -1776,7 +2090,173 @@ def cli():
     sys.stdout.buffer.flush()
     sys.exit(0 if ok else 1)
 
+def http_server(port=3000):
+    """Streamable-HTTP MCP transport — for enterprise environments that block stdio servers.
+    Run locally: python mcp-server/server.py --http [port]
+    Then register: claude mcp add s4pc --transport http http://localhost:<port>/mcp
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from socketserver import ThreadingMixIn
+    import uuid
+
+    class _Handler(BaseHTTPRequestHandler):
+        def log_message(self, fmt, *args):
+            pass  # suppress per-request logs; audit() captures what matters
+
+        def _cors(self):
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Mcp-Session-Id")
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._cors()
+            self.end_headers()
+
+        def do_GET(self):
+            if self.path == "/health":
+                body = json.dumps({"status": "ok", "server": "s4pc", "mode": MODE}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self._cors()
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            elif self.path in ("/mcp", "/"):
+                self.send_response(405)
+                self.send_header("Allow", "POST, OPTIONS")
+                self._cors()
+                self.end_headers()
+            else:
+                self.send_error(404)
+
+        def _reject(self, code, payload, extra=None):
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
+            self._cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            if self.path not in ("/mcp", "/"):
+                self.send_error(404)
+                return
+
+            ok, caller, allowed_tools = _authenticate(self.headers)
+            if not ok:
+                audit("auth_denied", {"peer": self.client_address[0], "path": self.path})
+                return self._reject(401, {"error": "unauthorized"},
+                                    {"WWW-Authenticate": 'Bearer realm="s4pc"'})
+            _CALLER.name = caller
+
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length)
+                msg = json.loads(raw)
+            except Exception as exc:
+                self.send_error(400, "Bad request: %s" % exc)
+                return
+
+            # A restricted key must not be able to invoke a tool outside its allowlist.
+            if allowed_tools is not None and msg.get("method") == "tools/call":
+                requested = (msg.get("params") or {}).get("name") or ""
+                if requested not in allowed_tools:
+                    audit("tool_denied", {"tool": requested})
+                    return self._reject(403, {
+                        "jsonrpc": "2.0", "id": msg.get("id"),
+                        "error": {"code": -32000,
+                                  "message": "Tool %r is not permitted for this key." % requested}})
+
+            msg_id = msg.get("id")
+            if msg_id is None:
+                self.send_response(202)
+                self._cors()
+                self.end_headers()
+                return
+
+            try:
+                result = handle_request(msg)
+                # Don't advertise tools the key cannot call — a restricted client should
+                # not see btp_deploy in its tool list at all.
+                if (allowed_tools is not None and msg.get("method") == "tools/list"
+                        and isinstance(result, dict)):
+                    result["tools"] = [t for t in result.get("tools") or []
+                                       if t.get("name") in allowed_tools]
+                reply = {"jsonrpc": "2.0", "id": msg_id, "result": result}
+            except ValueError as exc:
+                reply = {"jsonrpc": "2.0", "id": msg_id,
+                         "error": {"code": -32601, "message": str(exc)}}
+            except Exception as exc:
+                reply = {"jsonrpc": "2.0", "id": msg_id,
+                         "error": {"code": -32603, "message": "Internal error: %s" % exc}}
+
+            # MCP Streamable HTTP: respond with SSE when client requests it (Claude Code does).
+            accept = self.headers.get("Accept", "")
+            body_json = json.dumps(reply, ensure_ascii=False)
+            session_id = str(uuid.uuid4()) if msg.get("method") == "initialize" else None
+
+            if "text/event-stream" in accept:
+                sse_body = ("data: " + body_json + "\n\n").encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self._cors()
+                if session_id:
+                    self.send_header("Mcp-Session-Id", session_id)
+                self.send_header("Content-Length", str(len(sse_body)))
+                self.end_headers()
+                self.wfile.write(sse_body)
+            else:
+                body_bytes = body_json.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self._cors()
+                if session_id:
+                    self.send_header("Mcp-Session-Id", session_id)
+                self.send_header("Content-Length", str(len(body_bytes)))
+                self.end_headers()
+                self.wfile.write(body_bytes)
+
+    class _ThreadedServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+
+    # Loopback by default. This transport has NO authentication, and several tools
+    # (file_probe, extract_docx) read caller-supplied paths, so a 0.0.0.0 bind hands
+    # anything that can route to this host an unauthenticated read of everything the
+    # service user can read. An SSH tunnel does NOT require a wildcard bind — the
+    # forward's target is resolved on this side, so 127.0.0.1 serves it fine.
+    # Override only when something in front of it terminates TLS and authenticates
+    # (see docs/brain-endpoint-setup.md).
+    host = os.environ.get("S4PC_MCP_HOST", "127.0.0.1")
+    _METRICS["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    audit("server_start", {"mode": MODE, "transport": "http", "port": port, "host": host})
+    log_stderr("HTTP MCP server started on %s:%d (mode=%s)" % (host, port, MODE))
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        if _parse_api_keys():
+            log_stderr("NOTE: bound to %s with API-key auth enabled." % host)
+        else:
+            # The combination that caused the 2026-09-03 exposure: reachable off-box
+            # AND no credential required. Make it impossible to miss in the logs.
+            log_stderr("*" * 78)
+            log_stderr("WARNING: bound to %s with NO authentication (S4PC_API_KEYS unset)." % host)
+            log_stderr("Every tool is callable by anything that can route to this host.")
+            log_stderr("Set S4PC_API_KEYS or bind 127.0.0.1 — see docs/brain-endpoint-setup.md")
+            log_stderr("*" * 78)
+        audit("insecure_bind", {"host": host, "authenticated": bool(_parse_api_keys())})
+    log_stderr("Register with: claude mcp add s4pc --transport http http://localhost:%d/mcp" % port)
+    srv = _ThreadedServer((host, port), _Handler)
+    srv.serve_forever()
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--tool":
         cli()
-    main()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--http":
+        port = int(sys.argv[2]) if len(sys.argv) > 2 else 3000
+        http_server(port)
+    else:
+        main()

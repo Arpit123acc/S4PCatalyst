@@ -27,15 +27,26 @@ The `s4pc` MCP server (offline-first, zero-dependency, see [mcp-server/](mcp-ser
 governance layer. Use it as follows — these are gates, not suggestions:
 
 1. **Never name an SAP object from memory.** Before referencing any API/BAdI/table/CDS view, call
-   `check_object_release_state`. Read the verdict precisely: `NOT_AVAILABLE` (BAPI, classical
-   table, enhancement point) is the only blocker → redesign. `LIKELY_RELEASED` (seed hit or a
-   standard released name — **CDS views** I_/C_/A_/R_/E_, or **APIs** API_*/*_SRV/SOAP *_IN/_OUT/
-   events CE_*) is **released** → record it as such and add a "confirm on the Released CDS Views
-   list / SAP Business Accelerator Hub / ADT" note. `NOT_VERIFIED` means the offline server can't
-   confirm it — look it up on the authoritative list for its type and label it "to verify in
-   tenant"; it does **not** mean "unreleased". Never downgrade a standard released CDS view (e.g.
-   `I_MaterialStock`) or a released API (e.g. `API_CLFN_PRODUCT_SRV`) to "not verified" —
-   finalise APIs from the SAP Business Accelerator Hub (api.sap.com).
+   `check_object_release_state`. **Read the `verdict` AND the `evidence` field — a verdict is only
+   as good as its evidence.**
+   - `NOT_AVAILABLE` (`evidence: rule` — BAPI, classical table, enhancement point) is the only
+     blocker → redesign.
+   - `LIKELY_RELEASED` + **`evidence: catalog_hit`** → **released.** Record it as such and add a
+     "confirm on the Released CDS Views list / SAP Business Accelerator Hub / ADT" note.
+   - `LIKELY_RELEASED` + **`evidence: naming_heuristic_only`** → **NOT established as released.**
+     The verdict came from the NAME pattern alone with no catalog entry behind it, so a fabricated
+     name (`API_TOTALLY_MADE_UP_THING`) scores identically to a real one. Usable as a **design
+     placeholder**, but you must (a) cross-check with `search_released_apis` on the *business
+     keywords* (not the name) / `semantic_search` / `get_object_graph`, (b) write it in the
+     deliverable as "name unconfirmed — verify on api.sap.com / Released CDS Views list", never as
+     released, and (c) put it in the tenant verification checklist. If the cross-check returns
+     nothing, say plainly that the object may not exist.
+   - `NOT_VERIFIED` means the offline server can't confirm it — look it up on the authoritative
+     list for its type and label it "to verify in tenant"; it does **not** mean "unreleased".
+
+   Never downgrade a **`catalog_hit`** CDS view (e.g. `I_MaterialStock`) or API (e.g.
+   `API_CLFN_PRODUCT_SRV`) to "not verified" — finalise APIs from the SAP Business Accelerator Hub
+   (api.sap.com). Equally, never promote a `naming_heuristic_only` hit to "released".
 2. **Lint every ABAP snippet** with `abap_cloud_lint` before showing it. A `FAIL` verdict means
    redesign, not apology text.
 3. **Every extensibility decision** goes through `extensibility_advisor` and is documented with

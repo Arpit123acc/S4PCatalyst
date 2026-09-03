@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — AWS Architecture</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#f5f4ff;
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:44px 24px 64px;
+}
+
+/* ── TITLE ── */
+.title{font-size:1.08rem;font-weight:800;color:#1a1a2e;text-align:center;margin-bottom:4px}
+.sub{font-size:.73rem;color:#6b6685;text-align:center;margin-bottom:30px}
+
+/* ── CANVAS ── */
+.canvas{
+  display:flex;align-items:center;gap:0;
+  width:100%;max-width:1100px;
+}
+
+/* ── CLIENT BOX ── */
+.client{
+  border:2.5px solid #9b59b6;border-radius:14px;
+  background:#f9f4ff;padding:18px 14px 14px;
+  min-width:158px;flex-shrink:0;
+}
+.zone-lbl{
+  font-size:.67rem;font-weight:800;letter-spacing:.13em;
+  text-transform:uppercase;color:#9b59b6;
+  text-align:center;margin-bottom:14px;
+}
+.c-card{
+  background:#fff;border:1.5px solid #e0d8f0;border-radius:8px;
+  padding:9px 10px;margin-bottom:8px;text-align:center;
+}
+.c-card:last-child{margin-bottom:0}
+.c-card .ct{font-size:.8rem;font-weight:700;color:#14121c}
+.c-card .cs{font-size:.68rem;color:#9b8fc4;margin-top:1px}
+
+/* ── ARROW ZONE ── */
+.arrow-zone{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:8px;
+  padding:0 4px;min-width:86px;flex-shrink:0;
+}
+.alb-badge{
+  border:2px dashed #5b8ef0;border-radius:9px;
+  background:#eef3ff;padding:7px 12px;
+  font-size:.72rem;font-weight:800;color:#2d5fc4;text-align:center;
+}
+.alb-badge .bs{font-size:.64rem;font-weight:400;color:#5b8ef0;display:block}
+.arr{display:flex;align-items:center;width:100%}
+.ln{flex:1;height:2.5px;background:#9b59b6}
+.hd{width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #9b59b6}
+.ln.ssh{background:none;border-top:2px dashed #4a7ef5;height:0;flex:1}
+.hd.ssh{border-left-color:#4a7ef5}
+.arr-lbl{font-size:.64rem;color:#4a7ef5;font-weight:600;text-align:center}
+
+/* ── APP VM ── */
+.vm{
+  border:2.5px solid #1a1a2e;border-radius:16px;
+  background:#fff;padding:16px 16px 14px;flex:1;
+}
+.vm-title{font-size:.96rem;font-weight:800;color:#1a1a2e;text-align:center;margin-bottom:2px}
+.vm-sub{font-size:.68rem;color:#888;text-align:center;margin-bottom:14px}
+
+/* process row */
+.proc-row{display:flex;align-items:stretch;gap:0}
+
+/* each process block */
+.proc{
+  border:1.5px solid #d0c8ef;border-radius:10px;
+  background:#faf9ff;padding:13px 13px 11px;flex:1;
+}
+.p-title{font-size:.86rem;font-weight:800;color:#5b3fd4;margin-bottom:1px}
+.p-role{font-size:.67rem;color:#888;margin-bottom:9px}
+.p-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.tag{
+  border:1.5px solid #27ae60;border-radius:5px;
+  padding:3px 8px;font-size:.65rem;font-weight:700;
+  color:#0a6b37;background:#f4fff8;white-space:nowrap;
+}
+.tag.gray{border-color:#bbb;color:#555;background:#f6f6f6}
+.tag.org{border-color:#e0a030;color:#8a5400;background:#fffbf0}
+.p-chips{display:flex;gap:6px;margin-top:2px}
+.chip{
+  flex:1;background:#f0eeff;border:1.5px solid #c5b8f0;
+  border-radius:6px;padding:4px 6px;
+  font-size:.63rem;font-weight:600;color:#5b3fd4;text-align:center;
+}
+
+/* stdio connector between processes */
+.stdio-conn{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;flex-shrink:0;width:44px;
+}
+.sc-line{width:1.5px;height:26px;background:#d0c8ef}
+.sc-lbl{
+  font-size:.6rem;font-weight:800;color:#9b59b6;
+  writing-mode:vertical-lr;letter-spacing:.06em;
+  margin:2px 0;transform:rotate(180deg);
+}
+.sc-arrow{
+  width:0;height:0;
+  border-left:5px solid transparent;border-right:5px solid transparent;
+  border-top:8px solid #c5b8f0;
+}
+
+/* ── RIGHT SERVICES ── */
+.services{
+  display:flex;flex-direction:column;gap:9px;
+  margin-left:10px;flex-shrink:0;width:158px;
+}
+.svc{border:2px solid;border-radius:10px;padding:10px 12px}
+.svc.red{border-color:#e74c3c;background:#fff5f5}
+.svc.orange{border-color:#e67e22;background:#fff9f2}
+.svc.purple{border-color:#8e44ad;background:#fdf4ff}
+.svc.blue{border-color:#2980b9;background:#f2f8ff}
+.sv-title{font-size:.8rem;font-weight:800;margin-bottom:3px}
+.svc.red    .sv-title{color:#c0392b}
+.svc.orange .sv-title{color:#d35400}
+.svc.purple .sv-title{color:#7d3c98}
+.svc.blue   .sv-title{color:#1a6fa8}
+.sv-sub{font-size:.66rem;color:#777;line-height:1.4}
+
+/* ── TRANSPORT BAR ── */
+.tbar{
+  margin-top:22px;background:#f0ecff;border-radius:9px;
+  padding:9px 22px;font-size:.74rem;font-weight:700;color:#5b3fd4;
+  text-align:center;width:100%;max-width:1100px;line-height:1.75;
+}
+.tbar .d{font-weight:400;color:#9b8de8}
+.tbar .sep{color:#c0b8e8;margin:0 8px}
+</style>
+</head>
+<body>
+
+<div class="title">S4PC Catalyst — AWS Architecture</div>
+<div class="sub">Amazon Linux 2023 &nbsp;·&nbsp; Direct process model (no Docker) &nbsp;·&nbsp; Managed Bedrock inference</div>
+
+<div class="canvas">
+
+  <!-- CLIENT -->
+  <div class="client">
+    <div class="zone-lbl">Client Machine</div>
+    <div class="c-card">
+      <div class="ct">Browser (UI)</div>
+      <div class="cs">Pipeline runs · approvals</div>
+    </div>
+    <div class="c-card">
+      <div class="ct">Claude Code CLI</div>
+      <div class="cs">Developer / admin</div>
+    </div>
+    <div class="c-card">
+      <div class="ct">SSH Client</div>
+      <div class="cs">IAM Key Pair (.pem)</div>
+    </div>
+  </div>
+
+  <!-- ARROWS + ALB -->
+  <div class="arrow-zone">
+    <div class="arr"><div class="ln"></div><div class="hd"></div></div>
+    <div class="alb-badge">ALB<div class="bs">HTTPS · ACM cert</div></div>
+    <div class="arr"><div class="ln ssh"></div><div class="hd ssh"></div></div>
+    <div class="arr-lbl">SSH (admin / deploy)</div>
+  </div>
+
+  <!-- APP VM -->
+  <div class="vm">
+    <div class="vm-title">APP VM — EC2</div>
+    <div class="vm-sub">Amazon Linux 2023 &nbsp;·&nbsp; m5.xlarge 4 vCPU / 16 GB &nbsp;·&nbsp; 100 GB gp3 EBS &nbsp;·&nbsp; nginx :443 → :8321</div>
+
+    <div class="proc-row">
+
+      <!-- Process 1: app.py -->
+      <div class="proc">
+        <div class="p-title">app.py</div>
+        <div class="p-role">Webapp · Pipeline engine · systemd service</div>
+        <div class="p-tags">
+          <span class="tag">Python 3.10+</span>
+          <span class="tag">Flask</span>
+          <span class="tag gray">Gunicorn</span>
+          <span class="tag gray">port 8321</span>
+        </div>
+        <div class="p-chips">
+          <div class="chip">IAM Profile (ro)</div>
+          <div class="chip">Graph API (env)</div>
+        </div>
+      </div>
+
+      <!-- stdio connector 1 -->
+      <div class="stdio-conn">
+        <div class="sc-line"></div>
+        <div class="sc-lbl">stdio</div>
+        <div class="sc-arrow"></div>
+        <div class="sc-line"></div>
+      </div>
+
+      <!-- Process 2: claude -p -->
+      <div class="proc">
+        <div class="p-title">claude -p</div>
+        <div class="p-role">LLM engine · agentic loop · spawned by app.py</div>
+        <div class="p-tags">
+          <span class="tag org">Claude Code CLI</span>
+          <span class="tag gray">npm global</span>
+        </div>
+        <div class="p-chips">
+          <div class="chip">Bedrock via IAM</div>
+          <div class="chip">No stored key</div>
+        </div>
+      </div>
+
+      <!-- stdio connector 2 -->
+      <div class="stdio-conn">
+        <div class="sc-line"></div>
+        <div class="sc-lbl">stdio</div>
+        <div class="sc-arrow"></div>
+        <div class="sc-line"></div>
+      </div>
+
+      <!-- Process 3: mcp-server -->
+      <div class="proc">
+        <div class="p-title">mcp-server/server.py</div>
+        <div class="p-role">14 governance tools · spawned by claude -p · offline-first</div>
+        <div class="p-tags">
+          <span class="tag">Python 3.10+</span>
+          <span class="tag">mcp ≥ 1.0</span>
+          <span class="tag gray">stdio transport</span>
+        </div>
+        <div class="p-chips">
+          <div class="chip">catalog/ (EBS)</div>
+          <div class="chip">experience DB</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT SERVICES -->
+  <div class="services">
+
+    <div class="svc red">
+      <div class="sv-title">Amazon Bedrock</div>
+      <div class="sv-sub">Claude Sonnet<br>Inference · managed API<br>VPC Endpoint</div>
+    </div>
+
+    <div class="svc orange">
+      <div class="sv-title">RDS pgvector</div>
+      <div class="sv-sub">SAP catalog vectors<br>SharePoint doc index<br>Experience DB</div>
+    </div>
+
+    <div class="svc purple">
+      <div class="sv-title">Bedrock Titan</div>
+      <div class="sv-sub">Embeddings 1024d<br>Doc indexing · nightly<br>SharePoint ingest</div>
+    </div>
+
+    <div class="svc blue">
+      <div class="sv-title">SharePoint</div>
+      <div class="sv-sub">Microsoft Graph API<br>Harvested S/4HANA<br>Cloud docs · RAG</div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- TRANSPORT BAR -->
+<div class="tbar">
+  Browser → HTTPS → ALB → nginx → app.py
+  <span class="sep">|</span>
+  <span class="d">app.py spawns → claude -p (stdio) → spawns → mcp-server/server.py (stdio)</span>
+  <span class="sep">|</span>
+  SSH — admin &amp; deploy access only
+</div>
+
+</body>
+</html>

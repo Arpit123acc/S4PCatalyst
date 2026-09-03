@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — AWS-Native UI Architecture</title>
+<style>
+:root{
+  --ink:#14121c; --ink2:#3d3854; --muted:#6b6685; --line:#e3e0ee;
+  --bg:#f4f2f9; --card:#ffffff;
+  --c1:#5b3fd4;
+  --c2:#0f7a6c;
+  --aws:#e8730a;
+  --good:#0f7a3d; --warn:#b45309; --bad:#b3261e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif;padding:28px 16px 80px}
+.deck{max-width:1200px;margin:0 auto}
+.slide{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:38px 44px;margin-bottom:26px;box-shadow:0 1px 3px rgba(20,18,28,.06);
+  page-break-after:always}
+.num{font-size:.68rem;letter-spacing:.14em;color:var(--muted);font-weight:700;margin-bottom:6px;text-transform:uppercase}
+h1{font-size:2.1rem;line-height:1.15;letter-spacing:-.02em;margin-bottom:10px}
+h2{font-size:1.6rem;letter-spacing:-.015em;margin-bottom:6px}
+h3{font-size:1rem;margin:18px 0 7px;color:var(--ink2);font-weight:700}
+h4{font-size:.9rem;font-weight:700;margin-bottom:5px;color:var(--ink)}
+.sub{color:var(--muted);font-size:.95rem;margin-bottom:22px}
+p{margin-bottom:10px;color:var(--ink2);font-size:.9rem}
+ul{margin:0 0 10px 18px}li{margin-bottom:5px;color:var(--ink2);font-size:.88rem}
+strong{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:.84rem;margin:10px 0 14px}
+th{text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);
+  font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+.box{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fbfaff}
+.box.rec{border:2px solid var(--c1);background:#f6f3ff}
+.box.warn{border-left:3px solid var(--warn);background:#fdf7ee;border-radius:0 8px 8px 0;padding:11px 14px}
+.box.note{border-left:3px solid var(--c1);background:#f6f3ff;border-radius:0 8px 8px 0;padding:11px 14px}
+.box.good{border-left:3px solid var(--good);background:#f2fbf5;border-radius:0 8px 8px 0;padding:11px 14px}
+.diagram{background:#fbfaff;border:1px solid var(--line);border-radius:10px;padding:18px 20px;
+  font:12.5px/1.8 "Cascadia Code",Consolas,monospace;white-space:pre;overflow-x:auto;color:var(--ink2)}
+.flow-steps{counter-reset:step;list-style:none;margin:0 0 12px 0}
+.flow-steps li{counter-increment:step;padding:9px 12px 9px 44px;position:relative;
+  border-bottom:1px solid var(--line);font-size:.88rem;color:var(--ink2)}
+.flow-steps li:last-child{border-bottom:none}
+.flow-steps li::before{content:counter(step);position:absolute;left:10px;top:9px;
+  background:var(--c1);color:#fff;width:22px;height:22px;border-radius:50%;
+  font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center}
+.flow-steps li.warn-step::before{background:var(--aws)}
+.flow-steps li.warn-step{background:#fffbf4}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;
+  font-size:.72rem;font-weight:700;margin:2px}
+.chip.aws{background:#fef3e2;color:var(--aws);border:1px solid #f5c07a}
+.chip.ours{background:#ece7fb;color:var(--c1);border:1px solid #c9bfef}
+.chip.free{background:#e4f4ea;color:var(--good);border:1px solid #9ed4b4}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700}
+.t-good{background:#e4f4ea;color:var(--good)}
+.t-warn{background:#fdf0dd;color:var(--warn)}
+.t-new{background:#ece7fb;color:var(--c1)}
+.foot{font-size:.73rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:20px}
+.spacer{flex:1}
+@media print{body{background:#fff;padding:0}.slide{box-shadow:none;border:none;margin:0}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1 ─── Architecture ───────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 1 — Architecture</div>
+  <h1>S4PC Catalyst — AWS-Native UI</h1>
+  <p class="sub">UI hosted on S3 + CloudFront. API on EC2. Single CloudFront domain — no CORS, no Work Zone dependency, accessible from any browser.</p>
+
+  <div class="diagram">   INTERNET (any browser, any device)
+              │
+              ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  Route 53                                                        │
+   │  s4pc.yourcompany.com  →  CloudFront distribution                │
+   └──────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  CloudFront Distribution  (HTTPS, ACM cert — must be us-east-1) │
+   │                                                                  │
+   │   Path /           →  Origin 1: S3 Bucket (UI)                  │
+   │                        index.html · Access via OAC              │
+   │   Path /api/*      →  Origin 2: ALB → EC2 (API)                 │
+   └────────────┬─────────────────────────────┬────────────────────┘
+                │ /api/*                       │ /
+                ▼                              ▼
+   ┌────────────────────────┐   ┌──────────────────────────┐
+   │  ALB → EC2 port 8321   │   │  S3 Bucket — UI          │
+   └────────────┬───────────┘   │  index.html (static)     │
+                │               └──────────────────────────┘
+                ▼
+   ┌────────────────────────────────────────────────────────────────────┐
+   │  EC2  Amazon Linux 2023  (t3.large)                                │
+   │  IAM Instance Profile — no stored secret                           │
+   │                                                                    │
+   │   nginx → webapp/app.py (API: /api/*)                             │
+   │              └─► Pipeline Engine (claude -p, per phase)           │
+   │                       │           │                               │
+   │              MCP server/server.py │  (governance · lint · advisor)│
+   │                       │           │                               │
+   │                       ▼           ▼                               │
+   │              ┌─────────────────────────────────────────────┐      │
+   │              │  PUBLIC CLOUD BRAIN                          │      │
+   │              │                                             │      │
+   │              │  L1  Object Graph      (graph.json / EBS)   │      │
+   │              │  L2  Object Vectors    (index.json / EBS)   │      │
+   │              │  L3  Experience DB     (experience / EBS)   │      │
+   │              │  L4  Document RAG  ◄── SharePoint corpus ◄──┼──┐   │
+   │              │       embeddings       (index.json / EBS)   │  │   │
+   │              │  Catalog DB            (SQLite / EBS)       │  │   │
+   │              └─────────────────────────────────────────────┘  │   │
+   │                                                                │   │
+   │  Ingest script (cron / manual trigger)                         │   │
+   │    Graph API → download → mask → chunk → embed → index.json   │   │
+   └────────────────────────────────────────────────────────────────┘   │
+                      │                                         Microsoft│
+                      ▼                                         Graph API│
+          ┌───────────────────────┐       ┌────────────────────────────┐│
+          │  Amazon Bedrock       │       │  SharePoint                ││
+          │  Claude Sonnet        │       │  Document Library          ││
+          │  (inference)          │       │  client harvested docs     ││
+          │                       │       │  guides · best practices   ││
+          │  Bedrock Titan        │       │  SAP S/4HANA Cloud docs   ││
+          │  Embeddings (ingest)  │       │                            │┘
+          └───────────────────────┘       └────────────────────────────┘
+
+   ─────────────────────────────────────────────────────────────────────
+   RAG flow:  Engine → MCP semantic_search → vector similarity query
+              → retrieve top-K chunks (stored on EBS from last sync)
+              → inject chunks as grounded context → Bedrock (Claude)
+   Ingest:    EC2 → Graph API → SharePoint → mask → chunk → embed → EBS
+   ─────────────────────────────────────────────────────────────────────</div>
+
+  <div class="box note" style="margin-top:14px">
+    <strong>One S3 bucket only — for the UI.</strong> Documents for RAG come directly from SharePoint via Microsoft Graph API. EC2 pulls, masks, chunks, and embeds them into the existing brain index on EBS. No S3 corpus bucket needed for the POC.
+  </div>
+  <div class="foot">ACM certificate for CloudFront must be created in us-east-1 regardless of where EC2 is deployed — AWS requirement for CloudFront.</div>
+</section>
+
+<!-- 2 ─── Brain + RAG ───────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 2 — Public Cloud Brain + RAG</div>
+  <h2>Public Cloud Brain — four layers including RAG</h2>
+  <p class="sub">Every pipeline phase queries the brain. The RAG layer grounds deliverables in your masked SAP S/4HANA Cloud document corpus — no hallucination, no assumption.</p>
+
+  <div class="grid g2" style="margin-bottom:16px">
+    <div class="box" style="border-left:4px solid #5b3fd4">
+      <h4>Layer 1 — Object Graph</h4>
+      <p><strong>What:</strong> Graph of 8,900+ released SAP objects (CDS views, APIs, BAdIs) and their relationships.</p>
+      <p><strong>Used for:</strong> <code>get_object_graph</code> — tells the engine which BAdI fires at which extension point, which CDS view exposes which fields.</p>
+      <p><strong>Storage:</strong> <code>graph.json</code> on EBS (POC) → S3 + in-memory cache (production)</p>
+    </div>
+    <div class="box" style="border-left:4px solid #0f7a6c">
+      <h4>Layer 2 — Released Object Vectors</h4>
+      <p><strong>What:</strong> Dense embeddings of the entire released object catalog — APIs, CDS views, BAdIs described semantically.</p>
+      <p><strong>Used for:</strong> <code>semantic_search</code> — finds the right API or BAdI by meaning, not keyword. "Get open POs for a supplier" → surfaces the correct OData service.</p>
+      <p><strong>Storage:</strong> <code>index.json</code> on EBS (POC) → RDS pgvector (production)</p>
+    </div>
+    <div class="box" style="border-left:4px solid #1e5fa8">
+      <h4>Layer 3 — Experience DB</h4>
+      <p><strong>What:</strong> Every completed pipeline run recorded (anonymised — client names hashed before storage).</p>
+      <p><strong>Used for:</strong> <code>find_similar_delivery</code> — surfaces proven approaches for similar requirements. "You solved a vendor invoice extension before — here is what worked."</p>
+      <p><strong>Storage:</strong> <code>experience_db.json</code> on EBS (POC) → RDS pgvector (production)</p>
+    </div>
+    <div class="box rec" style="border-left:4px solid #e8730a">
+      <h4>Layer 4 — SharePoint Document RAG <span class="tag t-new" style="vertical-align:middle">New</span></h4>
+      <p><strong>What:</strong> Harvested SAP S/4HANA Cloud documents from your SharePoint — best practices, process guides, configuration guides, client delivery notes — pulled directly via Microsoft Graph API, masked on EC2, chunked, and embedded.</p>
+      <p><strong>Used for:</strong> At each pipeline phase the engine retrieves the top-K most relevant chunks and injects them as grounded context into the phase prompt. This replaces assumption with evidence from your own delivery knowledge base.</p>
+      <p><strong>Storage (POC):</strong> Embeddings stored in <code>index.json</code> on EBS alongside other brain layers. No S3, no RDS needed. Documents never leave EC2 after processing — SharePoint remains the source of truth.</p>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div>
+      <h3>RAG retrieval flow — per pipeline phase</h3>
+      <ol class="flow-steps">
+        <li>Pipeline engine begins a phase (e.g. solution design, TD generation)</li>
+        <li>Engine calls MCP <code>semantic_search</code> with the requirement text as the query</li>
+        <li>MCP queries local vector index (EBS) — similarity search across all document chunk embeddings</li>
+        <li>Top-K most relevant chunks (5–10 sections) returned with their text</li>
+        <li>Chunks injected into the phase prompt as grounded reference context</li>
+        <li>Engine calls Amazon Bedrock (Claude Sonnet) with context-enriched prompt</li>
+        <li>Output is grounded in your actual SharePoint documents — not model memory</li>
+      </ol>
+    </div>
+    <div>
+      <h3>Document ingest pipeline (scheduled — e.g. nightly)</h3>
+      <ol class="flow-steps">
+        <li>EC2 authenticates to Microsoft Graph API using Azure AD app credentials (env vars)</li>
+        <li>Script lists and downloads new/updated documents from SharePoint library</li>
+        <li>Text extracted from each file (python-docx / PyMuPDF / python-pptx)</li>
+        <li>Masking applied on EC2 — client names and engagement refs stripped during chunking</li>
+        <li>Chunks (~500 tokens, 10% overlap) embedded via Bedrock Titan Embeddings</li>
+        <li>Embeddings written to <code>index.json</code> on EBS alongside released-object vectors</li>
+        <li>Run <code>POST /api/brain/rebuild</code> to merge new embeddings into the live index</li>
+        <li>New documents available for RAG retrieval on next pipeline run</li>
+      </ol>
+
+      <div class="box good" style="margin-top:8px">
+        <strong>POC: No S3, no RDS needed for RAG.</strong> All document embeddings live in <code>index.json</code> on EBS — the same file already used for released-object semantic search. The existing brain rebuild mechanism handles the merge automatically. Upgrade to RDS pgvector only when the corpus grows beyond ~50K chunks or when scaling to multiple concurrent clients.
+      </div>
+    </div>
+  </div>
+  <div class="foot">Chunk size: 400–600 tokens with 10% overlap. Masking runs on EC2 during ingest — raw documents never stored outside SharePoint. Azure AD app credentials stored as environment variables only.</div>
+</section>
+
+<!-- 3 ─── Services Table ─────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 3 — Services</div>
+  <h2>Services needed — and why</h2>
+  <p class="sub">Complete list for the AWS-native UI + RAG architecture. No SAP Build Work Zone required.</p>
+
+  <h3>Core compute and inference</h3>
+  <table>
+    <tr><th>#</th><th>Service</th><th>Why Needed</th></tr>
+    <tr>
+      <td>1</td>
+      <td><strong>EC2</strong> (t3.large, Amazon Linux 2023)</td>
+      <td>Runs the Python API server, MCP governance server, and Claude Code engine. API-only — UI is served from S3 + CloudFront.</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>EBS Volume</strong> (EC2 root disk)</td>
+      <td>Persistent storage for pipeline deliverables, catalog DB, object graph, and logs. Survives EC2 stop/start. Included with EC2.</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><strong>IAM Instance Profile</strong></td>
+      <td>Grants EC2 permission to call Bedrock (Claude Sonnet + Titan Embeddings) and write CloudWatch logs. No API key stored anywhere — AWS rotates credentials automatically.</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><strong>Amazon Bedrock — Claude Sonnet</strong></td>
+      <td>LLM inference for every pipeline phase — FD analysis, ABAP code generation, TD writing, challenger review. ~$2.25 per full run.</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><strong>Amazon Bedrock — Titan Embeddings</strong></td>
+      <td>Converts SharePoint document chunks into vector embeddings during nightly ingest. Used once per sync, not per pipeline run. Low cost.</td>
+    </tr>
+  </table>
+
+  <h3>Public Cloud Brain + RAG (SharePoint source)</h3>
+  <table>
+    <tr><th>#</th><th>Component</th><th>Why Needed</th><th></th></tr>
+    <tr>
+      <td>6</td>
+      <td><strong>Microsoft Graph API</strong> (external — Microsoft 365)</td>
+      <td>REST API used by EC2 to authenticate to SharePoint and download documents. No SharePoint SDK needed — standard HTTPS calls with an OAuth2 bearer token from Azure AD.</td>
+      <td><span class="tag t-new">New</span></td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><strong>Azure AD App Registration</strong> (external — client's tenant)</td>
+      <td>One-time setup by client IT admin. Gives EC2 application-level read access to the specific SharePoint site. Client ID + Secret stored as EC2 environment variables — never in files.</td>
+      <td><span class="tag t-new">New</span></td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td><strong>EBS — Brain index (index.json)</strong></td>
+      <td>Stores document chunk embeddings alongside released-object vectors. No separate vector DB needed for POC. Upgrade to RDS pgvector when corpus exceeds ~50K chunks or multi-client scale is needed.</td>
+      <td><span class="tag t-good">POC — EBS only</span></td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><strong>Python libraries on EC2</strong> (msal, python-docx, PyMuPDF, python-pptx)</td>
+      <td>msal authenticates to Graph API. python-docx / PyMuPDF / python-pptx extract text from Word, PDF, and PowerPoint files downloaded from SharePoint.</td>
+      <td><span class="tag t-new">New</span></td>
+    </tr>
+  </table>
+
+  <h3>UI hosting</h3>
+  <table>
+    <tr><th>#</th><th>Service</th><th>Why Needed</th></tr>
+    <tr>
+      <td>8</td>
+      <td><strong>S3 Bucket — UI Assets</strong></td>
+      <td>Hosts the static UI (<code>index.html</code>). Not publicly accessible — served only via CloudFront using Origin Access Control (OAC).</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><strong>CloudFront Distribution</strong></td>
+      <td>CDN entry point with two origins: <code>/</code> → S3 (UI), <code>/api/*</code> → ALB (API). Single domain eliminates CORS. Caches UI at edge. HTTPS termination.</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><strong>Origin Access Control (OAC)</strong></td>
+      <td>Allows CloudFront to securely read from the UI S3 bucket. The S3 bucket URL is never exposed publicly.</td>
+    </tr>
+  </table>
+
+  <h3>Networking, DNS and security</h3>
+  <table>
+    <tr><th>#</th><th>Service</th><th>Why Needed</th></tr>
+    <tr>
+      <td>8</td>
+      <td><strong>Application Load Balancer (ALB)</strong></td>
+      <td>Sits between CloudFront and EC2. Routes <code>/api/*</code> traffic from CloudFront to the EC2 app. EC2 is never directly accessible — all traffic arrives via ALB.</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><strong>ACM Certificate</strong> (us-east-1)</td>
+      <td>Free SSL certificate for your domain attached to CloudFront. Must be created in us-east-1 — AWS requirement for CloudFront regardless of EC2 region. Auto-renews.</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><strong>Route 53</strong></td>
+      <td>DNS — maps <code>s4pc.yourcompany.com</code> to the CloudFront distribution endpoint so users have a stable, branded address.</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td><strong>Security Groups</strong></td>
+      <td>EC2 accepts traffic only from the ALB security group — never from the internet or CloudFront directly. SSH restricted to team IP.</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td><strong>VPC</strong> (default)</td>
+      <td>Network container for EC2 and ALB. Default VPC is sufficient — no changes needed for this architecture.</td>
+    </tr>
+    <tr>
+      <td>13</td>
+      <td><strong>EC2 Key Pair</strong></td>
+      <td>SSH access for initial setup, app deployments, and maintenance.</td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td><strong>CloudWatch Logs</strong></td>
+      <td>Captures API server and engine logs for remote debugging and audit trail. Auto-enabled — no setup needed.</td>
+    </tr>
+  </table>
+
+  <div class="box warn" style="margin-top:4px">
+    <strong>One gotcha: ACM certificate region.</strong> CloudFront requires its SSL certificate to be in <strong>us-east-1 (N. Virginia)</strong>. Even if your EC2 is in ap-southeast-1 or eu-west-1, the ACM cert for CloudFront must be requested in us-east-1. Create a second cert in your EC2 region separately for the ALB.
+  </div>
+  <div class="foot">Production brain upgrade (RDS pgvector + second S3 bucket) is identical to the previous architecture — add when scaling beyond one client.</div>
+</section>
+
+<!-- 3 ─── How it works ───────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 3 — How It Works</div>
+  <h2>Request flow — UI load and pipeline run</h2>
+  <p class="sub">Two separate flows share one CloudFront domain. The browser never knows there are two origins.</p>
+
+  <div class="grid g2">
+    <div>
+      <h3>Flow 1 — Loading the UI</h3>
+      <ol class="flow-steps">
+        <li>User opens <code>https://s4pc.yourcompany.com</code> in any browser</li>
+        <li>Route 53 resolves to CloudFront distribution</li>
+        <li>CloudFront matches path <code>/</code> → routes to Origin 1 (S3 bucket)</li>
+        <li>CloudFront checks its edge cache — if hit, serves <code>index.html</code> instantly from the nearest edge node</li>
+        <li>If cache miss, CloudFront fetches from S3 using OAC (signed request), caches it, returns to browser</li>
+        <li>Browser renders the UI — all subsequent calls go to <code>/api/*</code> on the same domain</li>
+      </ol>
+
+      <h3>Flow 2 — Running a pipeline phase</h3>
+      <ol class="flow-steps">
+        <li>Browser sends <code>POST /api/pipeline/start</code> to <code>s4pc.yourcompany.com</code></li>
+        <li>CloudFront matches path <code>/api/*</code> → routes to Origin 2 (ALB) — no CORS because same domain</li>
+        <li>ALB forwards to EC2 port 8321</li>
+        <li>Python webapp spawns <code>claude -p</code> as a detached subprocess (Phase A)</li>
+        <li>Engine calls MCP server: <code>check_object_release_state</code>, <code>abap_cloud_lint</code>, <code>extensibility_advisor</code></li>
+        <li>Engine calls Amazon Bedrock → Claude Sonnet → generates analysis / code / TD</li>
+        <li>Deliverables written to EBS (<code>output/&lt;RUN-ID&gt;/</code>)</li>
+        <li class="warn-step">Pipeline pauses at CP1/CP2/CP3 — browser polls <code>GET /api/runs/&lt;id&gt;</code>, UI shows checkpoint</li>
+        <li>User approves in the UI → engine resumes next phase</li>
+        <li>Final package available for download via <code>GET /api/runs/&lt;id&gt;/download</code></li>
+      </ol>
+    </div>
+
+    <div>
+      <h3>What changes vs the EC2-serves-everything design</h3>
+      <table>
+        <tr><th>Area</th><th>Before</th><th>Now</th></tr>
+        <tr><td>UI hosting</td><td>Python app serves index.html</td><td>S3 + CloudFront</td></tr>
+        <tr><td>Entry point</td><td>ALB → EC2</td><td>CloudFront → S3 or ALB</td></tr>
+        <tr><td>UI update process</td><td>Redeploy EC2 app</td><td>Upload new index.html to S3 → CloudFront invalidation</td></tr>
+        <tr><td>CORS</td><td>None (same origin)</td><td>None (same CloudFront domain)</td></tr>
+        <tr><td>UI code changes</td><td>None needed</td><td>None needed — <code>/api/*</code> relative paths still work</td></tr>
+        <tr><td>EC2 serves</td><td>UI + API</td><td>API only</td></tr>
+      </table>
+
+      <h3>CloudFront behaviour rules</h3>
+      <div class="box">
+        <ul>
+          <li><strong>Cache UI aggressively</strong> — set <code>Cache-Control: max-age=86400</code> on index.html in S3. Invalidate on deploy.</li>
+          <li><strong>Do not cache API responses</strong> — CloudFront behaviour for <code>/api/*</code> must have cache disabled (<code>CachingDisabled</code> policy).</li>
+          <li><strong>Forward headers to ALB</strong> — <code>Host</code>, <code>Authorization</code>, all cookies must be forwarded so the API works correctly.</li>
+          <li><strong>HTTPS only</strong> — redirect HTTP to HTTPS at CloudFront level. EC2 can accept HTTP internally from ALB.</li>
+        </ul>
+      </div>
+
+      <h3>UI deployment — how to update</h3>
+      <div class="box rec">
+        <ol style="margin:0 0 0 18px">
+          <li style="margin-bottom:6px">Edit <code>webapp/ui/index.html</code> locally</li>
+          <li style="margin-bottom:6px">Upload: <code>aws s3 cp ui/index.html s3://your-bucket/index.html</code></li>
+          <li style="margin-bottom:6px">Invalidate edge cache: <code>aws cloudfront create-invalidation --distribution-id &lt;id&gt; --paths "/*"</code></li>
+          <li>Users see the new UI on next browser refresh — no EC2 restart needed</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <div class="foot">CloudFront → ALB traffic can use HTTP internally — TLS is terminated at CloudFront. Restrict ALB to accept traffic from CloudFront prefix list only for extra security.</div>
+</section>
+
+<!-- 5 ─── Setup Checklist ────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 5 — Setup Checklist</div>
+  <h2>What to set up — in order</h2>
+  <p class="sub">Four phases. Complete and verify each phase before starting the next.</p>
+
+  <div class="grid g2">
+    <div>
+      <h3>Phase 1 — Core compute (Day 1)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>1</td><td>Create VPC or use default</td><td><span class="chip aws">VPC</span></td></tr>
+        <tr><td>2</td><td>Launch EC2 t3.large, Amazon Linux 2023, public subnet — EBS stores all deliverables</td><td><span class="chip aws">EC2</span></td></tr>
+        <tr><td>3</td><td>Create EC2 key pair, save .pem file securely</td><td><span class="chip aws">EC2</span></td></tr>
+        <tr><td>4</td><td>Create security group: SSH from team IP only, port 8321 from ALB SG only</td><td><span class="chip aws">Security Group</span></td></tr>
+        <tr><td>5</td><td>Create IAM role: Bedrock InvokeModel + CloudWatch logs. Attach as instance profile to EC2</td><td><span class="chip aws">IAM</span></td></tr>
+        <tr><td>6</td><td>Enable Bedrock → request Claude Sonnet model access in AWS console</td><td><span class="chip aws">Bedrock</span></td></tr>
+        <tr><td>7</td><td>SSH to EC2. Install Python, nginx, Node.js. Deploy app. Start webapp on port 8321</td><td><span class="chip ours">EC2 setup</span></td></tr>
+        <tr><td>8</td><td>Create ALB, target group → EC2:8321, security group allows from CloudFront prefix list</td><td><span class="chip aws">ALB</span></td></tr>
+        <tr><td>9</td><td>Test API directly: <code>curl http://&lt;ALB-DNS&gt;/api/runs</code> — should return JSON</td><td><span class="chip free">Verify</span></td></tr>
+      </table>
+
+      <h3>Phase 2 — UI hosting on S3 (Day 2)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>10</td><td>Create private S3 bucket for UI (e.g. <code>s4pc-ui-prod</code>). Block all public access.</td><td><span class="chip aws">S3</span></td></tr>
+        <tr><td>11</td><td>Upload <code>webapp/ui/index.html</code> to the S3 bucket</td><td><span class="chip aws">S3</span></td></tr>
+        <tr><td>12</td><td>Request ACM certificate for <code>s4pc.yourcompany.com</code> — <strong>must be in us-east-1</strong></td><td><span class="chip aws">ACM (us-east-1)</span></td></tr>
+        <tr><td>13</td><td>Create CloudFront distribution with two origins:<br>
+          • Origin 1: S3 bucket (OAC enabled) → default path <code>/</code><br>
+          • Origin 2: ALB DNS → path <code>/api/*</code></td><td><span class="chip aws">CloudFront</span></td></tr>
+        <tr><td>14</td><td>Set CloudFront behaviour for <code>/api/*</code>: cache disabled, forward all headers + cookies</td><td><span class="chip aws">CloudFront</span></td></tr>
+        <tr><td>15</td><td>Attach ACM certificate to CloudFront distribution, set HTTPS-only redirect</td><td><span class="chip aws">CloudFront + ACM</span></td></tr>
+        <tr><td>16</td><td>Add S3 bucket policy: allow CloudFront OAC read access only</td><td><span class="chip aws">S3</span></td></tr>
+        <tr><td>17</td><td>Test: open CloudFront domain URL in browser — UI should load and API calls should work</td><td><span class="chip free">Verify</span></td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h3>Phase 3 — DNS and domain (Day 2–3)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>18</td><td>Create Route 53 hosted zone for <code>yourcompany.com</code> (or use existing)</td><td><span class="chip aws">Route 53</span></td></tr>
+        <tr><td>19</td><td>Add CNAME or A-alias record: <code>s4pc.yourcompany.com</code> → CloudFront distribution domain</td><td><span class="chip aws">Route 53</span></td></tr>
+        <tr><td>20</td><td>Add <code>s4pc.yourcompany.com</code> as alternate domain name (CNAME) in CloudFront distribution settings</td><td><span class="chip aws">CloudFront</span></td></tr>
+        <tr><td>21</td><td>Test: open <code>https://s4pc.yourcompany.com</code> — UI loads, pipeline runs end-to-end</td><td><span class="chip free">Verify</span></td></tr>
+        <tr><td>22</td><td>Run one full pipeline to confirm Bedrock, EBS writes, and deliverable download all work</td><td><span class="chip free">Verify</span></td></tr>
+      </table>
+
+      <h3>Phase 4 — SharePoint RAG connection (run alongside Phase 1)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Who</th></tr>
+        <tr><td>23</td><td>Ask client IT admin to register an Azure AD app with Microsoft Graph permission <code>Sites.Read.All</code> (application permission — server-to-server, not delegated/user-based)</td><td><span class="chip ours">Client IT</span></td></tr>
+        <tr><td>24</td><td>Client IT grants the app consent scoped to the specific SharePoint site only — not tenant-wide access</td><td><span class="chip ours">Client IT</span></td></tr>
+        <tr><td>25</td><td>Receive handover: Tenant ID, Client ID, Client Secret, SharePoint site URL and document library name</td><td><span class="chip ours">Handover</span></td></tr>
+        <tr><td>26</td><td>Set env vars on EC2: <code>GRAPH_TENANT_ID</code>, <code>GRAPH_CLIENT_ID</code>, <code>GRAPH_CLIENT_SECRET</code>, <code>SHAREPOINT_SITE_URL</code> — never write credentials to files</td><td><span class="chip ours">EC2 config</span></td></tr>
+        <tr><td>27</td><td>Enable Bedrock Titan Embeddings model access in AWS console (same region as EC2)</td><td><span class="chip aws">Bedrock</span></td></tr>
+        <tr><td>28</td><td>Update IAM instance profile: add <code>bedrock:InvokeModel</code> permission for Titan Embeddings model ARN</td><td><span class="chip aws">IAM</span></td></tr>
+        <tr><td>29</td><td>Install Python libraries on EC2: <code>pip install msal python-docx PyMuPDF python-pptx</code></td><td><span class="chip ours">EC2 setup</span></td></tr>
+        <tr><td>30</td><td>Run ingest script on EC2 — authenticates via Graph API, downloads docs from SharePoint, extracts text, applies masking (strips client names and refs), chunks to ~500 tokens, embeds via Bedrock Titan, writes to <code>index.json</code> on EBS</td><td><span class="chip ours">Ingest</span></td></tr>
+        <tr><td>31</td><td>Run <code>POST /api/brain/rebuild</code> — merges SharePoint document embeddings into the live brain index</td><td><span class="chip free">Verify</span></td></tr>
+        <tr><td>32</td><td>Run one full pipeline — confirm SharePoint document chunks appear as grounded context in phase prompts</td><td><span class="chip free">Verify</span></td></tr>
+        <tr><td>33</td><td>Schedule nightly cron on EC2 to re-run the ingest script — picks up new and updated SharePoint documents automatically</td><td><span class="chip ours">Automation</span></td></tr>
+      </table>
+
+      <div class="box good" style="margin-top:12px">
+        <strong>No S3, no RDS needed for POC RAG.</strong> Documents pulled from SharePoint are processed and stored in <code>index.json</code> on EBS — the same file already used for released-object semantic search. The only new AWS service is Bedrock Titan Embeddings. The only external dependency is the Azure AD app registration (one-time, done by client IT admin).
+      </div>
+
+      <h3>Key reminders</h3>
+      <div class="box good" style="margin-top:4px">
+        <ul>
+          <li><strong>No Work Zone needed.</strong> Users access via <code>https://s4pc.yourcompany.com</code> — share the URL.</li>
+          <li><strong>No CORS.</strong> CloudFront serves UI and API under the same domain — one origin in the browser.</li>
+          <li><strong>UI updates in 30 seconds.</strong> Upload new index.html to S3 + CloudFront invalidation — no EC2 restart.</li>
+          <li><strong>ACM cert must be in us-east-1.</strong> Hard AWS requirement for CloudFront — EC2 can be in any region.</li>
+          <li><strong>One S3 bucket only.</strong> UI assets only — no doc corpus bucket needed for POC.</li>
+          <li><strong>SharePoint stays the source of truth.</strong> Documents are never stored outside EC2 EBS after processing — no copy lands in AWS storage.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot">Total POC services: EC2, EBS, IAM, Bedrock (Sonnet + Titan), S3 × 1 (UI only), CloudFront, OAC, ALB, ACM, Route 53, Security Groups, VPC, Key Pair, CloudWatch + Azure AD app (external). No RDS, no second S3.</div>
+</section>
+
+</div>
+</body>
+</html>

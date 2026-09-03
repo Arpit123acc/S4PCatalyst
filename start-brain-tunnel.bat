@@ -11,6 +11,16 @@
 :: blip ("FATAL ERROR: Network error: Software caused connection abort") kills
 :: the tunnel permanently and SILENTLY, so the governance MCP tools simply stop
 :: being available mid-session. The loop turns that into a five-second gap.
+:: Proven on 2026-09-03: survived a ~5 minute VPN outage and restored all three
+:: ports on attempt 10 with no manual intervention.
+::
+:: TWO THINGS THAT WILL BREAK THIS IF YOU EDIT IT:
+::   1. Wait with `ping`, not `timeout`. timeout.exe needs a console, and when
+::      this file is launched from a Git Bash PATH it resolves to the UNIX
+::      timeout instead ("invalid time interval '/t'").
+::   2. Keep CRLF line endings. With LF, cmd.exe cannot find the `:loop` label
+::      ("The system cannot find the batch label specified"). .gitattributes
+::      pins *.bat to eol=crlf so a clone gets this right.
 ::
 :: For headless pipeline runs this is belt-and-braces: webapp/app.py's
 :: mcp_preflight() already refuses to start a run when the MCP server is not
@@ -57,5 +67,5 @@ echo [S4PC] %DATE% %TIME% - connecting (attempt %ATTEMPT%) ... 3002 / 8321 / 840
 
 echo [S4PC] %DATE% %TIME% - tunnel dropped. Reconnecting in 5s.
 echo [S4PC] If this loops rapidly, check the VPN first.
-timeout /t 5 /nobreak >nul
+ping -n 6 127.0.0.1 >nul
 goto loop

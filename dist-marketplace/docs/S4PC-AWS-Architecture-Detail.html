@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — AWS Architecture (Detailed)</title>
+<style>
+:root{
+  --ink:#14121c; --ink2:#3d3854; --muted:#6b6685; --line:#e3e0ee;
+  --bg:#f4f2f9; --card:#ffffff;
+  --c1:#5b3fd4;  /* our infrastructure */
+  --c2:#0f7a6c;  /* client / SAP        */
+  --c3:#b45309;  /* AWS / cost          */
+  --c4:#1e5fa8;  /* SAP blue            */
+  --aws:#e8730a; /* AWS orange          */
+  --good:#0f7a3d; --warn:#b45309; --bad:#b3261e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif;padding:28px 16px 80px}
+.deck{max-width:1200px;margin:0 auto}
+.slide{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:38px 44px;margin-bottom:26px;box-shadow:0 1px 3px rgba(20,18,28,.06);
+  page-break-after:always}
+.num{font-size:.68rem;letter-spacing:.14em;color:var(--muted);font-weight:700;margin-bottom:6px;text-transform:uppercase}
+h1{font-size:2.1rem;line-height:1.15;letter-spacing:-.02em;margin-bottom:10px}
+h2{font-size:1.6rem;letter-spacing:-.015em;margin-bottom:6px}
+h3{font-size:1rem;margin:18px 0 7px;color:var(--ink2);font-weight:700}
+h4{font-size:.9rem;font-weight:700;margin-bottom:5px;color:var(--ink)}
+.sub{color:var(--muted);font-size:.95rem;margin-bottom:22px}
+p{margin-bottom:10px;color:var(--ink2);font-size:.9rem}
+ul{margin:0 0 10px 18px}li{margin-bottom:5px;color:var(--ink2);font-size:.88rem}
+strong{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:.84rem;margin:10px 0 14px}
+th{text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);
+  font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;white-space:nowrap}
+.t-good{background:#e4f4ea;color:var(--good)} .t-warn{background:#fdf0dd;color:var(--warn)}
+.t-bad{background:#fbe6e4;color:var(--bad)} .t-our{background:#ece7fb;color:var(--c1)}
+.t-aws{background:#fef3e2;color:var(--aws)} .t-sap{background:#e6f0fb;color:var(--c4)}
+.t-free{background:#e4f4ea;color:var(--good)}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.box{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fbfaff}
+.box.aws{border-color:#f5c07a;background:#fffbf4}
+.box.sap{border-color:#a8c8f0;background:#f4f9ff}
+.box.brain{border-color:#b8e0cc;background:#f4fdf8}
+.box.rec{border:2px solid var(--c1);background:#f6f3ff}
+.box.warn{border-left:3px solid var(--warn);background:#fdf7ee;border-radius:0 8px 8px 0}
+.box.note{border-left:3px solid var(--c1);background:#f6f3ff;border-radius:0 8px 8px 0}
+.diagram{background:#fbfaff;border:1px solid var(--line);border-radius:10px;padding:18px 20px;
+  font:12.5px/1.75 "Cascadia Code",Consolas,monospace;white-space:pre;overflow-x:auto;color:var(--ink2)}
+.flow-steps{counter-reset:step;list-style:none;margin:0 0 12px 0}
+.flow-steps li{counter-increment:step;padding:9px 12px 9px 44px;position:relative;
+  border-bottom:1px solid var(--line);font-size:.88rem;color:var(--ink2)}
+.flow-steps li:last-child{border-bottom:none}
+.flow-steps li::before{content:counter(step);position:absolute;left:10px;top:9px;
+  background:var(--c1);color:#fff;width:22px;height:22px;border-radius:50%;
+  font-size:.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;
+  line-height:1}
+.flow-steps li.cp::before{background:var(--aws)}
+.flow-steps li.cp{background:#fffbf4}
+.zone{border:2px dashed var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.zone-label{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:10px}
+.zone.aws-zone{border-color:#f5c07a;background:#fffdf8}
+.zone.sap-zone{border-color:#a8c8f0;background:#f8fbff}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;
+  font-size:.72rem;font-weight:700;margin:2px}
+.chip.aws{background:#fef3e2;color:var(--aws);border:1px solid #f5c07a}
+.chip.sap{background:#e6f0fb;color:var(--c4);border:1px solid #a8c8f0}
+.chip.ours{background:#ece7fb;color:var(--c1);border:1px solid #c9bfef}
+.chip.free{background:#e4f4ea;color:var(--good);border:1px solid #9ed4b4}
+.foot{font-size:.73rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:20px}
+.arrow{color:var(--muted);font-size:1.2rem;text-align:center;padding:4px 0}
+@media print{body{background:#fff;padding:0}.slide{box-shadow:none;border:none;margin:0;min-height:auto}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1 ─── Full Architecture ──────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 1 — Full Architecture</div>
+  <h1>S4PC Catalyst on AWS — Complete Picture</h1>
+  <p class="sub">Every component, every connection, both zones. This is the target state for the hosted delivery model.</p>
+
+  <div class="diagram">   CLIENT TENANT (SAP BTP)                    OUR AWS ACCOUNT
+   ┌──────────────────────────────┐           ┌──────────────────────────────────────────────────┐
+   │                              │           │                                                  │
+   │  Client SSO / IdP (XSUAA)   │           │  Route 53 (DNS)                                  │
+   │    └─ authenticates user     │           │  s4pc.yourcompany.com → ALB                      │
+   │                              │           │         │                                        │
+   │  SAP Build Work Zone         │           │         ▼                                        │
+   │    └─ tile (HTML5 app)       │           │  Application Load Balancer (ALB)                 │
+   │        └─ destination        │           │  ACM SSL certificate (free, auto-renews)         │
+   │            OAuth2 / mTLS     │  HTTPS    │         │                                        │
+   │            ────────────────────────────► │         ▼                                        │
+   │                              │           │  EC2 — Amazon Linux 2023 (t3.large)              │
+   │                              │           │  IAM Instance Profile (no stored secret)         │
+   │                              │           │  ┌──────────────────────────────────────────┐    │
+   │                              │           │  │ nginx  (:443 → :8321, reverse proxy)     │    │
+   │                              │           │  │   └─► webapp / app.py                    │    │
+   │                              │           │  │        ├─ Web UI  (index.html)            │    │
+   │                              │           │  │        ├─ REST API (/api/*)              │    │
+   │                              │           │  │        └─ Pipeline Engine (claude -p)    │    │
+   │                              │           │  │              │                           │    │
+   │                              │           │  │         MCP Server / server.py ◄────────┤    │
+   │                              │           │  │         governance + lint + advisor      │    │
+   │                              │           │  └──────────────┬───────────────────────────┘    │
+   │                              │           │                 │                 │              │
+   │                              │           │                 ▼                 ▼              │
+   │                              │           │        Amazon Bedrock        S3 Bucket           │
+   │                              │           │        Claude Sonnet         deliverables/       │
+   │                              │           │        (~$2.25/run)          output/<RUN>/       │
+   │                              │           │                                                  │
+   │                              │           │  PUBLIC CLOUD BRAIN                              │
+   │                              │           │  ┌──────────────────────────────────────────┐    │
+   │                              │           │  │ L1: graph.json  (object graph)           │    │
+   │                              │           │  │ L2: index.json  (vector embeddings)      │    │
+   │                              │           │  │ L3: experience  (past run wisdom)        │    │
+   │                              │           │  │     catalog.db  (released SAP objects)   │    │
+   │                              │           │  │  POC: on EC2 disk │ Prod: RDS pgvector   │    │
+   │                              │           │  └──────────────────────────────────────────┘    │
+   │                              │           │                                                  │
+   │          ◄ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+   │    deliverables only         │           │  FD · TD · ABAP code · test pack              │
+   └──────────────────────────────┘           └──────────────────────────────────────────────────┘
+
+   ─────────────────────────────────────────────────────────────────────
+   What NEVER crosses the boundary:   prompts · brain · engine · catalogs
+   What DOES cross the boundary:      a URL   ·   the deliverables
+   ─────────────────────────────────────────────────────────────────────</div>
+
+  <div class="foot">Three additions vs the original diagram: Route 53 + ALB (HTTPS entry), nginx (reverse proxy on EC2), MCP server (governance layer inside EC2).</div>
+</section>
+
+<!-- 2 ─── Inside the EC2 ──────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 2 — EC2 Internals</div>
+  <h2>What runs inside the EC2</h2>
+  <p class="sub">One machine. Four layers. All processes are managed by systemd so they restart on crash or reboot.</p>
+
+  <div class="grid g2">
+
+    <div>
+      <h3>Process stack</h3>
+      <div class="box" style="margin-bottom:12px">
+        <h4>nginx (port 443 → 8321)</h4>
+        <p>Reverse proxy. Terminates HTTP from ALB and forwards to the Python app. Serves as the process boundary — the Python app never needs to deal with TLS or connection pooling.</p>
+      </div>
+      <div class="box rec" style="margin-bottom:12px">
+        <h4>webapp/app.py (port 8321)</h4>
+        <ul>
+          <li><strong>UI server</strong> — serves <code>ui/index.html</code> at <code>/</code></li>
+          <li><strong>REST API</strong> — all <code>/api/*</code> endpoints (runs, checkpoints, brain, catalog)</li>
+          <li><strong>Pipeline orchestrator</strong> — manages phase sequence, CP gates, run.json state</li>
+          <li><strong>Engine launcher</strong> — spawns <code>claude -p</code> as a detached subprocess per phase</li>
+          <li><strong>Atomic write layer</strong> — prevents run.json corruption on concurrent requests</li>
+        </ul>
+      </div>
+      <div class="box" style="margin-bottom:12px">
+        <h4>Claude Code engine (claude -p)</h4>
+        <ul>
+          <li>Spawned once per pipeline phase (A → B → C → D)</li>
+          <li>Runs the agentic loop: reads FD, calls MCP tools, generates ABAP/CAP code, writes deliverables</li>
+          <li>Calls Amazon Bedrock for LLM inference via the IAM instance profile</li>
+          <li>Exits cleanly after each phase; resumable from the last completed step</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h4>mcp-server/server.py</h4>
+        <ul>
+          <li>Governance layer — 14 tools wired into every pipeline phase</li>
+          <li>Key tools: <code>check_object_release_state</code>, <code>abap_cloud_lint</code>, <code>extensibility_advisor</code>, <code>find_similar_delivery</code></li>
+          <li>Pure Python stdlib — zero external dependencies, starts in &lt;1 second</li>
+          <li>Offline-first; never calls an LLM</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <h3>File system layout</h3>
+      <div class="diagram" style="font-size:11.5px">/home/ec2-user/S4PC-Catalyst/
+├── webapp/
+│   ├── app.py          ← orchestrator + UI server
+│   ├── ui/index.html   ← single-page UI
+│   └── logs/           ← usage.json, audit trail
+├── mcp-server/
+│   ├── server.py       ← governance MCP server
+│   └── catalog/        ← released SAP objects DB
+│       ├── catalog.db
+│       ├── index.json  ← vector embeddings (L2)
+│       ├── graph.json  ← object graph (L1)
+│       └── experience_db.json (L3)
+├── input/              ← FD documents (gitignored)
+└── output/
+    └── &lt;RUN-ID&gt;/      ← deliverables per run
+        ├── run.json
+        ├── 01-fd-analysis.md
+        ├── 04-solution-design.md
+        ├── 06-technical-design.md
+        ├── 07-code-review.md
+        ├── 08-abap-source.abap
+        ├── 09-test-pack.md
+        └── 12-package.zip</div>
+
+      <h3>Ports &amp; security</h3>
+      <table>
+        <tr><th>Port</th><th>Open to</th><th>Purpose</th></tr>
+        <tr><td>443</td><td>ALB only</td><td>nginx HTTPS entry (internal)</td></tr>
+        <tr><td>8321</td><td>localhost only</td><td>Python webapp (never exposed directly)</td></tr>
+        <tr><td>22</td><td>Team VPN/IP</td><td>SSH admin access</td></tr>
+      </table>
+
+      <div class="box note" style="margin-top:8px">
+        <strong>No port 8321 is open to the internet.</strong> The security group allows 443 only from the ALB security group. SSH (22) is restricted to your team's IP range.
+      </div>
+    </div>
+
+  </div>
+  <div class="foot">systemd unit files: s4pc-webapp.service + s4pc-mcp.service — auto-restart on crash, auto-start on reboot.</div>
+</section>
+
+<!-- 3 ─── Pipeline Run Flow ──────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 3 — End-to-End Flow</div>
+  <h2>How a pipeline run works — step by step</h2>
+  <p class="sub">From the user opening a tile to downloading the final deliverable package. ~23 minutes of engine time, 3 human decision points.</p>
+
+  <div class="grid g2">
+    <div>
+      <h3>Connection &amp; authentication</h3>
+      <ol class="flow-steps">
+        <li>User clicks the S4PC tile in SAP Build Work Zone</li>
+        <li>XSUAA / IAS authenticates the user (client's own SSO)</li>
+        <li>Work Zone destination sends HTTPS request to the ALB URL</li>
+        <li>ACM terminates SSL at the ALB; ALB forwards to EC2:443</li>
+        <li>nginx proxies to webapp:8321; UI (index.html) loads in browser</li>
+      </ol>
+
+      <h3>Phase A — Solution design (steps 1–4 + CP1)</h3>
+      <ol class="flow-steps">
+        <li>User uploads Functional Design (FD) document via the UI</li>
+        <li>User clicks "Start Pipeline" — webapp creates run.json, spawns <code>claude -p</code> Phase A</li>
+        <li>Engine reads FD, calls MCP tools: <code>find_similar_delivery</code>, <code>search_released_apis</code>, <code>extensibility_advisor</code>, <code>get_object_graph</code></li>
+        <li>Engine calls Amazon Bedrock → Claude Sonnet → generates fit-to-standard analysis + solution options</li>
+        <li class="cp">CP1 — pipeline pauses. User reviews solution options, selects approach, approves naming contract</li>
+      </ol>
+
+      <h3>Phase B — Build (steps 6–7 + CP2)</h3>
+      <ol class="flow-steps">
+        <li>Engine generates ABAP/CAP code using approved naming contract</li>
+        <li>MCP: <code>abap_cloud_lint</code> runs on every snippet; <code>check_object_release_state</code> verifies every SAP object</li>
+        <li>Code review written to <code>07-code-review.md</code> with findings inventory</li>
+        <li class="cp">CP2 — pipeline pauses. Developer reviews findings, resolves Critical/Major issues, approves code</li>
+      </ol>
+    </div>
+
+    <div>
+      <h3>Phase C — Quality &amp; TD (steps 8–11 + CP3)</h3>
+      <ol class="flow-steps">
+        <li>Test pack generated (ABAP Unit, API tests, negative tests)</li>
+        <li>Technical Design document written — 21 sections, Table of Contents, Glossary, Sign-off block</li>
+        <li>Challenger agent runs adversarial review: upgrade-safety, auth, clean-core, security</li>
+        <li class="cp">CP3 — pipeline pauses. Delivery lead reviews challenger findings, confirms acceptance</li>
+      </ol>
+
+      <h3>Phase D — Package (step 12 + optional 13/14 for BTP)</h3>
+      <ol class="flow-steps">
+        <li>All deliverables zipped into <code>12-package.zip</code></li>
+        <li>Experience recorded to brain (anonymised, for future similar deliveries)</li>
+        <li>Deliverables written to S3 bucket (<code>output/&lt;RUN-ID&gt;/</code>)</li>
+        <li>User downloads package from UI → shares FD, TD, code with client for sign-off</li>
+      </ol>
+
+      <h3>BTP path (14-step variant)</h3>
+      <ol class="flow-steps">
+        <li>Step 13: BTP Prerequisite Check (human gate) — confirms entitlements, regions, destinations</li>
+        <li>Step 14: Deploy to BTP — MTA build, CF push, smoke test</li>
+      </ol>
+
+      <div class="box aws" style="margin-top:14px">
+        <h4>What Bedrock is called for</h4>
+        <p>Every substantive generation step calls Bedrock: FD analysis, solution design, ABAP code, code review, test pack, TD generation, challenger review, package summary. ~5–8 Bedrock calls per full run. Prompt caching (1.4–1.6M cached tokens/run) keeps cost at ~$2.25.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">CP = human checkpoint. Engine pauses and waits — never auto-approves. Every approval is recorded in run.json.</div>
+</section>
+
+<!-- 4 ─── Public Cloud Brain ─────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 4 — Public Cloud Brain</div>
+  <h2>Inside the Public Cloud Brain</h2>
+  <p class="sub">Three layers of knowledge that make every pipeline run smarter than the last. Anti-hallucination by design.</p>
+
+  <div class="grid g2" style="margin-bottom:18px">
+    <div class="box brain">
+      <h4>Layer 1 — Object Graph</h4>
+      <p><strong>File:</strong> <code>graph.json</code> (9.2 MB) · Rebuilt in ~90 seconds</p>
+      <p>A graph of 8,900+ released SAP CDS views, APIs, BAdIs and their relationships. The MCP tool <code>get_object_graph</code> navigates it to find what a requirement can consume. Tells the engine: "this BAdI fires here, these CDS views expose those fields."</p>
+      <p><strong>POC:</strong> JSON file on EC2 disk &nbsp;|&nbsp; <strong>Production:</strong> S3 + in-memory cache</p>
+    </div>
+    <div class="box brain">
+      <h4>Layer 2 — Vector Index</h4>
+      <p><strong>File:</strong> <code>index.json</code> (2.0 MB) · Rebuilt in ~3 seconds</p>
+      <p>Dense embeddings (sentence-transformers) or TF-IDF fallback of the entire catalog. <code>semantic_search</code> finds APIs and BAdIs by meaning, not just keyword. Example: "get open purchase orders for a supplier" → surfaces <code>API_PURCHASEORDER_PROCESS_SRV</code>.</p>
+      <p><strong>POC:</strong> JSON file on EC2 disk &nbsp;|&nbsp; <strong>Production:</strong> RDS PostgreSQL + pgvector</p>
+    </div>
+    <div class="box brain">
+      <h4>Layer 3 — Experience Graph</h4>
+      <p><strong>File:</strong> <code>experience_db.json</code> · Grows with every run</p>
+      <p>Every completed pipeline run is recorded (anonymised — client names hashed). <code>find_similar_delivery</code> surfaces proven extensibility approaches for similar requirements. "You've solved this before — here's what worked."</p>
+      <p><strong>POC:</strong> JSON file on EC2 disk &nbsp;|&nbsp; <strong>Production:</strong> RDS PostgreSQL + pgvector</p>
+    </div>
+    <div class="box brain">
+      <h4>Catalog DB</h4>
+      <p><strong>File:</strong> <code>catalog.db</code> (1.5 MB SQLite)</p>
+      <p>The authoritative seed of released SAP objects — 8,900 CDS views, 500+ APIs, 1,200+ BAdIs. Synced from SAP Business Accelerator Hub. Powers <code>check_object_release_state</code> (the anti-hallucination gate that rejects BAPIs and classical objects).</p>
+      <p><strong>POC:</strong> SQLite file on EC2 disk &nbsp;|&nbsp; <strong>Production:</strong> RDS PostgreSQL</p>
+    </div>
+  </div>
+
+  <h3>POC vs Production brain infrastructure</h3>
+  <table>
+    <tr><th>Component</th><th>POC (week 1)</th><th>Production (later)</th></tr>
+    <tr><td>Layer 1 (graph)</td><td>JSON file on EC2 disk</td><td>S3 + EC2 in-memory cache</td></tr>
+    <tr><td>Layer 2 (vectors)</td><td>JSON file on EC2 disk (TF-IDF)</td><td>RDS PostgreSQL + pgvector (dense embeddings)</td></tr>
+    <tr><td>Layer 3 (experience)</td><td>JSON file on EC2 disk</td><td>RDS PostgreSQL + pgvector (per-client scoped)</td></tr>
+    <tr><td>Catalog DB</td><td>SQLite on EC2 disk</td><td>RDS PostgreSQL</td></tr>
+    <tr><td>Survives EC2 restart?</td><td>❌ Only if disk persists (EBS does)</td><td>✅ RDS + S3 are independent of EC2</td></tr>
+    <tr><td>Multi-client isolation</td><td>Single client (POC)</td><td>Per-client S3 prefix + RDS row-level isolation</td></tr>
+  </table>
+
+  <div class="box note" style="margin-top:10px">
+    <strong>EBS root volume persists between EC2 restarts</strong> — so POC brain files survive a stop/start. They are lost only if the instance is terminated and recreated. For the POC this is acceptable; promote to RDS + S3 before going to multiple clients.
+  </div>
+  <div class="foot">Brain is rebuilt automatically after each completed run (background jobs). Manual rebuild: POST /api/brain/rebuild from the UI.</div>
+</section>
+
+<!-- 5 ─── Security Model ──────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 5 — Security</div>
+  <h2>Security architecture</h2>
+  <p class="sub">No API keys stored anywhere. Every credential is either auto-rotating (IAM) or passed via environment variable at startup.</p>
+
+  <div class="grid g2">
+    <div>
+      <h3>Credential model</h3>
+      <table>
+        <tr><th>Credential</th><th>How managed</th><th>Where stored</th></tr>
+        <tr><td>Bedrock access</td><td>IAM instance profile — AWS rotates automatically every few hours</td><td>Nowhere (ephemeral)</td></tr>
+        <tr><td>S3 access</td><td>Same IAM instance profile</td><td>Nowhere (ephemeral)</td></tr>
+        <tr><td>SAP credentials (live mode)</td><td>Environment variable <code>S4PC_SAP_*</code> at startup</td><td>Never in files or logs</td></tr>
+        <tr><td>App access password</td><td>Environment variable <code>S4PC_ACCESS_PASSWORD</code></td><td>Never in files or logs</td></tr>
+        <tr><td>Anthropic API key</td><td><strong>Not used.</strong> Claude Code seats are the runtime.</td><td>N/A</td></tr>
+        <tr><td>Work Zone OAuth2 client secret</td><td>BTP Destination service (client's BTP account)</td><td>BTP credential store</td></tr>
+      </table>
+
+      <h3>Network security</h3>
+      <table>
+        <tr><th>Layer</th><th>Rule</th></tr>
+        <tr><td>ALB security group</td><td>Accept 443 from 0.0.0.0/0 (or Work Zone IPs only)</td></tr>
+        <tr><td>EC2 security group</td><td>Accept 443 from ALB security group only — never from internet</td></tr>
+        <tr><td>EC2 security group</td><td>Accept 22 (SSH) from team VPN/IP range only</td></tr>
+        <tr><td>RDS security group (prod)</td><td>Accept 5432 from EC2 security group only</td></tr>
+        <tr><td>S3 bucket policy</td><td>Allow GetObject/PutObject from EC2 IAM role ARN only</td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h3>Authentication flow (user → pipeline)</h3>
+      <ol class="flow-steps">
+        <li>User's identity is verified by the client's own XSUAA / IAS before the tile opens</li>
+        <li>Work Zone destination adds OAuth2 bearer token or mTLS cert to the HTTPS request</li>
+        <li>ALB forwards request to EC2 — token validated at ALB listener rule (optional) or at webapp</li>
+        <li>Webapp checks <code>S4PC_ACCESS_PASSWORD</code> for additional layer (HTTP Basic)</li>
+        <li>All actions logged to CloudWatch with timestamp — full audit trail</li>
+      </ol>
+
+      <h3>What never leaves AWS</h3>
+      <div class="box rec">
+        <ul>
+          <li><strong>System prompts</strong> — phase instructions, governance rules, CLAUDE.md</li>
+          <li><strong>Brain content</strong> — catalog, graph, vectors, experience</li>
+          <li><strong>MCP server logic</strong> — release checks, lint rules, advisor decision tree</li>
+          <li><strong>Engine executable</strong> — Claude Code CLI and its session state</li>
+        </ul>
+        <p style="margin-top:8px">Only a URL and the output deliverables (FD, TD, ABAP code, test pack) cross the boundary to the client.</p>
+      </div>
+
+      <h3>Audit trail</h3>
+      <div class="box">
+        <ul>
+          <li><code>mcp-server/logs/audit.jsonl</code> — every MCP tool call (tool, args, verdict, timestamp)</li>
+          <li><code>webapp/logs/usage.json</code> — per-run token usage and cost</li>
+          <li><code>output/&lt;RUN&gt;/run.json</code> — all human decisions and approval timestamps</li>
+          <li>CloudWatch Logs — all stdout/stderr from webapp and engine</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="foot">MCP server runs in offline mode by default — live SAP API calls require explicit opt-in and are rate-limited and audited.</div>
+</section>
+
+<!-- 6 ─── Setup Checklist ────────────────────────────────── -->
+<section class="slide">
+  <div class="num">Slide 6 — Setup Checklist</div>
+  <h2>What to set up — in order</h2>
+  <p class="sub">Four phases. Each phase is independently testable before the next begins.</p>
+
+  <div class="grid g2">
+    <div>
+      <h3>Phase 1 — Core AWS (Day 1–2)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>1</td><td>Create VPC or use default</td><td><span class="chip aws">VPC</span></td></tr>
+        <tr><td>2</td><td>Launch EC2 t3.large, Amazon Linux 2023, in public subnet — EBS root volume stores all deliverables</td><td><span class="chip aws">EC2</span></td></tr>
+        <tr><td>3</td><td>Create EC2 key pair, save .pem file</td><td><span class="chip aws">EC2</span></td></tr>
+        <tr><td>4</td><td>Create security group: SSH from team IP, 443 from ALB (add ALB SG later)</td><td><span class="chip aws">Security Group</span></td></tr>
+        <tr><td>5</td><td>Create IAM role with Bedrock + CloudWatch permissions, attach as instance profile</td><td><span class="chip aws">IAM</span></td></tr>
+        <tr><td>6</td><td>Enable Bedrock → request Claude Sonnet model access in console</td><td><span class="chip aws">Bedrock</span></td></tr>
+        <tr><td>7</td><td>SSH to EC2, install Python, nginx, Node.js, Claude Code CLI, deploy app</td><td><span class="chip ours">EC2 setup</span></td></tr>
+        <tr><td>8</td><td>Test: open port 8321 temporarily, run one pipeline end-to-end</td><td><span class="chip free">Verify</span></td></tr>
+      </table>
+      <div class="box note" style="margin:8px 0 14px">
+        <strong>No S3 needed for POC.</strong> All deliverables (<code>output/&lt;RUN&gt;/</code>), brain files, and catalog are stored on the EC2 EBS volume. EBS persists across stop/start. S3 is introduced only in Phase 4 when scaling to multiple clients.
+      </div>
+
+      <h3>Phase 2 — HTTPS &amp; Domain (Day 3)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>9</td><td>Create ALB, target group pointing to EC2:443, listener on 443</td><td><span class="chip aws">ALB</span></td></tr>
+        <tr><td>10</td><td>Request ACM certificate for <code>s4pc.yourcompany.com</code></td><td><span class="chip aws">ACM</span></td></tr>
+        <tr><td>11</td><td>Attach ACM cert to ALB listener</td><td><span class="chip aws">ALB + ACM</span></td></tr>
+        <tr><td>12</td><td>Create Route 53 hosted zone, add A-alias record → ALB DNS</td><td><span class="chip aws">Route 53</span></td></tr>
+        <tr><td>13</td><td>Update EC2 security group: remove direct 443, allow only from ALB SG</td><td><span class="chip aws">Security Group</span></td></tr>
+        <tr><td>14</td><td>Test: open <code>https://s4pc.yourcompany.com</code> in browser</td><td><span class="chip free">Verify</span></td></tr>
+      </table>
+    </div>
+
+    <div>
+      <h3>Phase 3 — Work Zone tile (Day 4, client BTP admin)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>15</td><td>In BTP subaccount: create Destination pointing to <code>https://s4pc.yourcompany.com</code></td><td><span class="chip sap">BTP Destination</span></td></tr>
+        <tr><td>16</td><td>Set auth on destination: OAuth2ClientCredentials or BasicAuthentication</td><td><span class="chip sap">XSUAA</span></td></tr>
+        <tr><td>17</td><td>In Work Zone: create app of type URL, point to destination</td><td><span class="chip sap">Work Zone</span></td></tr>
+        <tr><td>18</td><td>Add tile to a group/space, assign role to user</td><td><span class="chip sap">Work Zone</span></td></tr>
+        <tr><td>19</td><td>Test: open tile from Work Zone launchpad, run pipeline</td><td><span class="chip free">Verify</span></td></tr>
+      </table>
+
+      <h3>Phase 4 — Production Brain (later, when needed)</h3>
+      <table>
+        <tr><th>#</th><th>Action</th><th>Service</th></tr>
+        <tr><td>20</td><td>Create RDS Aurora Serverless v2 PostgreSQL, enable pgvector extension</td><td><span class="chip aws">RDS</span></td></tr>
+        <tr><td>21</td><td>Create S3 bucket for brain documents and run deliverables</td><td><span class="chip aws">S3</span></td></tr>
+        <tr><td>22</td><td>Update IAM instance profile: add S3 GetObject/PutObject on the new bucket</td><td><span class="chip aws">IAM</span></td></tr>
+        <tr><td>23</td><td>Migrate brain files (catalog.db, index.json, graph.json, experience_db.json) to RDS + S3</td><td><span class="chip ours">Migration</span></td></tr>
+        <tr><td>24</td><td>Update app config to point to RDS connection string (env var)</td><td><span class="chip ours">Config</span></td></tr>
+        <tr><td>25</td><td>Request Bedrock quota increase: 100K TPM (default 50K)</td><td><span class="chip aws">Bedrock</span></td></tr>
+      </table>
+
+      <div class="box warn" style="margin-top:14px">
+        <strong>Do Phase 4 only when you have 3+ concurrent clients.</strong> For a single-client POC, EBS on EC2 is sufficient — no S3, no RDS, far simpler to operate.
+      </div>
+    </div>
+  </div>
+
+  <h3>Estimated cost by phase</h3>
+  <table>
+    <tr><th>Phase</th><th>Additional monthly cost</th><th>Running total</th></tr>
+    <tr><td>Phase 1 (EC2 + EBS + Bedrock)</td><td>~$60 EC2 + ~$23 Bedrock (10 runs)</td><td>~$83/month</td></tr>
+    <tr><td>Phase 2 (ALB + Route 53)</td><td>~$17</td><td>~$100/month</td></tr>
+    <tr><td>Phase 3 (Work Zone tile)</td><td>Client's existing entitlement</td><td>~$100/month</td></tr>
+    <tr><td>Phase 4 (RDS + S3 brain)</td><td>~$50–80 (Aurora Serverless) + &lt;$1 S3</td><td>~$150–180/month</td></tr>
+  </table>
+  <div class="foot">All figures indicative. Confirm EC2, RDS, and Bedrock rates against your AWS contracted pricing. Bundle delivery cost into engagement fee.</div>
+</section>
+
+</div>
+</body>
+</html>

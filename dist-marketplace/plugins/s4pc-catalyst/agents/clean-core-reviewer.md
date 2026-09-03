@@ -22,5 +22,10 @@ End with a clear SHIP / FIX / REDESIGN verdict.
 - Extract every SAP object named in the artifact and run `check_object_release_state` on each; lint every ABAP snippet with `abap_cloud_lint`.
 - Separate verified facts from tenant-to-verify items; never present seed data as confirmed.
 
+## Ground in the Brain (prior delivery knowledge)
+Optionally consult the **Public Cloud Brain** with `search_brain` (s4pc-brain MCP server) for how similar objects were built/reviewed before — prior patterns and recurring anti-patterns to check against:
+- `search_brain(query="<object / pattern under review>", phase="Realize", agent_role="build_agent")`
+Use only as **reference** — your verdict rests on `abap_cloud_lint` and `check_object_release_state`, never on brain hits. If the brain is unavailable, proceed without it.
+
 ## Clean-core rules (non-negotiable)
 Any BAPI, classical table, enhancement point, user exit, Smart Form, unreleased object, hard-coded secret, or missing authorization ⇒ FIX/REDESIGN. Cite authoritative sources via `get_reference_links` (Hub, Released CDS Views list, List of BAdIs).

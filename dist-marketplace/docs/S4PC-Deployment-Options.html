@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>S4PC Catalyst — Deployment &amp; Commercial Options</title>
+<style>
+:root{
+  --ink:#14121c; --ink2:#3d3854; --muted:#6b6685; --line:#e3e0ee;
+  --bg:#f4f2f9; --card:#ffffff;
+  /* categorical palette — assigned by identity, never cycled */
+  --c1:#5b3fd4;  /* our infrastructure  */
+  --c2:#0f7a6c;  /* client infrastructure */
+  --c3:#b45309;  /* LLM / cost          */
+  --c4:#1e5fa8;  /* SAP / BTP           */
+  --c5:#8a2f6b;  /* brain               */
+  --good:#0f7a3d; --warn:#b45309; --bad:#b3261e;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:15px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif;padding:28px 16px 80px}
+.deck{max-width:1180px;margin:0 auto}
+.slide{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:38px 44px;margin-bottom:26px;box-shadow:0 1px 3px rgba(20,18,28,.06);
+  min-height:600px;display:flex;flex-direction:column;page-break-after:always}
+.num{font-size:.68rem;letter-spacing:.14em;color:var(--muted);font-weight:700;margin-bottom:6px}
+h1{font-size:2.5rem;line-height:1.15;letter-spacing:-.02em;margin-bottom:14px}
+h2{font-size:1.72rem;letter-spacing:-.015em;margin-bottom:6px}
+h3{font-size:1rem;margin:16px 0 7px;color:var(--ink2)}
+.sub{color:var(--muted);font-size:1rem;margin-bottom:20px}
+p{margin-bottom:10px;color:var(--ink2)}
+ul{margin:0 0 10px 18px}li{margin-bottom:6px;color:var(--ink2)}
+strong{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:.83rem;margin:10px 0 14px}
+th{text-align:left;padding:9px 10px;border-bottom:2px solid var(--line);
+  font-size:.68rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.68rem;font-weight:700;white-space:nowrap}
+.t-good{background:#e4f4ea;color:var(--good)} .t-warn{background:#fdf0dd;color:var(--warn)}
+.t-bad{background:#fbe6e4;color:var(--bad)} .t-info{background:#e7edf9;color:var(--c4)}
+.t-our{background:#ece7fb;color:var(--c1)} .t-brain{background:#f7e6f1;color:var(--c5)}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+.box{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fbfaff}
+.box.rec{border:2px solid var(--c1);background:#f6f3ff}
+.box h4{font-size:.95rem;margin-bottom:6px}
+.kpi{font-size:2.1rem;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.kpi-l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+.diagram{background:#fbfaff;border:1px solid var(--line);border-radius:10px;padding:18px;
+  font:12.5px/1.65 "Cascadia Code",Consolas,monospace;white-space:pre;overflow-x:auto;color:var(--ink2)}
+.note{border-left:3px solid var(--c1);background:#f6f3ff;padding:11px 14px;border-radius:0 8px 8px 0;
+  font-size:.85rem;margin-top:12px}
+.warnbox{border-left:3px solid var(--warn);background:#fdf7ee;padding:11px 14px;border-radius:0 8px 8px 0;
+  font-size:.85rem;margin-top:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.72rem;color:var(--muted);margin:8px 0 12px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+.bar-row{display:grid;grid-template-columns:170px 1fr 96px;align-items:center;gap:12px;margin-bottom:9px;font-size:.82rem}
+.bar{height:19px;border-radius:0 4px 4px 0;position:relative}
+.spacer{flex:1}
+.foot{font-size:.73rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:auto}
+@media print{body{background:#fff;padding:0}.slide{box-shadow:none;border:none;margin:0;min-height:auto}}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">S4PC CATALYST</div>
+  <h1>Deployment &amp; Commercial Options</h1>
+  <p class="sub">Cost · execution · hosting — evaluated for selling to clients while protecting IP</p>
+  <div class="grid g3" style="margin-top:22px">
+    <div class="box"><div class="kpi" style="color:var(--c1)">5</div>
+      <div class="kpi-l">options evaluated</div></div>
+    <div class="box"><div class="kpi" style="color:var(--c3)">$2.25</div>
+      <div class="kpi-l">measured cost / pipeline run</div></div>
+    <div class="box"><div class="kpi" style="color:var(--c5)">~40</div>
+      <div class="kpi-l">agents to connect to the brain</div></div>
+  </div>
+  <div class="note"><strong>Scope:</strong> where the accelerator runs, what it costs, and how the
+  intellectual property is protected when a client uses it. Covers AWS Bedrock, Google Vertex AI,
+  SAP Build Work Zone and full SAP BTP deployment, plus the Public Cloud Brain architecture.</div>
+  <div class="spacer"></div>
+  <div class="foot">Cost figures measured from 3 real pipeline runs (10 phases). Infrastructure
+  figures are indicative and must be confirmed against your contracted rates.</div>
+</section>
+
+<!-- 2 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">01 · EXECUTIVE SUMMARY</div>
+  <h2>Recommendation</h2>
+  <p class="sub">Sell the outcome first. Host it yourself when clients want hands-on access. Never ship the runtime.</p>
+
+  <div class="grid g3">
+    <div class="box rec"><h4>Now — Service delivery</h4>
+      <p style="font-size:.85rem">Run internally, hand over deliverables.</p>
+      <p style="font-size:.85rem"><strong>$0 infrastructure · full IP protection</strong></p>
+      <span class="tag t-good">Start here</span></div>
+    <div class="box rec"><h4>Next — Hosted + client tile</h4>
+      <p style="font-size:.85rem">You host; the client gets a tile in their Work Zone.</p>
+      <p style="font-size:.85rem"><strong>Low cost · IP stays with you</strong></p>
+      <span class="tag t-our">Target state</span></div>
+    <div class="box"><h4>Avoid — Deploy to client tenant</h4>
+      <p style="font-size:.85rem">Full BTP install inside the client subaccount.</p>
+      <p style="font-size:.85rem"><strong>Client pays infra · IP fully disclosed</strong></p>
+      <span class="tag t-bad">Only if paid for</span></div>
+  </div>
+
+  <h3>Three findings that drive the recommendation</h3>
+  <table>
+    <tr><td style="width:34px"><strong>1</strong></td>
+      <td><strong>The IP is plaintext prompts.</strong> Whoever controls the runtime can read the
+      methodology. This single fact eliminates client-side deployment as an IP-safe option.</td></tr>
+    <tr><td><strong>2</strong></td>
+      <td><strong>Work Zone hosts UIs, not compute.</strong> A tile can point at a service you host —
+      the client gets the launchpad experience without receiving the accelerator.</td></tr>
+    <tr><td><strong>3</strong></td>
+      <td><strong>No LLM key is needed unless the engine moves into a container.</strong> Keeping the
+      engine on your own host preserves the existing "no API keys" position entirely.</td></tr>
+  </table>
+  <div class="spacer"></div>
+  <div class="foot">Detail in the following slides: options, architectures, brain components, cost.</div>
+</section>
+
+<!-- 3 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">02 · THE CONSTRAINT</div>
+  <h2>What is actually being protected</h2>
+  <p class="sub">The product is the encoded delivery methodology, not the Python around it.</p>
+
+  <div class="grid g2">
+    <div class="box"><h4>The asset</h4>
+      <ul>
+        <li>Phase prompts — gates, checkpoints, clean-core rules</li>
+        <li>Skills and agent definitions</li>
+        <li>Governance server + released-object catalogs</li>
+        <li>Accumulated delivery experience</li>
+      </ul>
+      <p style="font-size:.85rem;margin-top:8px">Rebuilding the surrounding application takes a week.
+      Rebuilding this takes years of engagements.</p></div>
+    <div class="box"><h4>Why packaging does not protect it</h4>
+      <ul>
+        <li>Prompts are passed on the command line — visible in any process listing</li>
+        <li>Prompts are written to the engine log in plaintext</li>
+        <li>Claude Code must read skills and the MCP server as files on disk</li>
+        <li>A bundled executable is a self-extracting archive — trivially unpacked</li>
+      </ul></div>
+  </div>
+
+  <div class="warnbox"><strong>Consequence:</strong> an <em>.exe</em> distribution gives packaging
+  convenience but <strong>no meaningful IP protection</strong>. The only reliable control is keeping the
+  runtime on infrastructure you own.</div>
+
+  <h3>The contractual counterpart</h3>
+  <p style="font-size:.9rem">Deliverables (FD, TD, code, tests) transfer to the client. The accelerator
+  that produced them — tool, prompts, catalogs, experience database — does not, with no derivative-works
+  or reverse-engineering rights. Without this clause, a standard work-made-for-hire term can transfer
+  the whole asset.</p>
+  <div class="spacer"></div>
+  <div class="foot">Applies to every option that follows.</div>
+</section>
+
+<!-- 4 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">03 · AS-IS</div>
+  <h2>Current architecture</h2>
+  <p class="sub">Local-first accelerator — the starting point for every option.</p>
+<div class="diagram">   Developer machine (or one shared host)
+   ┌───────────────────────────────────────────────────────────┐
+   │  Browser UI  ──►  Python webapp  ──►  Claude Code CLI      │
+   │                        │              (logged-in session)  │
+   │                        ▼                                   │
+   │                 MCP governance server                      │
+   │                 ├─ released-object catalog   74 APIs       │
+   │                 ├─ vector index          10,768 docs       │
+   │                 └─ object graph          10,736 nodes      │
+   │                        │                                   │
+   │                 output/&lt;RUN&gt;/  → FD · TD · code · tests    │
+   └───────────────────────────────────────────────────────────┘
+              No server · no database · no API key</div>
+
+  <div class="grid g3" style="margin-top:14px">
+    <div class="box"><div class="kpi-l">Engine</div>
+      <p style="font-size:.85rem">Claude Code CLI as a local subprocess, one process per phase</p></div>
+    <div class="box"><div class="kpi-l">State</div>
+      <p style="font-size:.85rem">Files on disk — run manifest, deliverables, catalogs</p></div>
+    <div class="box"><div class="kpi-l">Governance</div>
+      <p style="font-size:.85rem">MCP server — release verdicts, clean-core lint, experience</p></div>
+  </div>
+  <div class="note"><strong>Architecturally significant:</strong> each phase is a separate, stateless
+  process and all state is in files. That makes the engine swappable at a single seam — which is what
+  every option below depends on.</div>
+  <div class="spacer"></div>
+  <div class="foot">Measured: ~23 minutes engine time and ~$2.25 per complete run.</div>
+</section>
+
+<!-- 5 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">04 · OPTIONS</div>
+  <h2>Five options at a glance</h2>
+  <div class="legend">
+    <span><i style="background:var(--c1)"></i>our infrastructure</span>
+    <span><i style="background:var(--c2)"></i>client infrastructure</span>
+    <span><i style="background:var(--c3)"></i>LLM billing</span>
+  </div>
+  <table>
+    <tr><th>Option</th><th>Engine runs on</th><th>LLM credential</th><th>Infra cost</th><th>IP exposure</th><th>Effort</th></tr>
+    <tr>
+      <td><strong>A · Service delivery</strong><br><span class="tag t-good">recommended now</span></td>
+      <td>Your machine</td><td>Claude Code seat</td><td>None</td>
+      <td><span class="tag t-good">None</span></td><td>None</td></tr>
+    <tr>
+      <td><strong>B · Hosted + client Work Zone tile</strong><br><span class="tag t-our">target state</span></td>
+      <td>Your host</td><td>Claude Code seat</td><td>Low — one VM</td>
+      <td><span class="tag t-good">None</span></td><td>Days</td></tr>
+    <tr>
+      <td><strong>C · BTP-native, self-hosted runner</strong></td>
+      <td>Your runner</td><td>Claude Code seat</td><td>Medium — CF + DB + store</td>
+      <td><span class="tag t-good">None</span></td><td>Weeks</td></tr>
+    <tr>
+      <td><strong>D · Full BTP, LLM in container</strong></td>
+      <td>BTP container</td><td><span class="tag t-warn">API key / IAM</span></td><td>Medium–high</td>
+      <td><span class="tag t-warn">Low if you host</span></td><td>Weeks–months</td></tr>
+    <tr>
+      <td><strong>E · Deploy into client tenant</strong><br><span class="tag t-bad">avoid</span></td>
+      <td>Client BTP</td><td>Client's key</td><td>Client pays</td>
+      <td><span class="tag t-bad">Total</span></td><td>Weeks–months</td></tr>
+  </table>
+  <div class="note"><strong>AWS Bedrock and Google Vertex AI</strong> are variants of options D and E —
+  they change <em>which</em> credential and <em>who bills</em>, not whether a credential is required.
+  Covered on slide 9.</div>
+  <div class="spacer"></div>
+  <div class="foot">Effort assumes the engine-interface extraction is done first — see roadmap.</div>
+</section>
+
+<!-- 6 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">05 · ARCHITECTURE</div>
+  <h2>Option B — hosted service, client Work Zone tile</h2>
+  <p class="sub">The recommended target: client gets the launchpad experience, you keep the runtime.</p>
+<div class="diagram">   CLIENT TENANT                          YOUR INFRASTRUCTURE
+   ┌──────────────────────────┐          ┌──────────────────────────────────┐
+   │ SAP Build Work Zone      │          │  Web UI  (multi-tenant, SSO)     │
+   │   └─ tile ──────────────────────────►                                  │
+   │        via destination   │  HTTPS   │  Orchestrator + phase prompts    │
+   │                          │          │        │                         │
+   │ Client SSO / IdP         │          │        ▼                         │
+   │                          │          │  Claude Code engine  ◄─ seat     │
+   └──────────────────────────┘          │        │                         │
+              ▲                          │        ▼                         │
+              │   deliverables only      │  PUBLIC CLOUD BRAIN              │
+              └──────────────────────────┤  catalog · vectors · graph ·     │
+                  FD · TD · code · tests │  experience  (per-client scoped)  │
+                                         └──────────────────────────────────┘
+   Crosses the boundary:  a URL  +  the outputs.       Never: prompts, brain, engine.</div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="box"><h4>Client side needs</h4>
+      <ul><li>Work Zone standard edition (they likely have it)</li>
+        <li>One destination + one tile</li>
+        <li>No entitlements from you</li></ul></div>
+    <div class="box"><h4>Your side needs</h4>
+      <ul><li>One always-on host with Claude Code logged in</li>
+        <li>HTTPS endpoint + client authentication</li>
+        <li>Per-client data partitioning</li></ul></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="foot">No Anthropic API key. No change to the existing "no API keys" position.</div>
+</section>
+
+<!-- 7 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">06 · ARCHITECTURE</div>
+  <h2>Option C — BTP-native with a self-hosted runner</h2>
+  <p class="sub">Full BTP web tier without placing an LLM credential on BTP.</p>
+<div class="diagram">   SAP BTP (your subaccount)                     YOUR NETWORK
+   ┌─────────────────────────────────────┐      ┌──────────────────────────┐
+   │ Work Zone ─► HTML5 UI ─► App Router │      │  Runner daemon           │
+   │                            │        │      │   ├─ Claude Code (seat)  │
+   │                            ▼        │      │   └─ polls for jobs      │
+   │              Backend API (Cloud     │      │                          │
+   │              Foundry / Kyma)        │◄─────┤  outbound HTTPS only     │
+   │                │                    │ jobs │  (no inbound firewall)   │
+   │                ▼                    │      └──────────────────────────┘
+   │  XSUAA · HANA Cloud · Object Store  │
+   │  └─ runs · deliverables · brain     │
+   └─────────────────────────────────────┘
+   Multi-user, scalable web tier  ·  zero LLM credentials on BTP</div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="box"><h4>Why this shape</h4>
+      <ul><li>Same pattern as self-hosted CI runners — familiar to security teams</li>
+        <li>Runner needs outbound HTTPS only, no inbound rule</li>
+        <li>Keeps seat-based LLM billing</li></ul></div>
+    <div class="box"><h4>Trade-offs</h4>
+      <ul><li>Still requires an always-on host you operate</li>
+        <li>Adds a job queue and runner protocol to build</li>
+        <li>Claude Code login needs periodic renewal</li></ul></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="foot">Recommended if multi-tenant scale is needed but the no-API-key position must hold.</div>
+</section>
+
+<!-- 8 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">07 · ARCHITECTURE</div>
+  <h2>Option D — full BTP deployment</h2>
+  <p class="sub">Everything in BTP. Requires accepting an LLM credential in the container.</p>
+<div class="diagram">   SAP BTP
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  Work Zone  ─►  HTML5 App Repo  ─►  App Router  ─►  XSUAA        │
+   │                                          │                       │
+   │                                          ▼                       │
+   │            Backend + engine  (Cloud Foundry / Kyma)              │
+   │                 │                        │                       │
+   │                 │                        └──► Claude API ────────┼──► Anthropic
+   │                 ▼                             (key / IAM)        │    or Bedrock
+   │  HANA Cloud   Object Store   Application Logging                 │    or Vertex
+   │  catalog +    deliverables   observability                       │
+   │  brain                                                            │
+   └──────────────────────────────────────────────────────────────────┘</div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="box"><h4>Gains</h4>
+      <ul><li>No machine of your own to operate</li>
+        <li>Elastic, genuinely multi-tenant</li>
+        <li>Standard SAP operations model</li></ul></div>
+    <div class="box"><h4>Costs</h4>
+      <ul><li>Requires overturning the "no API keys" rule</li>
+        <li>LLM billing moves from seats to consumption</li>
+        <li>Engine rewrite onto the Agent SDK</li>
+        <li>Highest infrastructure spend of all options</li></ul></div>
+  </div>
+  <div class="warnbox"><strong>If deployed into the client's subaccount instead of yours, this becomes
+  Option E</strong> — the client holds prompts, brain and catalogs. Treat that as an IP sale, priced accordingly.</div>
+  <div class="spacer"></div>
+  <div class="foot">Prompt caching must be preserved in any rewrite — it is why cost is ~$2.25/run today.</div>
+</section>
+
+<!-- 9 ───────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">08 · LLM HOSTING</div>
+  <h2>Anthropic API vs AWS Bedrock vs Google Vertex</h2>
+  <p class="sub">These change which credential and who bills — not whether a credential is needed.</p>
+  <table>
+    <tr><th>Route</th><th>Credential</th><th>Billing</th><th>Best when</th><th>Watch out for</th></tr>
+    <tr><td><strong>Claude Code seat</strong><br><span class="tag t-good">no key</span></td>
+      <td>Interactive login</td><td>Per seat</td>
+      <td>Engine stays on your host (Options A–C)</td>
+      <td>Needs an always-on machine; login renewal</td></tr>
+    <tr><td><strong>Anthropic API</strong></td>
+      <td>API key</td><td>Consumption — <strong>$2.25/run measured</strong></td>
+      <td>Simplest server-side path</td>
+      <td>New vendor account and procurement</td></tr>
+    <tr><td><strong>AWS Bedrock</strong></td>
+      <td>IAM role</td><td>Via existing AWS agreement</td>
+      <td>AWS already approved; procurement is the blocker</td>
+      <td>Cross-account IAM; model/region availability</td></tr>
+    <tr><td><strong>Google Vertex AI</strong></td>
+      <td>Service account</td><td>Via existing GCP agreement</td>
+      <td>GCP is the strategic cloud</td>
+      <td>Same as Bedrock; fewer SAP-adjacent precedents</td></tr>
+  </table>
+  <div class="note"><strong>Key insight:</strong> if the obstacle is <em>procurement</em> ("we will not
+  open an Anthropic account"), Bedrock or Vertex solves it by routing through an existing cloud
+  agreement. If the obstacle is <em>policy</em> ("no LLM credentials in server infrastructure"), none of
+  the three help — only Options A, B or C do.</div>
+  <div class="spacer"></div>
+  <div class="foot">Token pricing is broadly comparable across routes; the difference is contractual, not technical.</div>
+</section>
+
+<!-- 10 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">09 · PUBLIC CLOUD BRAIN</div>
+  <h2>Brain architecture</h2>
+  <p class="sub">The shared knowledge layer every agent consumes through one governed interface.</p>
+<div class="diagram">   ┌──────────────────────────────────────────────────────────────────┐
+   │ CONSUMERS   Discover · Prepare · Explore · Realize · Deploy · Run │
+   │             ~40 agents across 8 families  +  human users          │
+   └───────────────────────────┬──────────────────────────────────────┘
+                               │  MCP — single mandatory interface
+   ┌───────────────────────────▼──────────────────────────────────────┐
+   │ GOVERNANCE   release verdicts · clean-core lint · freshness ·     │
+   │              provenance + citation · tenant &amp; client scoping      │
+   └───────────────────────────┬──────────────────────────────────────┘
+   ┌───────────────────────────▼──────────────────────────────────────┐
+   │ STORES   Structured  catalog · tenant inventory · config state    │
+   │          Vector      semantic retrieval across all documents      │
+   │          Graph       process → app → API → CDS → extension        │
+   │          Documents   FDs · TDs · deliverables                     │
+   │          Provenance  source + verified-date for every fact        │
+   └───────────────────────────┬──────────────────────────────────────┘
+   ┌───────────────────────────▼──────────────────────────────────────┐
+   │ INGESTION  Business Accelerator Hub · SAP Help lists · Fiori Apps │
+   │            Library · Best Practices scope items · release notes · │
+   │            TENANT: $metadata · ADT · Custom Logic · arrangements  │
+   └──────────────────────────────────────────────────────────────────┘</div>
+  <div class="note"><strong>Non-negotiable:</strong> no agent talks to a store directly. One governed
+  door is what keeps 40 agents consistent instead of 40 agents with 40 opinions.</div>
+  <div class="spacer"></div>
+  <div class="foot">The governance layer — not the data — is the defensible asset.</div>
+</section>
+
+<!-- 11 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">10 · PUBLIC CLOUD BRAIN</div>
+  <h2>Components — built vs required</h2>
+  <table>
+    <tr><th>Component</th><th>Today</th><th>Required at enterprise scale</th><th>Status</th></tr>
+    <tr><td>Released-object catalog</td><td>SQLite, 1.5 MB — 74 APIs · 8,928 CDS · 1,734 BAdIs</td>
+      <td>PostgreSQL or HANA Cloud, multi-tenant</td><td><span class="tag t-good">built</span></td></tr>
+    <tr><td>Knowledge vectors</td><td>TF-IDF, 10,768 documents</td>
+      <td>Embeddings + vector DB — TF-IDF will not scale past ~100k</td><td><span class="tag t-warn">rework</span></td></tr>
+    <tr><td>Object graph</td><td>9.2 MB adjacency file, 90 s full rebuild</td>
+      <td>Graph tables, incremental update</td><td><span class="tag t-warn">rework</span></td></tr>
+    <tr><td>Experience graph</td><td>Past runs + curated lessons</td>
+      <td>Curation workflow; client-scrubbed sharing</td><td><span class="tag t-good">built</span></td></tr>
+    <tr><td>Scope items · process L1–L5 · Fiori apps</td><td>—</td>
+      <td>Fit-to-standard: the largest single value gap</td><td><span class="tag t-bad">missing</span></td></tr>
+    <tr><td>Configuration knowledge (SSCUI / CBC)</td><td>—</td>
+      <td>Functional and Config agents</td><td><span class="tag t-bad">missing</span></td></tr>
+    <tr><td>Release notes · deprecations</td><td>—</td>
+      <td>Upgrade impact analysis for the Run phase</td><td><span class="tag t-bad">missing</span></td></tr>
+    <tr><td>Roles · business catalogs</td><td>—</td>
+      <td>Security agents</td><td><span class="tag t-bad">missing</span></td></tr>
+    <tr><td>Entity registry + traceability spine</td><td>Partial — objects recorded per run</td>
+      <td><strong>Foundation for cross-agent handoff</strong></td><td><span class="tag t-warn">design now</span></td></tr>
+  </table>
+  <div class="warnbox"><strong>Sequence matters:</strong> add provenance and swap the stores <em>before</em>
+  adding knowledge domains. New domains layered onto SQLite and TF-IDF will have to be migrated twice.</div>
+  <div class="spacer"></div>
+  <div class="foot">Most of the 40 agents are still at ideation — the contract is cheap to set now.</div>
+</section>
+
+<!-- 12 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">11 · PUBLIC CLOUD BRAIN</div>
+  <h2>Why the brain is the commercial asset</h2>
+  <p class="sub">The traceability spine is what no competitor can copy from a demo.</p>
+<div class="diagram">   business process (L1–L5)
+      └─ scope item
+           └─ requirement ──[fit-to-standard verdict]──┐
+                ├─ standard configuration              │
+                └─ gap → WRICEF object ────────────────┘
+                      ├─ released objects consumed      ◄── built today
+                      ├─ generated code + technical design
+                      ├─ test cases → defects
+                      ├─ roles / authorisations
+                      ├─ transport / activation
+                      └─ release-note impact            ◄── Run-phase payoff</div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="box"><h4>Questions only the spine can answer</h4>
+      <ul><li>Which requirements are still gaps?</li>
+        <li>What test coverage does this scope item have?</li>
+        <li>Which roles does this extension require?</li>
+        <li><strong>SAP deprecates X next release — what breaks?</strong></li></ul></div>
+    <div class="box rec"><h4>Commercial significance</h4>
+      <p style="font-size:.87rem">Upgrade impact analysis is answerable only because every run records
+      the objects it consumed. That is a recurring, contract-renewing capability — and it compounds with
+      each engagement rather than depreciating.</p></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="foot">Client engagements stay partitioned; only anonymised lessons enter the shared brain.</div>
+</section>
+
+<!-- 13 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">12 · COST</div>
+  <h2>Indicative annual cost by option</h2>
+  <p class="sub">Relative comparison at ~100 pipeline runs per year. Directional, not a quotation.</p>
+  <div class="legend">
+    <span><i style="background:var(--c3)"></i>LLM consumption</span>
+    <span><i style="background:var(--c1)"></i>your infrastructure</span>
+    <span><i style="background:var(--c4)"></i>SAP BTP services</span>
+  </div>
+
+  <div class="bar-row"><span>A · Service delivery</span>
+    <span><span class="bar" style="width:6%;background:var(--c3)"></span></span>
+    <span style="text-align:right">lowest</span></div>
+  <div class="bar-row"><span>B · Hosted + tile</span>
+    <span><span class="bar" style="width:6%;background:var(--c3);display:inline-block"></span><span class="bar" style="width:14%;background:var(--c1);display:inline-block"></span></span>
+    <span style="text-align:right">low</span></div>
+  <div class="bar-row"><span>C · BTP + self-hosted runner</span>
+    <span><span class="bar" style="width:6%;background:var(--c3);display:inline-block"></span><span class="bar" style="width:12%;background:var(--c1);display:inline-block"></span><span class="bar" style="width:34%;background:var(--c4);display:inline-block"></span></span>
+    <span style="text-align:right">medium</span></div>
+  <div class="bar-row"><span>D · Full BTP</span>
+    <span><span class="bar" style="width:20%;background:var(--c3);display:inline-block"></span><span class="bar" style="width:52%;background:var(--c4);display:inline-block"></span></span>
+    <span style="text-align:right">highest</span></div>
+  <div class="bar-row"><span>E · Client tenant</span>
+    <span><span class="bar" style="width:20%;background:var(--c3);display:inline-block"></span><span class="bar" style="width:52%;background:#c9c5da;display:inline-block"></span></span>
+    <span style="text-align:right">client pays</span></div>
+
+  <table style="margin-top:16px">
+    <tr><th>Cost line</th><th>Basis</th><th>Notes</th></tr>
+    <tr><td>LLM — seat model</td><td>Existing Claude Code entitlement</td><td>No incremental cost in Options A–C</td></tr>
+    <tr><td>LLM — consumption</td><td><strong>$2.25 per run measured</strong></td><td>~$225 at 100 runs; assumes prompt caching preserved</td></tr>
+    <tr><td>Your host</td><td>One small always-on VM</td><td>Options B and C</td></tr>
+    <tr><td>BTP runtime + HANA + Object Store</td><td>Per SAP Discovery Center metrics</td><td>Dominant line in Options C–E</td></tr>
+    <tr><td>Work Zone</td><td>Per user / month</td><td>Client-side in Option B — confirm existing entitlement</td></tr>
+  </table>
+  <div class="warnbox"><strong>Cost risk:</strong> the measured $2.25/run depends on 1.4–1.6 M cached
+  tokens per run. An engine rewrite that loses prompt caching raises LLM cost several-fold — validate
+  this before committing to Option D.</div>
+  <div class="spacer"></div>
+  <div class="foot">Confirm all BTP figures with your account team — Discovery Center publishes metrics, not contracted rates.</div>
+</section>
+
+<!-- 14 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">13 · EVALUATION</div>
+  <h2>Pros and cons</h2>
+  <table>
+    <tr><th style="width:15%">Option</th><th style="width:31%">Pros</th><th style="width:31%">Cons</th><th style="width:23%">Best fit</th></tr>
+    <tr><td><strong>A</strong><br>Service delivery</td>
+      <td>Zero infrastructure · complete IP protection · available immediately · no client IT dependency</td>
+      <td>No self-service for the client · scales with consultants, not software · no product revenue</td>
+      <td>First engagements; proving value</td></tr>
+    <tr><td><strong>B</strong><br>Hosted + tile</td>
+      <td>IP retained · client gets Work Zone experience and SSO · no client entitlements · no LLM key</td>
+      <td>You operate a host · client data comes to you — needs security review · effectively single-tenant initially</td>
+      <td>Clients wanting hands-on access</td></tr>
+    <tr><td><strong>C</strong><br>BTP + runner</td>
+      <td>Multi-tenant web tier · scalable · no LLM credential on BTP · seat billing preserved</td>
+      <td>Still needs an always-on host · queue and runner to build · two environments to operate</td>
+      <td>Several clients concurrently</td></tr>
+    <tr><td><strong>D</strong><br>Full BTP</td>
+      <td>No host of your own · elastic · standard SAP operations · cleanest product story</td>
+      <td>Requires LLM credentials · overturns the no-API-key rule · engine rewrite · highest cost</td>
+      <td>Productisation with sustained demand</td></tr>
+    <tr><td><strong>E</strong><br>Client tenant</td>
+      <td>Client owns the runtime and data residency · no hosting burden for you</td>
+      <td><strong>Complete IP disclosure</strong> · every install is a copy that can leave · no usage visibility</td>
+      <td>Only as a priced IP transfer</td></tr>
+  </table>
+  <div class="spacer"></div>
+  <div class="foot">Options A, B and C all preserve the current position of no LLM API keys.</div>
+</section>
+
+<!-- 15 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">14 · ROADMAP</div>
+  <h2>Recommended sequence</h2>
+  <p class="sub">Each step is independently valuable and reversible.</p>
+  <table>
+    <tr><th style="width:8%">Step</th><th style="width:30%">Action</th><th style="width:20%">Effort</th><th style="width:42%">Why now</th></tr>
+    <tr><td><strong>1</strong></td><td>Sell via <strong>Option A</strong></td><td>None</td>
+      <td>Revenue and proof with zero build and zero IP risk</td></tr>
+    <tr><td><strong>2</strong></td><td>Extract the engine interface</td><td>Days</td>
+      <td>One seam; no behaviour change. Every later option depends on it</td></tr>
+    <tr><td><strong>3</strong></td><td>Client-facing IP &amp; security brief</td><td>Days</td>
+      <td>The existing brief reads as if the client owns the accelerator</td></tr>
+    <tr><td><strong>4</strong></td><td>Stand up <strong>Option B</strong> + client tile</td><td>Days–weeks</td>
+      <td>First client self-service; still no LLM key, still no client entitlements</td></tr>
+    <tr><td><strong>5</strong></td><td>Brain: provenance, then store swap</td><td>Weeks</td>
+      <td>Must precede new knowledge domains or they migrate twice</td></tr>
+    <tr><td><strong>6</strong></td><td>Add scope items + release notes</td><td>Weeks</td>
+      <td>Unlocks fit-to-standard and upgrade impact — the two highest-value capabilities</td></tr>
+    <tr><td><strong>7</strong></td><td>Prove the spine on one vertical slice</td><td>Weeks</td>
+      <td>Fit-to-Standard → WRICEF Inventory → Builder → Test Gen → Release Impact</td></tr>
+    <tr><td><strong>8</strong></td><td><strong>Option C or D</strong> only if demand justifies</td><td>Months</td>
+      <td>Defer the API-key decision until the business case is proven</td></tr>
+  </table>
+  <div class="note"><strong>Decisions required:</strong> (1) do we ever accept LLM credentials on
+  servers? (2) who owns LLM spend if it moves off seats? (3) is single-tenant acceptable for the first
+  release? (4) which region, given client material? (5) who operates the host?</div>
+  <div class="spacer"></div>
+  <div class="foot">Steps 1–4 require no BTP entitlements and no new vendor accounts.</div>
+</section>
+
+<!-- 16 ──────────────────────────────────────────────── -->
+<section class="slide">
+  <div class="num">15 · SUMMARY</div>
+  <h2>One page to remember</h2>
+  <div class="grid g2">
+    <div class="box rec"><h4>Do</h4>
+      <ul><li>Sell outcomes first — Option A, zero cost, zero risk</li>
+        <li>Host it yourself when clients want access — Option B</li>
+        <li>Surface it as a tile in the client's Work Zone</li>
+        <li>Separate deliverables from the accelerator contractually</li>
+        <li>Design the brain contract now, while agents are still at ideation</li></ul></div>
+    <div class="box"><h4>Do not</h4>
+      <ul><li>Ship the runtime into a client subaccount unpriced</li>
+        <li>Rely on an executable for IP protection</li>
+        <li>Add knowledge domains before fixing provenance and stores</li>
+        <li>Connect all 40 agents before proving one vertical slice</li>
+        <li>Assume prompt caching survives an engine rewrite</li></ul></div>
+  </div>
+  <div class="grid g3" style="margin-top:16px">
+    <div class="box"><div class="kpi" style="color:var(--c1)">A → B</div>
+      <div class="kpi-l">recommended path</div></div>
+    <div class="box"><div class="kpi" style="color:var(--good)">$0</div>
+      <div class="kpi-l">infrastructure to start</div></div>
+    <div class="box"><div class="kpi" style="color:var(--c5)">No key</div>
+      <div class="kpi-l">required for options A–C</div></div>
+  </div>
+  <div class="note"><strong>The one-line answer:</strong> deploy a <em>tile</em>, not the
+  <em>application</em>. The client gets the experience they asked for; the methodology stays yours.</div>
+  <div class="spacer"></div>
+  <div class="foot">Measured figures from 3 pipeline runs. Infrastructure costs indicative — confirm with your BTP account team.</div>
+</section>
+
+</div>
+</body>
+</html>

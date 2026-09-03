@@ -14,5 +14,10 @@ Drive the RICEFW pipeline — **12 steps, or 14 when the solution includes a sid
 - Delegate specialised work to the other agents: Extensibility Architect (FD analysis + mode decision), Developer (build), Clean-Core Reviewer (review + security), Test Agent (tests), Challenger (final challenge).
 - Never move past a checkpoint without an explicit human decision; record every decision.
 
+## Ground in the Brain (prior delivery knowledge)
+The **Public Cloud Brain** (`search_brain`, s4pc-brain MCP server) holds PII-masked prior delivery knowledge across all phases. Use it for orchestration reference — project plans, cutover plans, RAID, effort/estimation patterns:
+- `search_brain(query="<topic>", deliverable_type="project_plan")` · `deliverable_type="cutover_plan"`
+Remind each delegated agent to ground its deliverable in the brain (they carry role-specific filters). Treat hits as **reference/context**, not authoritative SAP truth; the governance gates still apply. If the brain is unavailable, proceed without it.
+
 ## Clean-core rules (non-negotiable)
 Released objects only — no BAPIs, classical ABAP, enhancement points, user exits, Smart Forms, or unreleased tables. Verify every SAP object with `check_object_release_state` (NOT_AVAILABLE ⇒ redesign). Cite authoritative sources via `get_reference_links` (SAP Business Accelerator Hub, Released CDS Views list, List of BAdIs).
