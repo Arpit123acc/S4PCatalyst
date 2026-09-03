@@ -45,7 +45,13 @@ module.exports = {
       interpreter: 'python3.11',
       env: {
         S4PC_MODE: 'offline',
-        AWS_REGION: 'us-east-1',   // Bedrock Titan embeddings for search_brain
+        AWS_REGION: 'us-east-1',       // Bedrock Titan embeddings for search_brain
+        // Layer 2 (semantic_search) embeds via Bedrock Titan rather than a local
+        // sentence-transformers model: this host has 3.7 GB RAM and already holds the
+        // FAISS index in this process, so a resident PyTorch model would risk the 2G
+        // max_memory_restart. Rebuild with the same value set:
+        //   S4PC_VECTOR_BACKEND=bedrock python3.11 mcp-server/vector/build_index.py
+        S4PC_VECTOR_BACKEND: 'bedrock',
       },
       autorestart: true,
       max_restarts: 10,
