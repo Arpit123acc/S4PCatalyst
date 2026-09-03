@@ -21,9 +21,11 @@ module.exports = {
       cwd: '/home/ec2-user/s4pc',
       script: 'webapp/app.py',
       interpreter: 'python3.11',
-      env: {
-        S4PC_UI_HOST: '0.0.0.0',   // reachable over the SSH tunnel, not just loopback
-      },
+      // No S4PC_UI_HOST override: app.py defaults to 127.0.0.1 and must stay there.
+      // An SSH tunnel does not need a wildcard bind — `-L 8321:localhost:8321` resolves
+      // its target on this host, so loopback serves it. Binding 0.0.0.0 published the
+      // pipeline UI to everything that could route to this box.
+      env: {},
       autorestart: true,
       max_restarts: 10,
       min_uptime: '30s',           // a crash inside 30s counts toward max_restarts

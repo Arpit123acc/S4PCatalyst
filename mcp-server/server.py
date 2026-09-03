@@ -24,9 +24,11 @@ import json
 import os
 import re
 import sys
+import hmac
 import time
 import base64
 import hashlib
+import threading
 import traceback
 import urllib.request
 import urllib.error
@@ -204,11 +206,20 @@ def _redact(obj):
         return [_redact(v) for v in obj]
     return obj
 
+# Identity of the HTTP caller being served on this thread, for the audit trail.
+# Thread-local because the HTTP transport is threaded. stdio leaves it unset, which
+# correctly reads as a same-host process rather than a network caller.
+_CALLER = threading.local()
+
+def _current_caller():
+    return getattr(_CALLER, "name", None) or "local"
+
 def audit(event, detail):
     rec = {
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "event": event,
         "mode": MODE,
+        "caller": _current_caller(),
         "detail": _redact(detail),
     }
     try:
@@ -254,6 +265,84 @@ def rate_limit_ok():
 
 class GuardrailViolation(Exception):
     pass
+
+
+# ------------------------------------------------------- HTTP authentication ---
+# The HTTP transport is unauthenticated unless S4PC_API_KEYS is set. Unset means
+# "auth disabled", so the loopback + SSH-tunnel setup and the stdio pipeline path
+# keep working untouched — but anything reachable by more than the tunnel MUST set
+# it. See docs/brain-endpoint-setup.md.
+#
+#   S4PC_API_KEYS = "name:secret[:tool,tool,...];name2:secret2"
+#
+# Entries are ';'-separated, fields ':'-separated, the optional tool allowlist
+# ','-separated. Omitting the allowlist grants every tool, so a client-facing key
+# should always carry one — several tools read files or reach SAP/BTP.
+
+def _parse_api_keys():
+    entries = []
+    for chunk in os.environ.get("S4PC_API_KEYS", "").split(";"):
+        parts = [p.strip() for p in chunk.strip().split(":")]
+        if len(parts) < 2 or not parts[0] or not parts[1]:
+            continue
+        tools = None
+        if len(parts) > 2 and parts[2]:
+            tools = {t.strip() for t in parts[2].split(",") if t.strip()}
+        entries.append((parts[0], parts[1], tools))
+    return entries
+
+def _authenticate(headers):
+    """-> (ok, caller_name, allowed_tools|None). No keys configured -> auth disabled."""
+    entries = _parse_api_keys()
+    if not entries:
+        return True, "anonymous", None
+    presented = (headers.get("x-api-key") or "").strip()
+    if not presented:
+        auth = headers.get("Authorization", "")
+        if auth[:7].lower() == "bearer ":
+            presented = auth[7:].strip()
+    if not presented:
+        return False, None, None
+    for name, secret, tools in entries:
+        # compare_digest on every entry — no early exit, so timing does not leak
+        # which key prefix was close.
+        if hmac.compare_digest(presented, secret):
+            return True, name, tools
+    return False, None, None
+
+
+# ------------------------------------------------------------ path containment ---
+# file_probe and extract_docx take a caller-supplied path and return file contents.
+# They exist to read pipeline inputs and deliverables, so they are confined to those
+# directories: uncontained, they are arbitrary file read for anyone who can reach the
+# transport — including, via /proc/<pid>/environ, the credentials the security model
+# deliberately keeps out of files.
+_REPO_ROOT = os.path.dirname(BASE_DIR)
+
+def _file_roots():
+    override = os.environ.get("S4PC_FILE_ROOTS", "")
+    roots = override.split(os.pathsep) if override else [
+        os.path.join(_REPO_ROOT, "input"), os.path.join(_REPO_ROOT, "output")]
+    return [os.path.realpath(r) for r in roots if r.strip()]
+
+def _safe_read_path(file_path, default_rel):
+    """Resolve a caller-supplied path and confine it to the permitted roots.
+
+    realpath() before the check, so a symlink planted inside a root cannot point out
+    of it, and '..' cannot climb out.
+    """
+    if not file_path:
+        file_path = os.path.join(_REPO_ROOT, *default_rel)
+    resolved = os.path.realpath(file_path)
+    for root in _file_roots():
+        if resolved == root or resolved.startswith(root + os.sep):
+            return resolved
+    audit("path_denied", {"requested": str(file_path)[:200]})
+    raise GuardrailViolation(
+        "Path is outside the permitted roots (%s). These tools read pipeline inputs "
+        "and deliverables only; widen deliberately with S4PC_FILE_ROOTS."
+        % os.pathsep.join(_file_roots()))
+
 
 def require_live():
     if MODE != "live":
@@ -1495,10 +1584,8 @@ def _read_zip_with_bad_eocd(raw):
 def tool_extract_docx(args):
     """Pipeline helper: extract plain text from a .docx (ZIP+XML) or text/md file."""
     import zipfile as _zf, io as _io
-    file_path = args.get("file_path", "")
-    if not file_path:
-        file_path = os.path.join(BASE_DIR, "..", "input", "FD Test AI Stock Monitoring.docx.md")
-    file_path = os.path.abspath(file_path)
+    file_path = _safe_read_path(args.get("file_path", ""),
+                                ("input", "FD Test AI Stock Monitoring.docx.md"))
     with open(file_path, "rb") as fh:
         raw_bytes = fh.read()
     header = raw_bytes[:4]
@@ -1562,10 +1649,8 @@ def tool_extract_docx(args):
 def tool_file_probe(args):
     """Probe a file: size, header bytes, search for key strings."""
     import struct
-    file_path = args.get("file_path", "")
-    if not file_path:
-        file_path = os.path.join(BASE_DIR, "..", "input", "FD Test AI Stock Monitoring.docx.md")
-    file_path = os.path.abspath(file_path)
+    file_path = _safe_read_path(args.get("file_path", ""),
+                                ("input", "FD Test AI Stock Monitoring.docx.md"))
     with open(file_path, "rb") as fh:
         raw = fh.read()
     size = len(raw)
@@ -1992,10 +2077,29 @@ def http_server(port=3000):
             else:
                 self.send_error(404)
 
+        def _reject(self, code, payload, extra=None):
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
+            self._cors()
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def do_POST(self):
             if self.path not in ("/mcp", "/"):
                 self.send_error(404)
                 return
+
+            ok, caller, allowed_tools = _authenticate(self.headers)
+            if not ok:
+                audit("auth_denied", {"peer": self.client_address[0], "path": self.path})
+                return self._reject(401, {"error": "unauthorized"},
+                                    {"WWW-Authenticate": 'Bearer realm="s4pc"'})
+            _CALLER.name = caller
+
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 raw = self.rfile.read(length)
@@ -2003,6 +2107,16 @@ def http_server(port=3000):
             except Exception as exc:
                 self.send_error(400, "Bad request: %s" % exc)
                 return
+
+            # A restricted key must not be able to invoke a tool outside its allowlist.
+            if allowed_tools is not None and msg.get("method") == "tools/call":
+                requested = (msg.get("params") or {}).get("name") or ""
+                if requested not in allowed_tools:
+                    audit("tool_denied", {"tool": requested})
+                    return self._reject(403, {
+                        "jsonrpc": "2.0", "id": msg.get("id"),
+                        "error": {"code": -32000,
+                                  "message": "Tool %r is not permitted for this key." % requested}})
 
             msg_id = msg.get("id")
             if msg_id is None:
@@ -2013,6 +2127,12 @@ def http_server(port=3000):
 
             try:
                 result = handle_request(msg)
+                # Don't advertise tools the key cannot call — a restricted client should
+                # not see btp_deploy in its tool list at all.
+                if (allowed_tools is not None and msg.get("method") == "tools/list"
+                        and isinstance(result, dict)):
+                    result["tools"] = [t for t in result.get("tools") or []
+                                       if t.get("name") in allowed_tools]
                 reply = {"jsonrpc": "2.0", "id": msg_id, "result": result}
             except ValueError as exc:
                 reply = {"jsonrpc": "2.0", "id": msg_id,
@@ -2051,11 +2171,31 @@ def http_server(port=3000):
     class _ThreadedServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
 
+    # Loopback by default. This transport has NO authentication, and several tools
+    # (file_probe, extract_docx) read caller-supplied paths, so a 0.0.0.0 bind hands
+    # anything that can route to this host an unauthenticated read of everything the
+    # service user can read. An SSH tunnel does NOT require a wildcard bind — the
+    # forward's target is resolved on this side, so 127.0.0.1 serves it fine.
+    # Override only when something in front of it terminates TLS and authenticates
+    # (see docs/brain-endpoint-setup.md).
+    host = os.environ.get("S4PC_MCP_HOST", "127.0.0.1")
     _METRICS["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    audit("server_start", {"mode": MODE, "transport": "http", "port": port})
-    log_stderr("HTTP MCP server started on port %d (mode=%s)" % (port, MODE))
+    audit("server_start", {"mode": MODE, "transport": "http", "port": port, "host": host})
+    log_stderr("HTTP MCP server started on %s:%d (mode=%s)" % (host, port, MODE))
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        if _parse_api_keys():
+            log_stderr("NOTE: bound to %s with API-key auth enabled." % host)
+        else:
+            # The combination that caused the 2026-09-03 exposure: reachable off-box
+            # AND no credential required. Make it impossible to miss in the logs.
+            log_stderr("*" * 78)
+            log_stderr("WARNING: bound to %s with NO authentication (S4PC_API_KEYS unset)." % host)
+            log_stderr("Every tool is callable by anything that can route to this host.")
+            log_stderr("Set S4PC_API_KEYS or bind 127.0.0.1 — see docs/brain-endpoint-setup.md")
+            log_stderr("*" * 78)
+        audit("insecure_bind", {"host": host, "authenticated": bool(_parse_api_keys())})
     log_stderr("Register with: claude mcp add s4pc --transport http http://localhost:%d/mcp" % port)
-    srv = _ThreadedServer(("0.0.0.0", port), _Handler)
+    srv = _ThreadedServer((host, port), _Handler)
     srv.serve_forever()
 
 

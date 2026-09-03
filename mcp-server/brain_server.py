@@ -23,6 +23,7 @@ Install (on the server that runs the brain):
     pip3.11 install boto3 faiss-cpu numpy
 """
 
+import os
 import sys
 import json
 from pathlib import Path
@@ -261,10 +262,15 @@ def http_server(port=3001):
     class _ThreadedServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
 
-    sys.stderr.write("[s4pc-brain] HTTP MCP server starting on port %d\n" % port)
+    # Loopback by default — this transport is unauthenticated. An SSH tunnel resolves
+    # its forward target on this host, so 127.0.0.1 serves it without a wildcard bind.
+    host = os.environ.get("S4PC_MCP_HOST", "127.0.0.1")
+    sys.stderr.write("[s4pc-brain] HTTP MCP server starting on %s:%d\n" % (host, port))
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        sys.stderr.write("[s4pc-brain] WARNING: bound to %s — no authentication.\n" % host)
     sys.stderr.write("[s4pc-brain] Register: claude mcp add s4pc-brain --transport http http://localhost:%d/mcp\n" % port)
     sys.stderr.flush()
-    srv = _ThreadedServer(("0.0.0.0", port), _Handler)
+    srv = _ThreadedServer((host, port), _Handler)
     srv.serve_forever()
 
 
