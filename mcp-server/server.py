@@ -1972,6 +1972,59 @@ try:
     for _bname, _bspec in _brain_mod.TOOLS.items():
         TOOLS.setdefault(_bname, _bspec)
     log_stderr("brain tools registered: %s" % ", ".join(sorted(_brain_mod.TOOLS)))
+
+    # ── Entity linking ────────────────────────────────────────────────────────
+    # A retrieved delivery document names SAP objects, but a 2024 FD citing API_X says
+    # nothing about whether API_X is released TODAY — the reader has to notice the name
+    # and check it separately, which is the step that gets skipped. Annotate every hit
+    # with a CURRENT verdict for the objects its text mentions.
+    #
+    # Done here rather than in brain_server.py on purpose: this module owns the catalog,
+    # so brain_server stays pure retrieval. Wrapping also means the annotation cannot
+    # change what was retrieved or how it was ranked — it only adds a field.
+    def _wrap_search_brain(_inner):
+        def _handler(args):
+            payload = _inner(args)
+            if not isinstance(payload, dict) or not payload.get("results"):
+                return payload
+            try:
+                import entity_link                       # noqa: PLC0415
+                import brain_search                      # scripts/ is on sys.path via brain_server
+            except Exception:
+                return payload                           # annotation is additive; never fatal
+            memo = {}
+            def _resolve(name):
+                if name not in memo:
+                    memo[name] = tool_check_object_release_state({"object_name": name})
+                return memo[name]
+            flagged = 0
+            for hit in payload["results"]:
+                try:
+                    text = brain_search._read_chunk_text(hit.get("chunk_file"))
+                except Exception:
+                    continue
+                if not text:
+                    continue
+                found = entity_link.annotate(text, _resolve)
+                if found:
+                    hit["objects_mentioned"] = found
+                    flagged += sum(1 for f in found
+                                   if f.get("verdict") == "NOT_AVAILABLE"
+                                   or f.get("evidence") == "naming_heuristic_only")
+            payload["objects_note"] = (
+                "objects_mentioned lists SAP object names found IN the retrieved text, each "
+                "with its verdict from the live catalog as of now — not as of when the "
+                "document was written. Treat it as a lead, not as the document's own claim: "
+                "%d mentioned object(s) are NOT_AVAILABLE or name-unconfirmed. Re-verify on "
+                "api.sap.com / the Released CDS Views list before using any of them."
+                % flagged)
+            return payload
+        return _handler
+
+    if "search_brain" in TOOLS:
+        TOOLS["search_brain"] = dict(TOOLS["search_brain"],
+                                     handler=_wrap_search_brain(TOOLS["search_brain"]["handler"]))
+        log_stderr("entity linking active on search_brain")
 except Exception as _bexc:
     log_stderr("brain tools NOT registered (%s) — governance tools unaffected" % _bexc)
 
