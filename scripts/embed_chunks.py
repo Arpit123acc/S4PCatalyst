@@ -36,6 +36,7 @@ BRAIN_DIR  = BASE_DIR / "brain"
 # Chunk sources to embed (add more roots here as the brain grows).
 CHUNK_ROOTS = [
     BRAIN_DIR / "sharepoint" / "chunks",     # SharePoint delivery docs
+    BRAIN_DIR / "webdocs" / "chunks",        # curated CAP/UI5/Node docs (webdocs_ingest.py)
 ]
 # The SAP scope catalog is embedded directly from its committed JSON (no need to
 # pre-emit 679 files, and no dependency on the source xlsx on the server).
