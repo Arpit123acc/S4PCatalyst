@@ -421,6 +421,56 @@
       ],
       "added": "2026-08-06",
       "source": "SMART-SEARCH-FD-R3"
+    },
+    {
+      "id": "EXP-030",
+      "category": "side_by_side",
+      "topic": "UI5 controller: encodeURIComponent does not escape apostrophes in an OData function URL",
+      "lesson": "When a UI5 controller calls a CAP function with fetch, it builds a URL like getOpenPurchaseOrders(supplierName='...'). Wrapping encodeURIComponent(value) in single quotes is NOT enough: encodeURIComponent leaves the apostrophe untouched (it is in the unreserved set). A supplier named O'Brien then sends unbalanced quotes and the request fails before it reaches the service, so server-side validation never runs. Fix: double the apostrophe first, then encode - encodeURIComponent(v.replace(/'/g, \"''\")). Apply it to every string parameter. This is a functional defect on the main search path, not a security hole (the server still uses bound query builders). Add a test that searches for a name containing an apostrophe.",
+      "impact": "A common real-world supplier name silently breaks the primary search in any UI5 app that calls an OData function with string parameters.",
+      "tags": [
+        "ui5",
+        "odata",
+        "cap",
+        "search",
+        "encoding",
+        "defect"
+      ],
+      "added": "2026-09-03",
+      "source": "pipeline run d4279543"
+    },
+    {
+      "id": "EXP-031",
+      "category": "report",
+      "topic": "A silent row cap on a lookup breaks an \"all matching records\" acceptance criterion",
+      "lesson": "Capping an outbound lookup (for example .limit(50) on A_BusinessPartner for a name search) is correct defensive design - it stops a one-character search pulling the whole master. But if the cap is hit and the extra rows are dropped with no signal, the user sees a full-looking table and cannot tell records were left out. That fails any acceptance criterion worded \"all matching X\". A quiet partial answer is worse than an error in a report used for business decisions. Rule: whenever you cap a result set, detect the boundary (returned rows == cap) and surface a warning such as \"More than 50 suppliers match. Narrow the name or enter a number.\" Add a boundary test. A cap the functional design explicitly accepted (here 500 purchase-order rows) does not need the warning.",
+      "impact": "Turns a hidden data-completeness bug into a visible, testable user message before it reaches procurement decisions.",
+      "tags": [
+        "cap",
+        "acceptance-criteria",
+        "data-completeness",
+        "pagination",
+        "defect"
+      ],
+      "added": "2026-09-03",
+      "source": "pipeline run d4279543"
+    },
+    {
+      "id": "EXP-032",
+      "category": "side_by_side",
+      "topic": "Pure side-by-side runs: unset config beats a guessed value, and the ABAP lint gate has no input",
+      "lesson": "Two patterns from a pure side-by-side (BTP CAP + UI5) run on S/4HANA Cloud Public Edition. (1) When a filter field or code value is not confirmed against tenant $metadata, do NOT code a guess. Make it an environment variable, validate it against a field-name pattern at start-up, and refuse to serve data until it is set. The gap stays visible instead of shipping wrong rows. (2) A side-by-side build contains zero ABAP, so the ABAP Cloud lint gate has no input. Record step 8 as \"not applicable - no ABAP artifacts\", list how each code block was classified (JSON, CDS, JavaScript, XML, YAML), and prove clean core by reading the build instead. A PASS on empty input is a false signal. (3) A communication scenario named in an FD often disagrees with the catalog - only the tenant Communication Arrangements app (F0763) settles it.",
+      "impact": "Keeps unconfirmed facts visible instead of hiding them behind a guessed constant or a meaningless lint PASS.",
+      "tags": [
+        "side_by_side",
+        "cap",
+        "lint",
+        "configuration",
+        "communication-arrangement",
+        "governance"
+      ],
+      "added": "2026-09-03",
+      "source": "pipeline run d4279543"
     }
   ]
 }
