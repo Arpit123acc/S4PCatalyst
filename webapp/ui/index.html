@@ -1250,6 +1250,36 @@ function activeRun(){
 // Live poll: always refresh jobs+runs from the server (localhost, cheap) so newly
 // started runs are discovered even if this tab was open before they appeared.
 // (Previous versions gated on the STALE in-memory lists and could get stuck.)
+// Has the developer started filling in the checkpoint form? Set by any input inside the
+// checkpoint card, cleared whenever the card is re-rendered from scratch.
+var CP_DIRTY=false;
+document.addEventListener("input",function(e){
+  if(e.target&&e.target.closest&&e.target.closest("#ex-checkpoint"))CP_DIRTY=true;},true);
+document.addEventListener("change",function(e){
+  if(e.target&&e.target.closest&&e.target.closest("#ex-checkpoint"))CP_DIRTY=true;},true);
+
+// Fingerprint of the fields the SERVER owns.
+//
+// The poll used to diff the whole run with JSON.stringify, but the checkpoint UI mutates
+// EX_RUN in place as the developer works — checkpoint_request.checked from the prereq
+// ticks, code_files[].comment, naming_contract[].name. The server copy has none of that,
+// so the diff was guaranteed to differ the moment anyone touched the form, which called
+// selectRun() and replaced the checkpoint card's innerHTML — the tick vanished "like a
+// blink", every 3 seconds, so clicking again never helped. Diff only server-owned state.
+function _serverFingerprint(r){
+  if(!r)return "";
+  return JSON.stringify({
+    status:  r.status,
+    quality: r.quality_score,
+    workflow:canonWf(r.workflow),
+    steps:   (r.steps||[]).map(function(s){return [s.name,s.status];}),
+    gates:   (r.gate_results||[]).map(function(g){return [g.name,g.status];}),
+    findings:(r.findings||[]).map(function(f){return [f.id,f.severity,f.status];}),
+    approvals:(r.human_approvals||[]).length,
+    cp:      (r.checkpoint_request||{}).checkpoint||null
+  });
+}
+
 setInterval(async()=>{
   if(document.hidden)return;                     // don't poll a backgrounded tab
   let d;
@@ -1257,7 +1287,16 @@ setInterval(async()=>{
   RUNS=d.runs||[];
   const active=activeRun();
   if(EX_FOLLOW&&active&&(!EX_RUN||EX_RUN.id!==active.id)){selectRun(active.id);loadInputs();return}
-  if(EX_RUN){const cur=RUNS.find(r=>r.id===EX_RUN.id);if(cur&&JSON.stringify(cur)!==JSON.stringify(EX_RUN)){selectRun(cur.id);loadInputs();return}}
+  if(EX_RUN){
+    const cur=RUNS.find(r=>r.id===EX_RUN.id);
+    if(cur&&_serverFingerprint(cur)!==_serverFingerprint(EX_RUN)){
+      // Never discard part-finished checkpoint input while the SAME checkpoint is still
+      // the one open: whatever else moved, the developer's unsubmitted work matters more.
+      // A different (or resolved) checkpoint means their edits are moot, so re-render.
+      const sameCp=(cur.checkpoint_request||{}).checkpoint===(EX_RUN.checkpoint_request||{}).checkpoint;
+      if(!(CP_DIRTY&&sameCp)){selectRun(cur.id);loadInputs();return}
+    }
+  }
   renderRunChips();
 },3000);
 
@@ -1428,6 +1467,7 @@ function renderRunChips(){
 }
 function selectRun(id){
   EX_RUN=RUNS.find(r=>r.id===id);if(!EX_RUN)return;
+  CP_DIRTY=false;                    // the checkpoint card is about to be rebuilt from server state
   $("#ex-empty").style.display="none";$("#ex-dash").style.display="";
   const r=EX_RUN;
   // Follow the run to its own workflow-type tab — a run that becomes side-by-side flips from the
