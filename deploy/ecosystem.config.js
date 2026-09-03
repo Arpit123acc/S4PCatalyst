@@ -56,5 +56,28 @@ module.exports = {
       error_file: '/home/ec2-user/.pm2/logs/s4pc-mcp-err.log',
       time: true,
     },
+    {
+      // Read-only visualisation of the brain corpus (brain-ui/README.md). Deliberately
+      // a separate process from s4pc-webapp so a demo surface can never reach the
+      // pipeline's approval controls, and so restarting one does not touch the other.
+      // Binds loopback: it has no authentication — see docs/brain-endpoint-setup.md
+      // before exposing it beyond the SSH tunnel.
+      name: 'brain-ui',
+      cwd: '/home/ec2-user/s4pc',
+      script: 'brain-ui/server.py',
+      args: '--port 8400',
+      interpreter: 'python3.11',
+      env: {
+        AWS_REGION: 'us-east-1',   // Bedrock Titan embeds the search query
+      },
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '30s',
+      restart_delay: 5000,
+      max_memory_restart: '1G',
+      out_file: '/home/ec2-user/.pm2/logs/brain-ui-out.log',
+      error_file: '/home/ec2-user/.pm2/logs/brain-ui-err.log',
+      time: true,
+    },
   ],
 };
