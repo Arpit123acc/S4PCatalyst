@@ -1,27 +1,61 @@
 @echo off
-:: S4PC unified MCP (governance + brain) — SSH tunnel  localhost:3001 -> EC2:3001
-:: Run this bat file before starting Claude Code so the merged MCP server is reachable.
+:: ===========================================================================
+:: S4PC brain tunnel WITH AUTO-RECONNECT (template).
 ::
-:: Fill in EC2_HOST and KEY_FILE below, then save (do NOT commit — EC2 details stay local).
-:: After first-time setup, register the server once under the enterprise-allowlisted name:
-::   claude mcp add --transport http -s user context7 http://localhost:3001/mcp
+:: Fill in KEY and TARGET below, save a COPY OUTSIDE THIS REPO (e.g.
+:: %USERPROFILE%\s4pc-tunnel.bat), and point a Startup-folder shortcut at that
+:: copy. Do NOT commit your filled-in version -- the EC2 address and key path
+:: stay local.
 ::
-:: On EC2 the UNIFIED server must already be running (server.py now serves BOTH the
-:: offline governance tools AND the Bedrock+FAISS search_brain tool):
-::   nohup python3.11 mcp-server/server.py --http 3001 > brain/http.out 2>&1 &
+:: Why the retry loop: plink has no reconnect of its own. A transient network
+:: blip ("FATAL ERROR: Network error: Software caused connection abort") kills
+:: the tunnel permanently and SILENTLY, so the governance MCP tools simply stop
+:: being available mid-session. The loop turns that into a five-second gap.
+::
+:: For headless pipeline runs this is belt-and-braces: webapp/app.py's
+:: mcp_preflight() already refuses to start a run when the MCP server is not
+:: reachable, so a dead tunnel cannot silently produce an ungoverned
+:: deliverable. The loop protects INTERACTIVE sessions, which have no such gate.
+::
+:: Ports forwarded:
+::   3002  s4pc-mcp      25 governance + brain tools; register as `context7`
+::   8321  s4pc-webapp   pipeline UI
+::   8400  brain-ui      Brain Explorer (read-only brain visualisation)
+::
+:: One-time registration once the tunnel is up:
+::   claude mcp add --transport http -s user context7 http://localhost:3002/mcp
+::
+:: Requires the corporate VPN if the host is on a private IP.
+:: Stop with Ctrl+C, then answer Y to "Terminate batch job".
+:: ===========================================================================
 
-set EC2_HOST=ubuntu@<YOUR-EC2-IP-HERE>
-set KEY_FILE=%USERPROFILE%\.ssh\<YOUR-KEY-FILE>.pem
+title S4PC Brain Tunnel (auto-reconnect)
 
+set "PLINK=C:\Program Files\PuTTY\plink.exe"
+set "KEY=%USERPROFILE%\.ssh\<YOUR-KEY-FILE>.ppk"
+set "TARGET=ec2-user@<YOUR-EC2-HOST>"
+set "FWD=-L 3002:localhost:3002 -L 8321:localhost:8321 -L 8400:localhost:8400"
+
+if not exist "%PLINK%" (
+  echo [S4PC] FATAL: plink not found at %PLINK%
+  pause
+  exit /b 1
+)
+if not exist "%KEY%" (
+  echo [S4PC] FATAL: key not found at %KEY% -- edit this file first.
+  pause
+  exit /b 1
+)
+
+set /a ATTEMPT=0
+
+:loop
+set /a ATTEMPT+=1
 echo.
-echo [S4PC] Starting SSH tunnel: localhost:3001 -^> %EC2_HOST%:3001
-echo [S4PC] Serves BOTH governance tools and the brain (search_brain) as one server.
-echo [S4PC] Keep this window open while using Claude Code.
-echo [S4PC] Press Ctrl+C to stop the tunnel.
-echo.
+echo [S4PC] %DATE% %TIME% - connecting (attempt %ATTEMPT%) ... 3002 / 8321 / 8400
+"%PLINK%" -i "%KEY%" -N -batch %FWD% %TARGET%
 
-ssh -N -L 3001:localhost:3001 -i "%KEY_FILE%" %EC2_HOST%
-
-echo.
-echo [S4PC] Tunnel stopped.
-pause
+echo [S4PC] %DATE% %TIME% - tunnel dropped. Reconnecting in 5s.
+echo [S4PC] If this loops rapidly, check the VPN first.
+timeout /t 5 /nobreak >nul
+goto loop
