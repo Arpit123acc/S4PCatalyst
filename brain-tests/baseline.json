@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-09-04T05:41:40.121183+00:00",
+  "recorded_utc": "2026-09-04T07:02:13.830544+00:00",
   "top_k": 10,
   "cases": [
     {
@@ -7,70 +7,67 @@
       "query": "how do I sort and filter a list binding in a UI5 table",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sap_bpd, sharepoint)",
-        "no hit whose source contains 'sorting'"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:f977ea3e0713",
-          "source": "redacted:afbf0d71a67e",
-          "source_system": "sharepoint",
-          "score": 0.2739
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.569
         },
         {
-          "chunk_file": "redacted:589e4ac4f39d",
-          "source": "redacted:be53846162e2",
-          "source_system": "sap_bpd",
-          "score": 0.2508
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.5382
         },
         {
-          "chunk_file": "redacted:c6995f01d565",
-          "source": "redacted:aa6b68648430",
-          "source_system": "sharepoint",
-          "score": 0.2322
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.4423
         },
         {
-          "chunk_file": "redacted:2f42cbaf80a2",
-          "source": "redacted:6b6de221f880",
-          "source_system": "sharepoint",
-          "score": 0.2258
+          "chunk_file": "webdocs/chunks/ui5_docs/22190c61b364_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-d2ce3f5",
+          "source_system": "developer_docs",
+          "score": 0.4339
         },
         {
-          "chunk_file": "redacted:771a2c247a11",
-          "source": "redacted:739f7a48d1f3",
-          "source_system": "sharepoint",
-          "score": 0.2214
+          "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
+          "source_system": "developer_docs",
+          "score": 0.3954
         },
         {
-          "chunk_file": "redacted:1fd646bade37",
-          "source": "redacted:be53846162e2",
-          "source_system": "sap_bpd",
-          "score": 0.221
+          "chunk_file": "webdocs/chunks/ui5_docs/15926a15783d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — filtering-5338bd1",
+          "source_system": "developer_docs",
+          "score": 0.3635
         },
         {
-          "chunk_file": "redacted:1a8c5f03dc96",
-          "source": "redacted:1e52ff2cf042",
-          "source_system": "sharepoint",
-          "score": 0.2126
+          "chunk_file": "webdocs/chunks/ui5_docs/62b27a213ba2_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — list-binding-and-tree-binding-aggregation-binding-91f0577",
+          "source_system": "developer_docs",
+          "score": 0.3518
         },
         {
-          "chunk_file": "redacted:4a02290887c0",
-          "source": "redacted:451d9f5c8d14",
-          "source_system": "sharepoint",
-          "score": 0.2017
+          "chunk_file": "webdocs/chunks/ui5_docs/4308698b9b18_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — bindings-54e0ddf",
+          "source_system": "developer_docs",
+          "score": 0.3496
         },
         {
-          "chunk_file": "redacted:ad3c64856337",
-          "source": "redacted:ab2382f2ddc0",
-          "source_system": "sharepoint",
-          "score": 0.1976
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.3206
         },
         {
-          "chunk_file": "redacted:0ecff1e10529",
-          "source": "redacted:88aa7e8dda58",
-          "source_system": "sharepoint",
-          "score": 0.1976
+          "chunk_file": "webdocs/chunks/ui5_docs/d3fb7cd81d5b_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — json-model-96804e3",
+          "source_system": "developer_docs",
+          "score": 0.3203
         }
       ]
     },
@@ -79,69 +76,67 @@
       "query": "escaping an apostrophe in an OData filter query string",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sharepoint)"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:ff6efe4bd450",
-          "source": "redacted:8384348d945d",
-          "source_system": "sharepoint",
-          "score": 0.2118
+          "chunk_file": "webdocs/chunks/ui5_docs/15926a15783d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — filtering-5338bd1",
+          "source_system": "developer_docs",
+          "score": 0.4464
         },
         {
-          "chunk_file": "redacted:c6995f01d565",
-          "source": "redacted:aa6b68648430",
-          "source_system": "sharepoint",
-          "score": 0.2086
+          "chunk_file": "webdocs/chunks/ui5_docs/90261dd8f1fc_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-model-6c47b2b",
+          "source_system": "developer_docs",
+          "score": 0.4002
         },
         {
-          "chunk_file": "redacted:ad3c64856337",
-          "source": "redacted:ab2382f2ddc0",
-          "source_system": "sharepoint",
-          "score": 0.2009
+          "chunk_file": "webdocs/chunks/ui5_docs/413d4b57347a_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — consuming-odata-v2-services-with-the-odata-v4-model-deprecated-365bdbd",
+          "source_system": "developer_docs",
+          "score": 0.4001
         },
         {
-          "chunk_file": "redacted:0ecff1e10529",
-          "source": "redacted:88aa7e8dda58",
-          "source_system": "sharepoint",
-          "score": 0.2009
+          "chunk_file": "webdocs/chunks/ui5_docs/cd2411b62e29_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-features-supported-by-the-odata-v2-mock-server-3459c37",
+          "source_system": "developer_docs",
+          "score": 0.3403
         },
         {
-          "chunk_file": "redacted:e4d4ff0cdbe5",
-          "source": "redacted:8af32c9b34e9",
-          "source_system": "sharepoint",
-          "score": 0.1995
+          "chunk_file": "webdocs/chunks/ui5_docs/90261dd8f1fc_0008.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-model-6c47b2b",
+          "source_system": "developer_docs",
+          "score": 0.3389
         },
         {
-          "chunk_file": "redacted:0fdcb53142de",
-          "source": "redacted:78d00bb6f744",
-          "source_system": "sharepoint",
-          "score": 0.1829
+          "chunk_file": "webdocs/chunks/ui5_docs/f8d28ec6b721_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enabling-the-odata-select-parameter-be12099",
+          "source_system": "developer_docs",
+          "score": 0.338
         },
         {
-          "chunk_file": "redacted:80a628fd499b",
-          "source": "redacted:47317d203a7f",
-          "source_system": "sharepoint",
-          "score": 0.1817
+          "chunk_file": "webdocs/chunks/ui5_docs/608ecbffbb01_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — upgrading-your-odata-model-cda632b",
+          "source_system": "developer_docs",
+          "score": 0.3272
         },
         {
-          "chunk_file": "redacted:a07085af7651",
-          "source": "redacted:0c32435b94d4",
-          "source_system": "sharepoint",
-          "score": 0.1761
+          "chunk_file": "webdocs/chunks/ui5_docs/0da13172f9cb_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-operations-b54f789",
+          "source_system": "developer_docs",
+          "score": 0.3257
         },
         {
-          "chunk_file": "redacted:b8daa3194286",
-          "source": "redacted:0c32435b94d4",
-          "source_system": "sharepoint",
-          "score": 0.1761
+          "chunk_file": "webdocs/chunks/ui5_docs/90261dd8f1fc_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-model-6c47b2b",
+          "source_system": "developer_docs",
+          "score": 0.3228
         },
         {
-          "chunk_file": "redacted:2c8d411ac5eb",
-          "source": "redacted:2cc859cc1bdf",
-          "source_system": "sharepoint",
-          "score": 0.176
+          "chunk_file": "webdocs/chunks/ui5_docs/33851ea44271_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — replacement-of-bindings-604b1eb",
+          "source_system": "developer_docs",
+          "score": 0.3193
         }
       ]
     },
@@ -150,69 +145,67 @@
       "query": "OData V4 model server messages and error handling in UI5",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit whose source contains 'server-messages'"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:b373773a81ea",
-          "source": "redacted:cdfc348850b9",
-          "source_system": "sharepoint",
-          "score": 0.4353
+          "chunk_file": "webdocs/chunks/ui5_docs/eaff08a0dd6d_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-messages-81c735e",
+          "source_system": "developer_docs",
+          "score": 0.6747
         },
         {
-          "chunk_file": "redacted:13f523983b48",
-          "source": "redacted:a8a8a48aa4e0",
-          "source_system": "sharepoint",
-          "score": 0.3838
+          "chunk_file": "webdocs/chunks/ui5_docs/d3934747ed30_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — server-messages-in-the-odata-v4-model-fbe1cb5",
+          "source_system": "developer_docs",
+          "score": 0.6625
         },
         {
-          "chunk_file": "redacted:4114a76adfa1",
-          "source": "redacted:e1dd249ac002",
-          "source_system": "sharepoint",
-          "score": 0.3795
+          "chunk_file": "webdocs/chunks/ui5_docs/d3934747ed30_0004.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — server-messages-in-the-odata-v4-model-fbe1cb5",
+          "source_system": "developer_docs",
+          "score": 0.6229
         },
         {
-          "chunk_file": "redacted:e6554ef921f8",
-          "source": "redacted:36ce00146331",
-          "source_system": "sharepoint",
-          "score": 0.3567
+          "chunk_file": "webdocs/chunks/ui5_docs/d3934747ed30_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — server-messages-in-the-odata-v4-model-fbe1cb5",
+          "source_system": "developer_docs",
+          "score": 0.5546
         },
         {
-          "chunk_file": "redacted:05f05878cd76",
-          "source": "redacted:a313e1c106d1",
-          "source_system": "sharepoint",
-          "score": 0.3484
+          "chunk_file": "webdocs/chunks/ui5_docs/eaff08a0dd6d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-messages-81c735e",
+          "source_system": "developer_docs",
+          "score": 0.54
         },
         {
-          "chunk_file": "redacted:e85ede94db61",
-          "source": "redacted:df80375c70d5",
-          "source_system": "sharepoint",
-          "score": 0.3394
+          "chunk_file": "webdocs/chunks/ui5_docs/6ff7c38294a1_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — model-instantiation-and-data-access-9613f1f",
+          "source_system": "developer_docs",
+          "score": 0.5343
         },
         {
-          "chunk_file": "redacted:cee72782c9b3",
-          "source": "redacted:df80375c70d5",
-          "source_system": "sharepoint",
-          "score": 0.3394
+          "chunk_file": "webdocs/chunks/ui5_docs/55d33710adc2_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v4-model-5de13cf",
+          "source_system": "developer_docs",
+          "score": 0.5322
         },
         {
-          "chunk_file": "redacted:f977ea3e0713",
-          "source": "redacted:afbf0d71a67e",
-          "source_system": "sharepoint",
-          "score": 0.3343
+          "chunk_file": "webdocs/chunks/ui5_docs/0268c877fa1d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — models-e1b6259",
+          "source_system": "developer_docs",
+          "score": 0.5201
         },
         {
-          "chunk_file": "redacted:41b6e351e6c3",
-          "source": "redacted:d3ef8f71e134",
-          "source_system": "sharepoint",
-          "score": 0.3323
+          "chunk_file": "webdocs/chunks/ui5_docs/6ff7c38294a1_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — model-instantiation-and-data-access-9613f1f",
+          "source_system": "developer_docs",
+          "score": 0.5038
         },
         {
-          "chunk_file": "redacted:d20e38d1979f",
-          "source": "redacted:cdfed64eb23c",
-          "source_system": "sap_bpd",
-          "score": 0.3295
+          "chunk_file": "webdocs/chunks/ui5_docs/413d4b57347a_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — consuming-odata-v2-services-with-the-odata-v4-model-deprecated-365bdbd",
+          "source_system": "developer_docs",
+          "score": 0.5015
         }
       ]
     },
@@ -221,69 +214,67 @@
       "query": "what is the default binding mode and how do I change it",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit whose source contains 'binding-mode'"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:56d92c074312",
-          "source": "redacted:c654d11ec6aa",
-          "source_system": "sharepoint",
-          "score": 0.2578
+          "chunk_file": "webdocs/chunks/ui5_docs/691de6f58d62_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — setting-the-default-binding-mode-1a08f70",
+          "source_system": "developer_docs",
+          "score": 0.8392
         },
         {
-          "chunk_file": "redacted:6c0c8c6c2610",
-          "source": "redacted:5dd65b4cc655",
-          "source_system": "sharepoint",
-          "score": 0.2437
+          "chunk_file": "webdocs/chunks/ui5_docs/8d73808be43b_0003.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — property-binding-91f0652",
+          "source_system": "developer_docs",
+          "score": 0.6294
         },
         {
-          "chunk_file": "redacted:a6404d122ba5",
-          "source": "redacted:e12344555785",
-          "source_system": "sap_bpd",
-          "score": 0.236
+          "chunk_file": "webdocs/chunks/ui5_docs/d9138737931b_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-modes-e37a0c3",
+          "source_system": "developer_docs",
+          "score": 0.62
         },
         {
-          "chunk_file": "redacted:8978c971b283",
-          "source": "redacted:80dafc1f9641",
-          "source_system": "sharepoint",
-          "score": 0.2278
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.5187
         },
         {
-          "chunk_file": "redacted:4a9a620f2cf1",
-          "source": "redacted:3df71778d82d",
-          "source_system": "sharepoint",
-          "score": 0.2263
+          "chunk_file": "webdocs/chunks/ui5_docs/ff1c15ea43e4_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-types-91f0d8a",
+          "source_system": "developer_docs",
+          "score": 0.4167
         },
         {
-          "chunk_file": "redacted:8f6ad16ed0ef",
-          "source": "redacted:d6e1d6a6e5bd",
-          "source_system": "sap_bpd",
-          "score": 0.2208
+          "chunk_file": "webdocs/chunks/ui5_docs/000b65cb0552_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-syntax-e2e6f41",
+          "source_system": "developer_docs",
+          "score": 0.3854
         },
         {
-          "chunk_file": "redacted:7ccfdd92424f",
-          "source": "redacted:27634d5a7a39",
-          "source_system": "sap_bpd",
-          "score": 0.2157
+          "chunk_file": "webdocs/chunks/ui5_docs/e4f4c40c7082_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — creating-bindings-95cf4b1",
+          "source_system": "developer_docs",
+          "score": 0.3834
         },
         {
-          "chunk_file": "redacted:14084a595866",
-          "source": "redacted:d6e1d6a6e5bd",
-          "source_system": "sap_bpd",
-          "score": 0.2148
+          "chunk_file": "webdocs/chunks/ui5_docs/c5cb015d5f98_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — context-binding-element-binding-91f05e8",
+          "source_system": "developer_docs",
+          "score": 0.369
         },
         {
-          "chunk_file": "redacted:5cb84e82b6e7",
-          "source": "redacted:5dd65b4cc655",
-          "source_system": "sharepoint",
-          "score": 0.2148
+          "chunk_file": "webdocs/chunks/ui5_docs/8d73808be43b_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — property-binding-91f0652",
+          "source_system": "developer_docs",
+          "score": 0.3643
         },
         {
-          "chunk_file": "redacted:f9e0553b9c76",
-          "source": "redacted:3d0c8c1442c4",
-          "source_system": "sap_bpd",
-          "score": 0.2132
+          "chunk_file": "webdocs/chunks/ui5_docs/1b86729a7eb7_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-path-2888af4",
+          "source_system": "developer_docs",
+          "score": 0.3591
         }
       ]
     },
@@ -292,69 +283,67 @@
       "query": "ValueList annotation for a value help dropdown in Fiori Elements",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sap_bpd, sharepoint)"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:326c5f077f79",
-          "source": "redacted:65c81a3cdd8e",
-          "source_system": "sap_bpd",
-          "score": 0.3278
+          "chunk_file": "webdocs/chunks/ui5_docs/ae699ca8f203_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enhancing-valuelist-annotations-for-visual-filters-bcfc085",
+          "source_system": "developer_docs",
+          "score": 0.667
         },
         {
-          "chunk_file": "redacted:06cda193c725",
-          "source": "redacted:3a8a5015a6cd",
-          "source_system": "sap_bpd",
-          "score": 0.3245
+          "chunk_file": "webdocs/chunks/ui5_docs/8e7e2e193b87_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enhancing-valuelist-annotations-for-visual-filters-16d43eb",
+          "source_system": "developer_docs",
+          "score": 0.6669
         },
         {
-          "chunk_file": "redacted:5d9490c5633c",
-          "source": "redacted:65c81a3cdd8e",
-          "source_system": "sap_bpd",
-          "score": 0.3201
+          "chunk_file": "webdocs/chunks/ui5_docs/b4f29d48323b_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — in-out-mappings-in-the-valuelist-annotation-4de40b3",
+          "source_system": "developer_docs",
+          "score": 0.6319
         },
         {
-          "chunk_file": "redacted:04253ba1622b",
-          "source": "redacted:7fea2b07b528",
-          "source_system": "sap_bpd",
-          "score": 0.3192
+          "chunk_file": "webdocs/chunks/ui5_docs/5a8fc202ea98_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — in-out-mappings-in-the-valuelist-annotation-32bfc09",
+          "source_system": "developer_docs",
+          "score": 0.6053
         },
         {
-          "chunk_file": "redacted:a819525690a4",
-          "source": "redacted:003f008f0532",
-          "source_system": "sap_bpd",
-          "score": 0.3144
+          "chunk_file": "webdocs/chunks/ui5_docs/b4f29d48323b_0002.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — in-out-mappings-in-the-valuelist-annotation-4de40b3",
+          "source_system": "developer_docs",
+          "score": 0.5869
         },
         {
-          "chunk_file": "redacted:ab97ec655a64",
-          "source": "redacted:bbde63586928",
-          "source_system": "sap_bpd",
-          "score": 0.3103
+          "chunk_file": "webdocs/chunks/ui5_docs/b4f29d48323b_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — in-out-mappings-in-the-valuelist-annotation-4de40b3",
+          "source_system": "developer_docs",
+          "score": 0.5246
         },
         {
-          "chunk_file": "redacted:9de865012fd8",
-          "source": "redacted:cb9fdd56c369",
-          "source_system": "sharepoint",
-          "score": 0.3058
+          "chunk_file": "webdocs/chunks/ui5_docs/5a8fc202ea98_0002.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — in-out-mappings-in-the-valuelist-annotation-32bfc09",
+          "source_system": "developer_docs",
+          "score": 0.4837
         },
         {
-          "chunk_file": "redacted:7d38166dbeed",
-          "source": "redacted:69de9578ca1e",
-          "source_system": "sap_bpd",
-          "score": 0.2981
+          "chunk_file": "webdocs/chunks/ui5_docs/84d994bddeec_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — meta-model-for-odata-v4-7f29fb3",
+          "source_system": "developer_docs",
+          "score": 0.4725
         },
         {
-          "chunk_file": "redacted:da78bdb45ecb",
-          "source": "redacted:ffceddea1726",
-          "source_system": "sharepoint",
-          "score": 0.2942
+          "chunk_file": "webdocs/chunks/ui5_docs/8e7e2e193b87_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enhancing-valuelist-annotations-for-visual-filters-16d43eb",
+          "source_system": "developer_docs",
+          "score": 0.4573
         },
         {
-          "chunk_file": "redacted:60cbf21f877b",
-          "source": "redacted:6f4e7489648c",
-          "source_system": "sap_bpd",
-          "score": 0.2914
+          "chunk_file": "webdocs/chunks/ui5_docs/8e7e2e193b87_0002.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enhancing-valuelist-annotations-for-visual-filters-16d43eb",
+          "source_system": "developer_docs",
+          "score": 0.4367
         }
       ]
     },
@@ -363,69 +352,67 @@
       "query": "variant management on a list report page",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sap_bpd, sharepoint)"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:e7da7ae8e623",
-          "source": "redacted:d1086607c388",
-          "source_system": "sharepoint",
-          "score": 0.383
+          "chunk_file": "webdocs/chunks/ui5_docs/f07b7eacbdde_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — creating-a-list-report-page-without-variant-management-e3b12f4",
+          "source_system": "developer_docs",
+          "score": 0.7576
         },
         {
-          "chunk_file": "redacted:0678dc218e8c",
-          "source": "redacted:156b145f24db",
-          "source_system": "sharepoint",
-          "score": 0.372
+          "chunk_file": "webdocs/chunks/ui5_docs/69ebaef2c318_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — creating-a-list-report-page-without-variant-management-094fe8c",
+          "source_system": "developer_docs",
+          "score": 0.7544
         },
         {
-          "chunk_file": "redacted:3c7645bf8725",
-          "source": "redacted:75301fff95ad",
-          "source_system": "sharepoint",
-          "score": 0.372
+          "chunk_file": "webdocs/chunks/ui5_docs/6d9d969d2863_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — managing-variants-b82d987",
+          "source_system": "developer_docs",
+          "score": 0.6812
         },
         {
-          "chunk_file": "redacted:79b404fe4db4",
-          "source": "redacted:c0f8b854429d",
-          "source_system": "sharepoint",
-          "score": 0.372
+          "chunk_file": "webdocs/chunks/ui5_docs/acb7bd51aa05_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — managing-variants-8ce658e",
+          "source_system": "developer_docs",
+          "score": 0.6617
         },
         {
-          "chunk_file": "redacted:9cdf40b5ac47",
-          "source": "redacted:970b0c3a2193",
-          "source_system": "sharepoint",
-          "score": 0.3685
+          "chunk_file": "webdocs/chunks/ui5_docs/e2d337359e6a_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enabling-variant-management-on-the-object-page-f26d42b",
+          "source_system": "developer_docs",
+          "score": 0.599
         },
         {
-          "chunk_file": "redacted:345e9a743313",
-          "source": "redacted:015efd6d1493",
-          "source_system": "sap_bpd",
-          "score": 0.366
+          "chunk_file": "webdocs/chunks/ui5_docs/b0c1cbd84f16_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enabling-variant-management-on-the-object-page-ca0eb16",
+          "source_system": "developer_docs",
+          "score": 0.5842
         },
         {
-          "chunk_file": "redacted:f977ea3e0713",
-          "source": "redacted:afbf0d71a67e",
-          "source_system": "sharepoint",
-          "score": 0.3632
+          "chunk_file": "webdocs/chunks/ui5_docs/6d9d969d2863_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — managing-variants-b82d987",
+          "source_system": "developer_docs",
+          "score": 0.5592
         },
         {
-          "chunk_file": "redacted:f069f15f9bdc",
-          "source": "redacted:9a414b52b2ee",
-          "source_system": "sharepoint",
-          "score": 0.3609
+          "chunk_file": "webdocs/chunks/ui5_docs/60e2765d1395_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — the-variantmanagement-building-block-33640ff",
+          "source_system": "developer_docs",
+          "score": 0.5333
         },
         {
-          "chunk_file": "redacted:23d865de1e18",
-          "source": "redacted:42ca22f8e888",
-          "source_system": "sharepoint",
-          "score": 0.3441
+          "chunk_file": "webdocs/chunks/ui5_docs/acb7bd51aa05_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — managing-variants-8ce658e",
+          "source_system": "developer_docs",
+          "score": 0.4859
         },
         {
-          "chunk_file": "redacted:58894f4afb55",
-          "source": "redacted:ce671bb37a8a",
-          "source_system": "sharepoint",
-          "score": 0.3431
+          "chunk_file": "webdocs/chunks/ui5_docs/ea877439dd0a_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — passing-variant-ids-as-url-parameters-2a01415",
+          "source_system": "developer_docs",
+          "score": 0.4474
         }
       ]
     },
@@ -434,69 +421,67 @@
       "query": "hide a field using the UI.Hidden annotation",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit whose source contains 'hidden'"
-      ],
+      "failures": [],
       "hits": [
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/f769cec72a05_0003.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-ca00ee4",
+          "source_system": "developer_docs",
+          "score": 0.637
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/0e87ff49d6e5_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-table-columns-using-the-ui-hidden-annotation-fe45346",
+          "source_system": "developer_docs",
+          "score": 0.6295
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/f769cec72a05_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-ca00ee4",
+          "source_system": "developer_docs",
+          "score": 0.6012
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/f769cec72a05_0002.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-ca00ee4",
+          "source_system": "developer_docs",
+          "score": 0.5865
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
+          "source_system": "developer_docs",
+          "score": 0.5744
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/f769cec72a05_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-ca00ee4",
+          "source_system": "developer_docs",
+          "score": 0.5726
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0002.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
+          "source_system": "developer_docs",
+          "score": 0.5696
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
+          "source_system": "developer_docs",
+          "score": 0.5476
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0003.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
+          "source_system": "developer_docs",
+          "score": 0.3735
+        },
         {
           "chunk_file": "redacted:6c4fa890599c",
           "source": "redacted:671888e46137",
           "source_system": "sharepoint",
           "score": 0.2281
-        },
-        {
-          "chunk_file": "redacted:61eec1f224b7",
-          "source": "redacted:4f8619bcadc9",
-          "source_system": "sharepoint",
-          "score": 0.2168
-        },
-        {
-          "chunk_file": "redacted:1802982d84ea",
-          "source": "redacted:2261a2c8fdf1",
-          "source_system": "sharepoint",
-          "score": 0.2128
-        },
-        {
-          "chunk_file": "redacted:2f1804a1e901",
-          "source": "redacted:b6b4177695f2",
-          "source_system": "sharepoint",
-          "score": 0.2121
-        },
-        {
-          "chunk_file": "redacted:8bfd23103b38",
-          "source": "redacted:4dc5545ccb2d",
-          "source_system": "sharepoint",
-          "score": 0.2116
-        },
-        {
-          "chunk_file": "redacted:814e3c55fe35",
-          "source": "redacted:4f8aede77886",
-          "source_system": "sharepoint",
-          "score": 0.1866
-        },
-        {
-          "chunk_file": "redacted:06ac63fa2a24",
-          "source": "redacted:431c318a61a2",
-          "source_system": "sharepoint",
-          "score": 0.1839
-        },
-        {
-          "chunk_file": "redacted:6f6779379a42",
-          "source": "redacted:6efb0f73fd14",
-          "source_system": "sharepoint",
-          "score": 0.1832
-        },
-        {
-          "chunk_file": "redacted:cc9767f79fae",
-          "source": "redacted:e5e9d4b79c52",
-          "source_system": "sharepoint",
-          "score": 0.1832
-        },
-        {
-          "chunk_file": "redacted:70dd0c763666",
-          "source": "redacted:b9b9d6796b04",
-          "source_system": "sharepoint",
-          "score": 0.1832
         }
       ]
     },
@@ -505,69 +490,67 @@
       "query": "defining an entity and associations in CAP CDL",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sap_bpd, sharepoint)"
-      ],
+      "failures": [],
       "hits": [
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0000.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.5559
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0010.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.4891
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0013.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.4709
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0003.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.4408
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0000.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4286
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0010.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.418
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0007.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.3926
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0009.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.3912
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0011.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.3767
+        },
         {
           "chunk_file": "redacted:36ae1a3d3c1f",
           "source": "redacted:8af32c9b34e9",
           "source_system": "sharepoint",
           "score": 0.3698
-        },
-        {
-          "chunk_file": "redacted:976dafffeda6",
-          "source": "redacted:1356bc0dbc4e",
-          "source_system": "sharepoint",
-          "score": 0.2599
-        },
-        {
-          "chunk_file": "redacted:fecca797dff6",
-          "source": "redacted:f5b00a44c4b2",
-          "source_system": "sap_bpd",
-          "score": 0.2551
-        },
-        {
-          "chunk_file": "redacted:315789d6bd51",
-          "source": "redacted:f5b00a44c4b2",
-          "source_system": "sap_bpd",
-          "score": 0.2551
-        },
-        {
-          "chunk_file": "redacted:1679a6079773",
-          "source": "redacted:275b1ca4dbe2",
-          "source_system": "sharepoint",
-          "score": 0.2497
-        },
-        {
-          "chunk_file": "redacted:3a02fb007281",
-          "source": "redacted:81bd25243372",
-          "source_system": "sap_bpd",
-          "score": 0.2463
-        },
-        {
-          "chunk_file": "redacted:89d338e150f1",
-          "source": "redacted:46576765bd58",
-          "source_system": "sap_bpd",
-          "score": 0.2451
-        },
-        {
-          "chunk_file": "redacted:6df5af4ab171",
-          "source": "redacted:dc267f2bd2d4",
-          "source_system": "sharepoint",
-          "score": 0.2445
-        },
-        {
-          "chunk_file": "redacted:0e7b2504c0d4",
-          "source": "redacted:7d4d7b8a27d4",
-          "source_system": "sharepoint",
-          "score": 0.2413
-        },
-        {
-          "chunk_file": "redacted:e547dabd640b",
-          "source": "redacted:93df127f6f64",
-          "source_system": "sharepoint",
-          "score": 0.2413
         }
       ]
     },
@@ -576,69 +559,67 @@
       "query": "CAP authorization restrict annotation role based access",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sharepoint)"
-      ],
+      "failures": [],
       "hits": [
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0000.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.5913
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0010.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.5872
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0009.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.5791
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0002.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.5389
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0003.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4866
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0014.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4745
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0006.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4507
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0011.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4429
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0012.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.424
+        },
         {
           "chunk_file": "redacted:23dabe7c3473",
           "source": "redacted:20e2256c7c14",
           "source_system": "sharepoint",
           "score": 0.396
-        },
-        {
-          "chunk_file": "redacted:da78bdb45ecb",
-          "source": "redacted:ffceddea1726",
-          "source_system": "sharepoint",
-          "score": 0.3631
-        },
-        {
-          "chunk_file": "redacted:846df2096001",
-          "source": "redacted:545f2fe38146",
-          "source_system": "sharepoint",
-          "score": 0.3491
-        },
-        {
-          "chunk_file": "redacted:80672a8d08c8",
-          "source": "redacted:ffceddea1726",
-          "source_system": "sharepoint",
-          "score": 0.3465
-        },
-        {
-          "chunk_file": "redacted:d469d85fef81",
-          "source": "redacted:8380a57dcb5b",
-          "source_system": "sharepoint",
-          "score": 0.3454
-        },
-        {
-          "chunk_file": "redacted:5a931920872e",
-          "source": "redacted:31f5977874f9",
-          "source_system": "sharepoint",
-          "score": 0.3432
-        },
-        {
-          "chunk_file": "redacted:6cfa8e3ecbe8",
-          "source": "redacted:20e2256c7c14",
-          "source_system": "sharepoint",
-          "score": 0.3412
-        },
-        {
-          "chunk_file": "redacted:a9fecbed7269",
-          "source": "redacted:ffceddea1726",
-          "source_system": "sharepoint",
-          "score": 0.3384
-        },
-        {
-          "chunk_file": "redacted:005a5deb4457",
-          "source": "redacted:3c68408ac060",
-          "source_system": "sharepoint",
-          "score": 0.3263
-        },
-        {
-          "chunk_file": "redacted:341361212e02",
-          "source": "redacted:239cf4dd7d58",
-          "source_system": "sharepoint",
-          "score": 0.3247
         }
       ]
     },
@@ -647,69 +628,67 @@
       "query": "percent encoding a URL query parameter in Node.js",
       "filters": null,
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sharepoint)"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:cf968853a7b9",
-          "source": "redacted:19d85a312486",
-          "source_system": "sharepoint",
-          "score": 0.1893
+          "chunk_file": "webdocs/chunks/nodejs_docs/717bcba5ce0b_0000.json",
+          "source": "Node.js — querystring escaping",
+          "source_system": "developer_docs",
+          "score": 0.5345
         },
         {
-          "chunk_file": "redacted:d23a83b425c5",
-          "source": "redacted:76a3461ea66e",
-          "source_system": "sharepoint",
-          "score": 0.1697
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0020.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.5249
         },
         {
-          "chunk_file": "redacted:417b5c944ec7",
-          "source": "redacted:19d85a312486",
-          "source_system": "sharepoint",
-          "score": 0.1692
+          "chunk_file": "webdocs/chunks/nodejs_docs/717bcba5ce0b_0001.json",
+          "source": "Node.js — querystring escaping",
+          "source_system": "developer_docs",
+          "score": 0.5185
         },
         {
-          "chunk_file": "redacted:a75d94bb42e5",
-          "source": "redacted:575d1e28fdad",
-          "source_system": "sharepoint",
-          "score": 0.1627
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0006.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.4907
         },
         {
-          "chunk_file": "redacted:e49b411ca091",
-          "source": "redacted:2052e80a1ad8",
-          "source_system": "sharepoint",
-          "score": 0.1605
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0012.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.3852
         },
         {
-          "chunk_file": "redacted:cee4f4ee6725",
-          "source": "redacted:a9aaa1bfdeaa",
-          "source_system": "sharepoint",
-          "score": 0.1597
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0014.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.3684
         },
         {
-          "chunk_file": "redacted:fc867d783c70",
-          "source": "redacted:a9aaa1bfdeaa",
-          "source_system": "sharepoint",
-          "score": 0.1597
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0018.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.3622
         },
         {
-          "chunk_file": "redacted:1c497d5050ed",
-          "source": "redacted:a9aaa1bfdeaa",
-          "source_system": "sharepoint",
-          "score": 0.1572
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0011.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.3379
         },
         {
-          "chunk_file": "redacted:ad27de6837c9",
-          "source": "redacted:a9aaa1bfdeaa",
-          "source_system": "sharepoint",
-          "score": 0.1572
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0017.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.3295
         },
         {
-          "chunk_file": "redacted:42962783e427",
-          "source": "redacted:23d8feb983b2",
-          "source_system": "sharepoint",
-          "score": 0.1571
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0009.json",
+          "source": "Node.js — URL and query string encoding",
+          "source_system": "developer_docs",
+          "score": 0.3267
         }
       ]
     },
@@ -1135,6 +1114,12 @@
       "failures": [],
       "hits": [
         {
+          "chunk_file": "webdocs/chunks/ui5_docs/ed2b3d34c81f_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — working-with-odata-annotations-83c89cc",
+          "source_system": "developer_docs",
+          "score": 0.4056
+        },
+        {
           "chunk_file": "redacted:e7dc18dfadba",
           "source": "redacted:df80375c70d5",
           "source_system": "sharepoint",
@@ -1187,12 +1172,6 @@
           "source": "redacted:65cd0a6907c6",
           "source_system": "sharepoint",
           "score": 0.3376
-        },
-        {
-          "chunk_file": "redacted:5a683e26fafb",
-          "source": "redacted:767815f36df4",
-          "source_system": "sharepoint",
-          "score": 0.3372
         }
       ]
     },
@@ -1279,16 +1258,46 @@
           "score": 0.5585
         },
         {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0009.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.5163
+        },
+        {
           "chunk_file": "redacted:0d99f09c6967",
           "source": "redacted:74dffb2d145c",
           "source_system": "sharepoint",
           "score": 0.5137
         },
         {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0020.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.49
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0008.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.4594
+        },
+        {
           "chunk_file": "redacted:7de4b311b7cd",
           "source": "redacted:9e1b6620dbff",
           "source_system": "sharepoint",
           "score": 0.4114
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0021.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.403
+        },
+        {
+          "chunk_file": "webdocs/chunks/cap_docs/84e415eac966_0007.json",
+          "source": "CAP — CDS definition language (CDL)",
+          "source_system": "developer_docs",
+          "score": 0.4025
         },
         {
           "chunk_file": "redacted:dd2eee78c89b",
@@ -1301,36 +1310,6 @@
           "source": "redacted:74dffb2d145c",
           "source_system": "sharepoint",
           "score": 0.3882
-        },
-        {
-          "chunk_file": "redacted:0e9fc678ff55",
-          "source": "redacted:7cdb6e6e5770",
-          "source_system": "sap_bpd",
-          "score": 0.3365
-        },
-        {
-          "chunk_file": "redacted:858456f7a1c5",
-          "source": "redacted:31f5977874f9",
-          "source_system": "sharepoint",
-          "score": 0.3138
-        },
-        {
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.2972
-        },
-        {
-          "chunk_file": "redacted:e518e2a7c5e7",
-          "source": "redacted:3ac28d66dfbf",
-          "source_system": "sap_bpd",
-          "score": 0.2872
-        },
-        {
-          "chunk_file": "redacted:5a17a227c62b",
-          "source": "redacted:6aabcc6642a7",
-          "source_system": "sap_bpd",
-          "score": 0.2872
         }
       ]
     },
@@ -1341,6 +1320,12 @@
       "pending": null,
       "failures": [],
       "hits": [
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/90261dd8f1fc_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-model-6c47b2b",
+          "source_system": "developer_docs",
+          "score": 0.4582
+        },
         {
           "chunk_file": "redacted:af3f01b77330",
           "source": "redacted:5901383c7680",
@@ -1360,46 +1345,40 @@
           "score": 0.4439
         },
         {
+          "chunk_file": "webdocs/chunks/ui5_docs/0da13172f9cb_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-operations-b54f789",
+          "source_system": "developer_docs",
+          "score": 0.4422
+        },
+        {
           "chunk_file": "redacted:e4d4ff0cdbe5",
           "source": "redacted:8af32c9b34e9",
           "source_system": "sharepoint",
           "score": 0.4367
         },
         {
-          "chunk_file": "redacted:7ac6cf90abc8",
-          "source": "redacted:78de15fd62f0",
-          "source_system": "sharepoint",
-          "score": 0.4225
+          "chunk_file": "webdocs/chunks/ui5_docs/6ff7c38294a1_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — model-instantiation-and-data-access-9613f1f",
+          "source_system": "developer_docs",
+          "score": 0.434
         },
         {
-          "chunk_file": "redacted:697996333114",
-          "source": "redacted:78de15fd62f0",
-          "source_system": "sharepoint",
-          "score": 0.4225
+          "chunk_file": "webdocs/chunks/ui5_docs/84d994bddeec_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — meta-model-for-odata-v4-7f29fb3",
+          "source_system": "developer_docs",
+          "score": 0.4263
         },
         {
-          "chunk_file": "redacted:ce5e330d8090",
-          "source": "redacted:99353073fcb3",
-          "source_system": "sharepoint",
-          "score": 0.4223
+          "chunk_file": "webdocs/chunks/ui5_docs/608ecbffbb01_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — upgrading-your-odata-model-cda632b",
+          "source_system": "developer_docs",
+          "score": 0.4248
         },
         {
-          "chunk_file": "redacted:a428e55c0834",
-          "source": "redacted:d70c010b63a1",
-          "source_system": "sharepoint",
-          "score": 0.4223
-        },
-        {
-          "chunk_file": "redacted:c8cc29bfa9a6",
-          "source": "redacted:99353073fcb3",
-          "source_system": "sharepoint",
-          "score": 0.4223
-        },
-        {
-          "chunk_file": "redacted:6c125e4af968",
-          "source": "redacted:d70c010b63a1",
-          "source_system": "sharepoint",
-          "score": 0.4223
+          "chunk_file": "webdocs/chunks/ui5_docs/cd2411b62e29_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-features-supported-by-the-odata-v2-mock-server-3459c37",
+          "source_system": "developer_docs",
+          "score": 0.4232
         }
       ]
     },
@@ -1411,15 +1390,67 @@
         "agent_role": "build_agent"
       },
       "pending": "ui5_ingest",
-      "failures": [
-        "no hit with source_system=developer_docs (saw: sharepoint)"
-      ],
+      "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:9504397b06dc",
-          "source": "redacted:df61137f6836",
-          "source_system": "sharepoint",
-          "score": 0.1718
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.569
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.5382
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.4423
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/22190c61b364_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-d2ce3f5",
+          "source_system": "developer_docs",
+          "score": 0.4339
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
+          "source_system": "developer_docs",
+          "score": 0.3954
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/15926a15783d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — filtering-5338bd1",
+          "source_system": "developer_docs",
+          "score": 0.3635
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/62b27a213ba2_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — list-binding-and-tree-binding-aggregation-binding-91f0577",
+          "source_system": "developer_docs",
+          "score": 0.3518
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/4308698b9b18_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — bindings-54e0ddf",
+          "source_system": "developer_docs",
+          "score": 0.3496
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.3206
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/d3fb7cd81d5b_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — json-model-96804e3",
+          "source_system": "developer_docs",
+          "score": 0.3203
         }
       ]
     },
@@ -1433,34 +1464,10 @@
       "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:c22b51c21f54",
-          "source": "redacted:0bcb77988f01",
-          "source_system": "sharepoint",
-          "score": 0.1833
-        },
-        {
           "chunk_file": "redacted:0b96bad46f8a",
           "source": "redacted:239cf4dd7d58",
           "source_system": "sharepoint",
           "score": 0.1726
-        },
-        {
-          "chunk_file": "redacted:8d9123a639fa",
-          "source": "redacted:0bcb77988f01",
-          "source_system": "sharepoint",
-          "score": 0.1696
-        },
-        {
-          "chunk_file": "redacted:d9581227dc36",
-          "source": "redacted:322ed84a2cf8",
-          "source_system": "sharepoint",
-          "score": 0.1694
-        },
-        {
-          "chunk_file": "redacted:351090d3fb00",
-          "source": "redacted:8c1fa3e598ea",
-          "source_system": "sharepoint",
-          "score": 0.1628
         },
         {
           "chunk_file": "redacted:dea670b02afd",
@@ -1469,28 +1476,52 @@
           "score": 0.1616
         },
         {
-          "chunk_file": "redacted:6634c5d4bda8",
-          "source": "redacted:0bcb77988f01",
+          "chunk_file": "redacted:60065d57b5ac",
+          "source": "redacted:a2f373a7621f",
           "source_system": "sharepoint",
-          "score": 0.1609
+          "score": 0.1527
         },
         {
-          "chunk_file": "redacted:f245bd974461",
-          "source": "redacted:0f71f7262455",
+          "chunk_file": "redacted:560da4a09d14",
+          "source": "redacted:499707779eaa",
           "source_system": "sharepoint",
-          "score": 0.16
+          "score": 0.1526
         },
         {
-          "chunk_file": "redacted:7587f19d90ad",
-          "source": "redacted:4ba07ee0ec68",
+          "chunk_file": "redacted:a7214a321417",
+          "source": "redacted:16eedb339276",
           "source_system": "sharepoint",
-          "score": 0.1587
+          "score": 0.1525
         },
         {
-          "chunk_file": "redacted:2aee196e0e42",
-          "source": "redacted:9a414b52b2ee",
+          "chunk_file": "redacted:5c79fe543b01",
+          "source": "redacted:41d3bfb1464e",
           "source_system": "sharepoint",
-          "score": 0.1554
+          "score": 0.1524
+        },
+        {
+          "chunk_file": "redacted:60a146bd120f",
+          "source": "redacted:9b17b2c4eff4",
+          "source_system": "sharepoint",
+          "score": 0.152
+        },
+        {
+          "chunk_file": "redacted:c4a060699905",
+          "source": "redacted:fc282fd5b3f0",
+          "source_system": "sharepoint",
+          "score": 0.1516
+        },
+        {
+          "chunk_file": "redacted:490fb080d302",
+          "source": "redacted:aad9678751ef",
+          "source_system": "sharepoint",
+          "score": 0.1503
+        },
+        {
+          "chunk_file": "redacted:a86ab5e56bae",
+          "source": "redacted:239cf4dd7d58",
+          "source_system": "sharepoint",
+          "score": 0.1488
         }
       ]
     },
@@ -1501,10 +1532,69 @@
         "source_system": "developer_docs"
       },
       "pending": "ui5_ingest",
-      "failures": [
-        "expected >=1 hits, got 0"
-      ],
-      "hits": []
+      "failures": [],
+      "hits": [
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/ed2b3d34c81f_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — working-with-odata-annotations-83c89cc",
+          "source_system": "developer_docs",
+          "score": 0.5674
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/4308698b9b18_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — bindings-54e0ddf",
+          "source_system": "developer_docs",
+          "score": 0.5375
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.5345
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/e4f4c40c7082_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — creating-bindings-95cf4b1",
+          "source_system": "developer_docs",
+          "score": 0.5225
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/33851ea44271_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — replacement-of-bindings-604b1eb",
+          "source_system": "developer_docs",
+          "score": 0.503
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/608ecbffbb01_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — upgrading-your-odata-model-cda632b",
+          "source_system": "developer_docs",
+          "score": 0.4986
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/1cfbfc4b76a9_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — property-metadata-binding-f5aa4bb",
+          "source_system": "developer_docs",
+          "score": 0.4979
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/9129ea25c802_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-events-1a010d3",
+          "source_system": "developer_docs",
+          "score": 0.4958
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/ac2669492a83_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — working-with-odata-annotations-8b55ead",
+          "source_system": "developer_docs",
+          "score": 0.4923
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/53fccfa8ee8c_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — support-for-extended-odata-annotations-0e7b890",
+          "source_system": "developer_docs",
+          "score": 0.4881
+        }
+      ]
     },
     {
       "id": "R-043",
@@ -1593,6 +1683,12 @@
           "score": 0.5225
         },
         {
+          "chunk_file": "redacted:34ed9c13049f",
+          "source": "redacted:e3cff14fab69",
+          "source_system": "sharepoint",
+          "score": 0.4871
+        },
+        {
           "chunk_file": "redacted:8059af9c424d",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
@@ -1639,12 +1735,6 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.4326
-        },
-        {
-          "chunk_file": "redacted:1655d154afcd",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.4056
         }
       ]
     },
