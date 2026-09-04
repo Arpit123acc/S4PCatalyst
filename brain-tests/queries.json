@@ -10,9 +10,10 @@
     "assertion_vocabulary": {
       "filters": "dict passed straight to brain_search.search() — phase / agent_role / deliverable_type / source_system",
       "expect_source_system": "at least one hit carries this source_system",
+      "expect_absent_source_system": "NO hit carries this source_system. Not the same claim as expect_no_hits — the SharePoint corpus answers almost any phase filter, so an exclusion has to be asserted per source, not as an empty result. The first baseline run caught R-041 making exactly that mistake.",
       "expect_source_contains": "at least one hit's `source` contains this substring (case-insensitive)",
       "expect_min_hits": "at least N hits come back",
-      "expect_no_hits": "expect zero hits — used to pin filter-exclusion behaviour"
+      "expect_no_hits": "expect zero hits overall — only correct when the filter matches nothing in the entire corpus"
     },
     "red_tests": "Cases tagged \"pending\": \"ui5_ingest\" FAIL until scripts/webdocs_ingest.py + embed_chunks.py have run. That is deliberate — they are the executable definition of the F-17 gap being closed."
   },
@@ -147,9 +148,10 @@
     {
       "id": "R-041",
       "query": "how do I sort and filter a list binding in a UI5 table",
-      "why": "FILTER CONTRACT — the multi-agent case. A discovery/KDD agent filtering phase=Explore currently gets NOTHING, because the chunks are tagged phase=Realize. Documented here as the current behaviour so that changing it is a visible, deliberate diff rather than an accident.",
+      "why": "FILTER CONTRACT — the multi-agent case, and the whole argument for changing filter semantics. A discovery/KDD agent filtering phase=Explore gets a full page of SharePoint hits and ZERO developer_docs, because the vendor docs are tagged phase=Realize. So it does not look empty — it looks answered, with the authoritative source silently missing. If the reference-exemption rule is ever added, THIS case flips and must be re-baselined deliberately.",
       "filters": {"phase": "Explore"},
-      "expect_no_hits": true
+      "expect_absent_source_system": "developer_docs",
+      "expect_min_hits": 1
     },
     {
       "id": "R-042",

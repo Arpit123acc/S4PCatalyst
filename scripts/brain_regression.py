@@ -93,6 +93,16 @@ def check_assertions(case, hits):
             fails.append("no hit with source_system=%s (saw: %s)"
                          % (want_sys, ", ".join(sorted(str(g) for g in got)) or "none"))
 
+    # Negative form. Needed because "this filter hides developer_docs" is NOT the
+    # same claim as "this filter returns nothing" -- the SharePoint corpus answers
+    # almost any phase filter, so the absence has to be asserted per source.
+    absent_sys = case.get("expect_absent_source_system")
+    if absent_sys:
+        n = sum(1 for h in hits if h.get("source_system") == absent_sys)
+        if n:
+            fails.append("expected NO hits with source_system=%s, got %d"
+                         % (absent_sys, n))
+
     want_src = case.get("expect_source_contains")
     if want_src:
         low = want_src.lower()
