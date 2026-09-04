@@ -14,8 +14,9 @@ Outputs (brain/index/):
     manifest.json    build info (model, dim, count, sources, timestamp)
 
 Usage:
-    python3.11 scripts/embed_chunks.py                 # embed all chunks
+    python3.11 scripts/embed_chunks.py                 # embed all chunks (~15 min, 8 workers)
     python3.11 scripts/embed_chunks.py --limit 50      # smoke test on 50 chunks
+    python3.11 scripts/embed_chunks.py --workers 4     # fewer parallel Bedrock threads
     python3.11 scripts/embed_chunks.py --dim 512       # smaller/cheaper vectors
 
 Install:
@@ -154,6 +155,9 @@ def load_scope_items(limit=None):
         }
 
 
+WORKERS = 8   # keeps well inside Bedrock Titan concurrency limits
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None,
@@ -165,13 +169,16 @@ def main():
     ap.add_argument("--dim", type=int, default=EMBED_DIM, help="Embedding dimensions (256/512/1024)")
     ap.add_argument("--no-scope", action="store_true", help="Skip the SAP scope-item catalog")
     ap.add_argument("--backend", default=None, help="Vector store: faiss (default) | pgvector")
+    ap.add_argument("--workers", type=int, default=WORKERS,
+                    help="Parallel Bedrock threads (default: %d)" % WORKERS)
     args = ap.parse_args()
 
     from vectorstore import get_store    # pluggable backend (faiss/pgvector)
     backend = (args.backend or os.environ.get("BRAIN_BACKEND", "faiss")).lower()
 
     client = bedrock_client()
-    log.info("Bedrock region=%s model=%s dim=%d backend=%s", REGION, MODEL_ID, args.dim, backend)
+    log.info("Bedrock region=%s model=%s dim=%d backend=%s workers=%d",
+             REGION, MODEL_ID, args.dim, backend, args.workers)
     try:
         store = get_store(args.dim, load=False, backend=backend)
     except ImportError as e:
@@ -180,29 +187,22 @@ def main():
     except Exception as e:
         sys.exit(f"Backend '{backend}' init failed: {e}")
 
+    # ── Collect all items first ──────────────────────────────────────────────
+    # Fail-fast: shrink guard fires before any Bedrock calls, not after ~2 hours
+    # of embedding, so a misconfigured run costs nothing.
     sources = [("chunks", load_chunks(limit=args.limit))]
     if not args.no_scope:
         sources.append(("scope items", load_scope_items(limit=args.limit)))
 
-    metas = []
-    n = 0
+    all_texts, all_metas = [], []
     for label, gen in sources:
-        start = n
-        buf_vecs, buf_metas = [], []
+        before = len(all_texts)
         for text, meta in gen:
-            buf_vecs.append(embed_text(client, text, args.dim))
-            buf_metas.append(meta)
-            n += 1
-            if len(buf_vecs) >= 200:              # flush in batches (scales to huge corpora)
-                store.add(buf_vecs, buf_metas)
-                metas.extend(buf_metas); buf_vecs, buf_metas = [], []
-                log.info("  embedded %d...", n)
-        if buf_vecs:
-            store.add(buf_vecs, buf_metas)
-            metas.extend(buf_metas)
-        log.info("  %s: %d embedded", label, n - start)
+            all_texts.append(text)
+            all_metas.append(meta)
+        log.info("  loaded %s: %d items", label, len(all_texts) - before)
 
-    if not metas:
+    if not all_texts:
         sys.exit("Nothing to embed. Run the ingest first "
                  "(python3.11 scripts/sharepoint_ingest.py --local).")
 
@@ -218,13 +218,45 @@ def main():
             existing = len(json.loads(META_PATH.read_text(encoding="utf-8")))
         except Exception:
             existing = 0
-    if existing > len(metas) and not args.allow_shrink:
+    if existing > len(all_texts) and not args.allow_shrink:
         sys.exit(
             "REFUSING to publish: this build has %d vectors but the live index has %d.\n"
             "  A partial build (--limit / --no-scope / a source that yielded nothing) would\n"
             "  replace the whole brain. Re-run without --limit for a real rebuild, or pass\n"
             "  --allow-shrink if you genuinely intend a smaller index.\n"
-            "  Nothing was written; the live index is untouched." % (len(metas), existing))
+            "  Nothing was written; the live index is untouched." % (len(all_texts), existing))
+
+    # ── Embed in parallel ────────────────────────────────────────────────────
+    # pool.map preserves order, so vectors[i] aligns with all_metas[i].
+    # 8 threads keeps well inside Bedrock Titan's per-second concurrency limit
+    # while cutting wall time from ~2 hours (sequential) to ~15 minutes.
+    from concurrent.futures import ThreadPoolExecutor
+    total = len(all_texts)
+    log.info("Embedding %d items with %d workers ...", total, args.workers)
+    vectors = [None] * total
+
+    def _one(i):
+        vectors[i] = embed_text(client, all_texts[i], args.dim)
+        if (i + 1) % 500 == 0:
+            log.info("  %d/%d embedded", i + 1, total)
+
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        list(pool.map(_one, range(total)))
+
+    # A hole here would misalign every vector after it against metadata, which is
+    # positional -- silently wrong hits rather than a clean failure. Same guard as
+    # mcp-server/vector/engine.py:_build_bedrock.
+    missing = [i for i, v in enumerate(vectors) if v is None]
+    if missing:
+        sys.exit("%d embeddings came back empty (first at index %d). Nothing written; "
+                 "the live index is untouched." % (len(missing), missing[0]))
+
+    # ── Flush to store in batches ────────────────────────────────────────────
+    BATCH = 200
+    for i in range(0, total, BATCH):
+        store.add(vectors[i:i + BATCH], all_metas[i:i + BATCH])
+    metas = all_metas
+    log.info("  all %d vectors added to store", total)
 
     store.persist()
 

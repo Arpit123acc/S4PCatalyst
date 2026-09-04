@@ -6,7 +6,9 @@
       "community.sap.com — cite-only. developer.md: anti-bot blocks automated fetch. Never add it here."
     ],
     "note_on_spa_docs": "Some vendor docs are single-page apps whose HTML is a JS shell with no prose. webdocs_ingest.py reports those as SHELL rather than storing an empty page — check the run report before trusting a source.",
-    "ui5_is_absent_on_purpose": "Measured 2026-09-03: ui5.sap.com is an SPA. Its sitemap.xml lists 1000+ URLs but they are all '#/topic/...' fragments — a '#' fragment is never sent to the server, so every one returns the same ~2.1 KB shell. docs/api/api-index.json (1.1 MB) IS fetchable but is an index of class/method NAMES, not usage prose, so it would not catch a bug like 'sortProperty does not sort sap.m.Table'. The viable route is the markdown source SAP publishes at github.com/SAP-docs/sapui5 (repo confirmed to exist) via the GitHub tree API — not yet wired. This matters: UI5 is the source that would have caught finding F-17 in SUPPLIER-PO-STATUS-VIEWER-FD-R2.",
+    "ui5_comes_from_github_not_the_website": "Measured 2026-09-03: ui5.sap.com is an SPA. Its sitemap.xml lists 1000+ URLs but they are all '#/topic/...' fragments — a '#' fragment is never sent to the server, so every one returns the same ~2.1 KB shell. docs/api/api-index.json (1.1 MB) IS fetchable but is an index of class/method NAMES, not usage prose, so it would not catch a bug like 'sortProperty does not sort sap.m.Table'. UI5 therefore comes in via `github_sources` below, from the markdown SAP publishes at github.com/SAP-docs/sapui5. This matters: UI5 is the source that would have caught finding F-17 in SUPPLIER-PO-STATUS-VIEWER-FD-R2.",
+    "why_github_sources_have_no_urls": "SAP's doc filenames carry a content hash (glossary-9ef211e.md) that changes whenever a page is republished, so individual paths cannot be curated — they would rot within a release. Each entry names a folder prefix instead and webdocs_ingest.py discovers the current .md paths from the git tree at run time. `match` narrows by filename keyword; `max_files` is a hard cap so an upstream folder reorganisation cannot silently turn a 40-page ingest into a 2,000-page embedding bill.",
+    "github_api_budget": "GitHub allows 60 unauthenticated API requests/hour. Each github_sources entry spends exactly ONE (the recursive tree call); every document body is then pulled from raw.githubusercontent.com, which is CDN-served and outside that quota. Keep the number of entries small and this never throttles.",
     "removed_404s": "cap.cloud.sap/docs/guides/using-services, /guides/deployment/to-cf and /guides/deployment all 404 (checked with and without trailing slash). CAP serves no sitemap.xml, so paths must be confirmed by hand before being added here."
   },
   "sources": [
@@ -39,6 +41,27 @@
       "topic": "Node.js — querystring escaping",
       "url": "https://nodejs.org/docs/latest/api/querystring.html",
       "deliverable_type": "nodejs_docs"
+    }
+  ],
+  "github_sources": [
+    {
+      "topic": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting)",
+      "repo": "SAP-docs/sapui5",
+      "ref": "main",
+      "include_prefix": "docs/04_Essentials/",
+      "match": ["odata", "filter", "sort", "binding", "model", "expression", "table"],
+      "max_files": 90,
+      "deliverable_type": "ui5_docs"
+    },
+    {
+      "topic": "SAPUI5 — Fiori Elements (annotations, list report, object page)",
+      "repo": "SAP-docs/sapui5",
+      "ref": "main",
+      "include_prefix": "docs/06_SAP_Fiori_Elements/",
+      "match": ["annotation", "odata", "sorting", "filtering", "selection", "variant"],
+      "max_files": 90,
+      "deliverable_type": "ui5_docs",
+      "_tuning": "Measured 2026-09-04 against the live tree: ['annotation','list','object','table','filter','odata'] matched 267 (too broad — 'table' and 'list' hit most of the folder); ['annotation','odata'] matched only 22. The set above targets the middle. 04_Essentials already carries binding/sorting/OData fundamentals, so this entry is deliberately annotation-led — that is the content unique to Fiori Elements."
     }
   ]
 }
