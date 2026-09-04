@@ -59,13 +59,46 @@ run() {                    # run <label> <cmd...>
 say "=== brain monthly refresh $STAMP (repo: $REPO)"
 [ -n "$DRY" ] && say "=== DRY RUN — nothing will be written"
 
+# ── Resolve the Hub API key without ever writing it to disk ──────────────────
+# A shell export cannot serve an unattended monthly job: it dies with the shell,
+# and there is no login shell at 03:30 on the 3rd. Putting it in ~/.bashrc, an
+# EnvironmentFile or the PM2 ecosystem file would all mean a secret in a file,
+# which this project does not do.
+#
+# The instance role can already read SSM Parameter Store (verified 2026-09-04:
+# ssm:GetParameter returns ParameterNotFound, not AccessDenied), so the key is
+# fetched at run time over IAM and lives only in this process's memory -- the same
+# posture as Bedrock, which uses the role and no key at all.
+#
+# Create the parameter ONCE, from somewhere with ssm:PutParameter (the EC2 role
+# deliberately does not have it):
+#   aws ssm put-parameter --name /s4pc/sap_hub_api_key --type SecureString \
+#       --value '<key from api.sap.com>' --region us-east-1
+#
+# NOTE for SecureString: reading it also needs kms:Decrypt on alias/aws/ssm. If
+# that is missing this step reports a skip rather than failing the refresh, so
+# check the first run rather than discovering it a month later.
+HUB_KEY_PARAM="${HUB_KEY_PARAM:-/s4pc/sap_hub_api_key}"
+if [ -z "${SAP_HUB_API_KEY:-}" ]; then
+  # stderr suppressed so a failure cannot echo the parameter path or value anywhere.
+  SAP_HUB_API_KEY=$(aws ssm get-parameter --name "$HUB_KEY_PARAM" --with-decryption \
+                      --query Parameter.Value --output text 2>/dev/null) || SAP_HUB_API_KEY=""
+  [ "$SAP_HUB_API_KEY" = "None" ] && SAP_HUB_API_KEY=""
+  export SAP_HUB_API_KEY
+  [ -n "$SAP_HUB_API_KEY" ] && say "── hub key resolved from SSM $HUB_KEY_PARAM"
+fi
+
 # 1. Released-object catalog from the SAP Business Accelerator Hub.
-#    Needs SAP_HUB_API_KEY in the environment. Skipped rather than failed when
-#    absent, because the doc refresh below is still worth doing without it.
+#    Skipped rather than failed when the key is absent, because the doc refresh
+#    below is still worth doing without it.
 if [ -n "${SAP_HUB_API_KEY:-}" ]; then
   run "catalog sync (api.sap.com)" $PY mcp-server/catalog/sync_hub.py || true
 else
-  say "── catalog sync SKIPPED: SAP_HUB_API_KEY not set in the environment"
+  say "── catalog sync SKIPPED: no Hub API key."
+  say "   Not in the environment, and SSM $HUB_KEY_PARAM did not return a value."
+  say "   Create it once (needs ssm:PutParameter, which the EC2 role does not have):"
+  say "     aws ssm put-parameter --name $HUB_KEY_PARAM --type SecureString \\"
+  say "         --value '<key from api.sap.com>' --region \${AWS_REGION:-us-east-1}"
   fail_steps="$fail_steps catalog-sync-skipped"
 fi
 
