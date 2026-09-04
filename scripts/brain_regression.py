@@ -34,6 +34,7 @@ USAGE
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -78,8 +79,11 @@ def check_assertions(case, hits):
     fails = []
     if case.get("expect_no_hits"):
         if hits:
-            fails.append("expected no hits, got %d (top: %s)"
-                         % (len(hits), (hits[0].get("source") or "?")[:60]))
+            # Name the source SYSTEM, never the document. Failure strings are stored
+            # in baseline.json, so a raw `source` here would put a client filename in
+            # git by the back door -- the same leak fingerprint() redacts.
+            fails.append("expected no hits, got %d (top source_system: %s)"
+                         % (len(hits), hits[0].get("source_system") or "?"))
         return fails
 
     want_min = case.get("expect_min_hits")
@@ -111,11 +115,41 @@ def check_assertions(case, hits):
     return fails
 
 
+# Source systems whose document names are public by construction and therefore safe
+# to write in clear: vendor documentation (CAP/UI5/Node) and SAP's own scope-item
+# catalog, which is already committed under mcp-server/catalog/.
+#
+# Everything else is treated as client material and redacted. brain/ is gitignored
+# exactly so client documents never reach git, and this repo is public -- a baseline
+# that recorded `source` verbatim would have carried names like
+# "<client> Cutover Plan.xlsx" and "... Role Mapping - Production <person>.xlsx"
+# straight past that boundary. Hashing keeps drift detection exact (overlap is
+# computed on identity, not on readability) while carrying no client data. The
+# allowlist is deliberately closed: an unrecognised new source is redacted, not
+# exposed.
+PUBLIC_SOURCE_SYSTEMS = {"developer_docs", "sap_scope_catalog"}
+
+
+def _ident(value, public):
+    """Stable identity for a hit: readable when public, hashed when not."""
+    if value is None:
+        return None
+    if public:
+        return value
+    return "redacted:" + hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+
+
 def fingerprint(hits):
-    """Identity of a result set, for drift comparison."""
-    return [{"chunk_file": h.get("chunk_file"), "source": h.get("source"),
-             "source_system": h.get("source_system"), "score": h.get("score")}
-            for h in hits]
+    """Identity of a result set, for drift comparison. Client names never stored."""
+    out = []
+    for h in hits:
+        ss = h.get("source_system")
+        pub = ss in PUBLIC_SOURCE_SYSTEMS
+        out.append({"chunk_file": _ident(h.get("chunk_file"), pub),
+                    "source": _ident(h.get("source"), pub),
+                    "source_system": ss,          # a category, not a document
+                    "score": h.get("score")})
+    return out
 
 
 def overlap(base, now):

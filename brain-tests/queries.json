@@ -7,6 +7,7 @@
       "baseline snapshot — records what the brain returns today, so a later run can show DRIFT. Catches the regressions nobody thought to assert."
     ],
     "identity_note": "Hits are identified by `chunk_file`. For SharePoint that is stable. For webdocs, doc_id is sha1(url) so it is stable per URL, but the _NNNN chunk suffix shifts if the upstream page is rewritten — that drift is legitimate and the report says so.",
+    "client_data_note": "baseline.json is COMMITTED, and this repo is public. brain/ is gitignored precisely so client documents never reach git, so the baseline redacts them: `source` and `chunk_file` are stored verbatim only for source systems that are public by construction (developer_docs, sap_scope_catalog) and hashed for everything else. Overlap is computed on identity, not readability, so drift detection is unaffected. The allowlist in brain_regression.PUBLIC_SOURCE_SYSTEMS is closed — a new, unrecognised source is redacted rather than exposed. Caught on the first baseline run, which would otherwise have committed client cutover-plan and role-mapping filenames.",
     "assertion_vocabulary": {
       "filters": "dict passed straight to brain_search.search() — phase / agent_role / deliverable_type / source_system",
       "expect_source_system": "at least one hit carries this source_system",
