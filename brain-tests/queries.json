@@ -13,10 +13,13 @@
       "expect_source_system": "at least one hit carries this source_system",
       "expect_absent_source_system": "NO hit carries this source_system. Not the same claim as expect_no_hits — the SharePoint corpus answers almost any phase filter, so an exclusion has to be asserted per source, not as an empty result. The first baseline run caught R-041 making exactly that mistake.",
       "expect_source_contains": "at least one hit's `source` contains this substring (case-insensitive)",
+      "expect_field": "dict of {metadata_field: value} — at least one hit matches each exactly. The way to assert an exact-identifier lookup (scope_item_id, id) rather than a topic.",
       "expect_min_hits": "at least N hits come back",
-      "expect_no_hits": "expect zero hits overall — only correct when the filter matches nothing in the entire corpus"
+      "expect_no_hits": "expect zero hits overall — only correct when the filter matches nothing in the entire corpus",
+      "expect_promoted": "true/false — whether brain_search._promote() guaranteed a slot to the lexical retriever's top hit. Pins the quota's confidence gate from both sides; keyed on the `promoted` flag, not a score threshold, so it survives a re-embed."
     },
-    "red_tests": "Cases carrying \"pending\" are red BY DESIGN until the named blocker clears, and are counted separately so they cannot mask a real regression. The marker must be REMOVED once the case passes: a passing case that still says pending would report PENDING (soft) instead of FAIL (hard) if it later broke, which is the same way R-041 was originally wrong. Only R-062 is legitimately pending (hybrid_search)."
+    "retrieval_is_hybrid": "Since 2026-09-04 search fuses a dense vector ranking (Bedrock Titan cosine) with BM25 (SQLite FTS5, keyword_index.py) by weighted sum of within-list min-max normalised scores, plus a guaranteed slot for a decisively-confident lexical hit. Config and the evidence for each constant are in brain_search.py; BRAIN_FUSION=rrf and BRAIN_SEARCH_MODE=vector|keyword allow A/B comparison. Every constant here was chosen by sweeping THIS set, not by taste — kw weight 0.25 is the midpoint of the passing window [0.15,0.35], and the quota exists because no weight made R-062 and R-020 safe simultaneously.",
+    "red_tests": "Cases carrying \"pending\" are red BY DESIGN until the named blocker clears, and are counted separately so they cannot mask a real regression. The marker must be REMOVED once the case passes: a passing case that still says pending would report PENDING (soft) instead of FAIL (hard) if it later broke, which is the same way R-041 was originally wrong. No case is currently pending — R-062's blocker (hybrid_search) was cleared on 2026-09-04 and its marker removed in the same change."
   },
   "cases": [
     {
@@ -215,9 +218,25 @@
     {
       "id": "R-062",
       "query": "ATC check profile that must pass before a transport",
-      "why": "KNOWN LIMITATION, kept red deliberately. The guidance doc answers this verbatim — 'ATC check profile \"ABAP Cloud\" must pass with zero Critical/High findings before any transport' — and still does not make the top 10. Measured 2026-09-04: drop the word 'transport' and abap_guidance ranks 1st at 0.477; keep it and three SharePoint transport-process documents win at 0.338/0.332/0.325. Note the winners score LOWER than the guidance did without that term: one dominant word pulls the query embedding into the wrong cluster, and 8 chunks cannot outvote 44,586 on term competition. Rewording the query would hide this rather than fix it. The real fixes are corpus depth (more ABAP guidance) or hybrid keyword+vector retrieval, which is the standard remedy for exactly this failure.",
-      "pending": "hybrid_search",
-      "expect_source_system": "abap_guidance"
+      "why": "RESOLVED 2026-09-04 by hybrid retrieval — this case is why it was built, and it is now the guard on it. History: the guidance doc answers this verbatim ('ATC check profile \"ABAP Cloud\" must pass with zero Critical/High findings before any transport') yet pure vector search could not reach it at all. Drop the word 'transport' and abap_guidance ranked 1st at 0.477; keep it and three SharePoint transport-process documents won at 0.338/0.332/0.325 — note they scored LOWER than the right answer did without that term, because one dominant common word pulls the query embedding into the wrong cluster and 8 chunks cannot outvote 44,586 on term competition. BM25 has no such failure mode: it ranks this document 1st at 41.08 against 22.67 for the best hit from any other document. Weight tuning alone was NOT sufficient — at every keyword weight that passed, this document sat at rank 10 of 10 with zero headroom, so brain_search._promote() guarantees it a slot instead. expect_promoted pins that guarantee; remove it and this case returns to failing.",
+      "expect_source_system": "abap_guidance",
+      "expect_promoted": true
+    },
+    {
+      "id": "R-070",
+      "query": "scope item 1NN",
+      "why": "EXACT-IDENTIFIER LOOKUP contract: a query naming a specific identifier must return THAT record, not a plausible neighbour — cosine also surfaces 7L4 and 2NX, which are near-misses and wrong answers. Asserted on scope_item_id rather than on source, because every scope item shares the source name 'SAP Scope Item Catalog'. NOT a guard on the keyword half: measured 2026-09-04, vector-only passes this case, and the same held for UnusedParametersRule / CreateObjectRule / 'scope item 4AN' — Titan v2 embeds rare tokens well, so the expected 'BM25 is needed for identifiers' premise did not survive measurement. Kept because the contract is worth pinning whichever retriever satisfies it. The genuine keyword-half guard is R-062.",
+      "expect_field": {
+        "scope_item_id": "1NN"
+      },
+      "expect_source_system": "sap_scope_catalog"
+    },
+    {
+      "id": "R-071",
+      "query": "AlignDeclarations rule",
+      "why": "GUARD on the quota's CONFIDENCE GATE — the negative case, and the reason the gate exists. Measured 2026-09-04 before it was added: BM25's top hit here was an unrelated XRAY test template at 8.42, which won by repeating the common word 'rule' (the abap-cleaner page never matched, because tokenchars '_' keeps AlignDeclarationsRule as ONE token that the term 'AlignDeclarations' does not match). Promoting it spent a top-3 slot on a 0.167-scoring irrelevance. A guarantee must not fire when the lexical retriever is merely guessing, so this asserts promotion does NOT happen — without it, widening the quota would look free.",
+      "expect_promoted": false,
+      "expect_source_system": "developer_docs"
     },
     {
       "id": "R-063",

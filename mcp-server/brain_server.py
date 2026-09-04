@@ -78,24 +78,33 @@ def tool_search_brain(args):
 
 TOOLS = {
     "search_brain": {
-        "description": ("Semantic search over the S4PC Public Cloud Brain, embedded with Bedrock Titan. "
-                        "THREE KINDS OF KNOWLEDGE: (1) harvested SharePoint delivery knowledge — FDs, TDs, "
+        "description": ("HYBRID search over the S4PC Public Cloud Brain: a dense vector ranking (Bedrock "
+                        "Titan cosine) fused with BM25 keyword ranking. Because the lexical half is "
+                        "present, EXACT IDENTIFIERS work as lookups — quote the real string "
+                        "(API_CLFN_PRODUCT_SRV, 'scope item 1NN', UnusedVariablesRule) rather than "
+                        "paraphrasing it, and prefer the precise term over a description of it. "
+                        "FOUR KINDS OF KNOWLEDGE: (1) harvested SharePoint delivery knowledge — FDs, TDs, "
                         "workshop decks, test/cutover/change material; (2) the SAP scope-item catalog; "
                         "(3) OFFICIAL DEVELOPER DOCUMENTATION for side-by-side / UI code — SAP UI5, SAP "
-                        "Fiori Elements, CAP and Node.js, mirrored here as source_system='developer_docs'. "
+                        "Fiori Elements, CAP and Node.js, mirrored here as source_system='developer_docs'; "
+                        "(4) internal ABAP Cloud / RAP review standards as source_system='abap_guidance'. "
                         "For (3), SEARCH HERE FIRST rather than fetching the vendor site: ui5.sap.com is a "
                         "single-page app that returns a ~2 KB JavaScript shell to any fetch, so a web fetch "
                         "of it succeeds while grounding nothing. This works offline and on Bedrock, where "
-                        "web tools may be unavailable. Returns the most relevant chunks with phase / agent "
-                        "role / deliverable / source. All SharePoint content is PII-masked. Use to ground a "
-                        "deliverable in prior delivery experience OR in authoritative vendor documentation."),
+                        "web tools may be unavailable. Each hit carries `score` (cosine, always comparable), "
+                        "`retrievers` (which halves found it — 'vector'+'keyword' means both agreed, the "
+                        "strongest signal) and phase / agent role / deliverable / source. All SharePoint "
+                        "content is PII-masked. Use to ground a deliverable in prior delivery experience, in "
+                        "authoritative vendor documentation, or in the ABAP Cloud review standard. Results "
+                        "are retrieval context for grounding — they are NOT a release contract; object "
+                        "release state still comes from check_object_release_state."),
         "schema": {"type": "object", "properties": {
             "query":            {"type": "string", "description": "Natural-language query"},
             "top_k":            {"type": "integer", "description": "Number of results (default 5)"},
             "phase":            {"type": "string", "description": "Filter: Discover/Prepare/Explore/Realize/Deploy/Run. NOTE: vendor documentation is phase-independent and is tagged Realize, so a phase filter will hide it — omit this, or filter on source_system/deliverable_type instead, when looking for developer docs."},
             "agent_role":       {"type": "string", "description": "Filter: e.g. build_agent, qe_agent, pmo_agent"},
             "deliverable_type": {"type": "string", "description": "Filter: e.g. functional_design, test_strategy; for vendor docs: ui5_docs | cap_docs | nodejs_docs"},
-            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | developer_docs (official UI5/Fiori-Elements/CAP/Node docs) | accelerator_hub | ..."},
+            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | developer_docs (official UI5/Fiori-Elements/CAP/Node docs) | abap_guidance (internal ABAP Cloud / RAP review standard) | sap_bpd | accelerator_hub | ..."},
             "dedup":            {"type": "boolean", "description": "Collapse to one hit per source document (default true)"}},
             "required": ["query"]},
         "handler": tool_search_brain,

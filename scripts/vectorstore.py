@@ -69,6 +69,21 @@ class VectorStore:
     def count(self):
         raise NotImplementedError
 
+    def score_ids(self, vector, chunk_ids):
+        """Cosine for specific chunk ids -> {id: score}. Missing ids are omitted.
+
+        Needed by hybrid retrieval: a chunk found only by the BM25 half has no
+        similarity score, and the alternatives are both bad -- reporting None
+        breaks every consumer that formats a number (brain-ui renders `score` as a
+        0-1 meter), and inventing 0.0 states a false measurement. Both real
+        backends can answer this exactly and cheaply, so the score always means the
+        same thing regardless of which retriever surfaced the hit.
+
+        Default returns {} so a backend that cannot do it degrades to "unscored"
+        rather than raising.
+        """
+        return {}
+
 
 # ── FAISS backend (file-based; POC / single node) ──────────────────────────────
 class FaissStore(VectorStore):
@@ -80,6 +95,7 @@ class FaissStore(VectorStore):
         self._faiss = faiss
         self.dim = dim
         self.metas = []
+        self._id_pos = None      # id -> index position; built lazily by score_ids()
         if load:
             if not self.INDEX_PATH.exists():
                 raise FileNotFoundError(
@@ -201,6 +217,26 @@ class FaissStore(VectorStore):
     def count(self):
         return self.index.ntotal
 
+    def score_ids(self, vector, chunk_ids):
+        """Exact cosine for specific ids. No re-embedding, no approximation.
+
+        IndexFlatIP stores vectors verbatim, so reconstruct() returns the original
+        embedding; both it and the query were L2-normalised at build time
+        (Titan `normalize: true`), so a dot product IS the cosine -- the same number
+        search() would have reported.
+        """
+        import numpy as np
+        if self._id_pos is None:
+            self._id_pos = {m.get("id"): i for i, m in enumerate(self.metas)}
+        q = np.array(vector, dtype="float32")
+        out = {}
+        for cid in chunk_ids:
+            pos = self._id_pos.get(cid)
+            if pos is None:
+                continue
+            out[cid] = round(float(np.dot(self.index.reconstruct(int(pos)), q)), 4)
+        return out
+
 
 # ── pgvector backend (Postgres / RDS; shared, scales, SQL-filterable) ──────────
 class PgVectorStore(VectorStore):
@@ -283,6 +319,18 @@ class PgVectorStore(VectorStore):
         with self.conn.cursor() as cur:
             cur.execute(f"SELECT count(*) FROM {self.TABLE}")
             return cur.fetchone()[0]
+
+    def score_ids(self, vector, chunk_ids):
+        """Exact cosine for specific ids, computed in the database."""
+        ids = [c for c in chunk_ids if c]
+        if not ids:
+            return {}
+        qvec = self._vec(vector)
+        with self.conn.cursor() as cur:
+            cur.execute(
+                f"SELECT metadata->>'id', 1 - (embedding <=> %s::vector) "
+                f"FROM {self.TABLE} WHERE metadata->>'id' = ANY(%s)", (qvec, ids))
+            return {cid: round(float(score), 4) for cid, score in cur.fetchall()}
 
     @staticmethod
     def _vec(v):

@@ -372,22 +372,31 @@ async function doSearch() {
       return;
     }
     $("results").innerHTML = d.results.map(h => {
-      const pct = Math.max(0, Math.min(1, h.score)) * 100;
+      // Hybrid retrieval backfills a true cosine for keyword-only hits, so `score`
+      // is normally present. It can still be null in keyword-only mode
+      // (BRAIN_SEARCH_MODE=keyword makes no embedding call at all), and a bare
+      // h.score.toFixed() would throw and blank the whole result list.
+      const hasScore = typeof h.score === "number" && isFinite(h.score);
+      const pct = hasScore ? Math.max(0, Math.min(1, h.score)) * 100 : 0;
       const slot = SRC_SLOT[h.source_system] || "";
+      const via = (h.retrievers || []).join("+") + (h.promoted ? "+quota" : "");
       const tags = [
         h.source_system ? `<span class="tag ${slot}">${esc(h.source_system)}</span>` : "",
         h.phase ? `<span class="tag">${esc(h.phase)}</span>` : "",
         h.agent_role ? `<span class="tag">${esc(h.agent_role)}</span>` : "",
         h.deliverable_type ? `<span class="tag">${esc(h.deliverable_type)}</span>` : "",
         h.scope_item_id ? `<span class="tag">scope ${esc(h.scope_item_id)}</span>` : "",
+        via ? `<span class="tag">via ${esc(via)}</span>` : "",
       ].join("");
       return `<div class="hit">
         <div class="top"><div class="src">${esc(h.source || "(unnamed)")}</div>
-          <div class="score"><span class="meter"><i style="width:${pct.toFixed(0)}%"></i></span>${h.score.toFixed(3)}</div></div>
+          <div class="score"><span class="meter"><i style="width:${pct.toFixed(0)}%"></i></span>${hasScore ? h.score.toFixed(3) : "—"}</div></div>
         <div class="tags">${tags}</div>
         <div class="snip">${esc(h.snippet || "")}</div></div>`;
     }).join("") +
-      `<p class="note">${d.results.length} distinct documents, ranked by cosine similarity.
+      `<p class="note">${d.results.length} distinct documents, ranked by hybrid relevance
+       (dense cosine + BM25). The number shown is the cosine similarity; <code>via</code>
+       names which retrievers found the hit — <code>vector+keyword</code> means both agreed.
        Retrieval context for grounding — not an authoritative SAP object source.</p>`;
   } catch (e) {
     $("results").innerHTML = `<p class="err">Request failed: ${esc(String(e))}</p>`;

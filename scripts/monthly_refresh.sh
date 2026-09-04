@@ -15,9 +15,13 @@
 #
 # ORDER MATTERS
 #   catalog sync first (cheap, independent), then the doc harvest (network, no
-#   embedding cost on failure), then the rebuild (expensive), then the MCP restart
-#   (the server caches the catalog and the index in memory -- without this, none of
-#   the above is visible to a running agent), then the gate.
+#   embedding cost on failure), then the vector rebuild (expensive), then the
+#   keyword index (cheap, but must match the vector corpus), then the MCP restart
+#   (the server caches the catalog and both indexes in memory -- without this, none
+#   of the above is visible to a running agent), then the gate.
+#
+#   Both indexes publish atomically and keep a .prev, so a bad refresh is
+#   recoverable: brain/index/faiss.index.prev + metadata.json.prev + keyword.db.prev.
 #
 # USAGE
 #   bash scripts/monthly_refresh.sh              # full refresh
@@ -108,7 +112,24 @@ run "developer-doc harvest" $PY scripts/webdocs_ingest.py || true
 
 # 3. Re-embed. The shrink guard refuses to publish a smaller index than the live
 #    one, so a harvest that silently returned less cannot replace the brain.
-run "vector rebuild (Bedrock Titan, 8 workers)" $PY scripts/embed_chunks.py || true
+run "vector rebuild (Bedrock Titan, 8 workers)" $PY scripts/embed_chunks.py \
+  && REBUILT=1 || REBUILT=""
+
+# 3b. The BM25 half of hybrid retrieval. Cheap (~30 s, no Bedrock calls) but it must
+#     cover the SAME corpus as the vectors: the two are joined on chunk id at query
+#     time, so a keyword index built over a corpus the vector index does not share
+#     yields hits with no similarity score. Hence it is skipped when the rebuild
+#     above failed -- the vector publish is atomic, so on failure the LIVE vector
+#     index is still the previous corpus, and publishing a new keyword index over
+#     the new one would put the two halves out of step.
+if [ -n "$REBUILT" ]; then
+  run "keyword index (BM25 / FTS5)" $PY scripts/keyword_index.py || true
+else
+  say "── keyword index SKIPPED: the vector rebuild did not succeed, and the two"
+  say "   indexes must cover the same corpus. The live pair is unchanged and"
+  say "   consistent; fix the rebuild and re-run."
+  fail_steps="$fail_steps keyword-index-skipped"
+fi
 
 # 4. The MCP server caches both the catalog and the index at import. Without this
 #    restart the refresh is invisible to every running agent -- which has bitten
@@ -121,11 +142,18 @@ fi
 
 # 5. The gate. Assertions failing means retrieval regressed; drift is reported for
 #    a human. Deliberately last, and deliberately not silent.
+# --max-drop is a CATASTROPHE FLOOR, not a quality bar. Assertions catch a named
+# expectation breaking; they do not catch "retrieval is now broadly different", and
+# some changes are only visible as drift -- swapping the fusion strategy to RRF
+# passes all 40 assertions while churning a third of the known-good results (67%
+# overlap against 86%). A monthly refresh legitimately moves results because it adds
+# documents, so this is set loose enough not to cry wolf: a MEAN overlap below 0.4
+# across the whole set is not corpus growth, it is a regression.
 say "── retrieval regression gate"
 if [ -n "$DRY" ]; then
-  say "   DRY RUN, would run brain_regression.py"
+  say "   DRY RUN, would run brain_regression.py --max-drop 0.4"
 else
-  if $PY scripts/brain_regression.py; then
+  if $PY scripts/brain_regression.py --max-drop 0.4; then
     say "   ok: regression gate passed"
   else
     say "   FAILED: RETRIEVAL REGRESSED — investigate before trusting this brain."

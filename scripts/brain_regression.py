@@ -112,6 +112,26 @@ def check_assertions(case, hits):
         low = want_src.lower()
         if not any(low in str(h.get("source", "")).lower() for h in hits):
             fails.append("no hit whose source contains %r" % want_src)
+
+    # Exact-value match on any metadata field. This is what makes an
+    # exact-IDENTIFIER lookup assertable -- "scope item 1NN" is a lookup, not a
+    # semantic question, and the whole point of the keyword half is that such
+    # queries hit the right record rather than a plausible neighbour.
+    want_field = case.get("expect_field") or {}
+    for field, value in want_field.items():
+        if not any(str(h.get(field)) == str(value) for h in hits):
+            fails.append("no hit with %s=%s" % (field, value))
+
+    # Pins the quota mechanism in brain_search._promote() from BOTH sides: that a
+    # decisive lexical hit IS guaranteed a slot, and that a weak one is NOT. Asserted
+    # on the `promoted` flag rather than on a score threshold, so it survives a
+    # re-embed that shifts absolute scores.
+    want_promo = case.get("expect_promoted")
+    if want_promo is not None:
+        got = any(h.get("promoted") for h in hits)
+        if bool(want_promo) != got:
+            fails.append("expected promoted=%s, got %s (quota gate)"
+                         % (bool(want_promo), got))
     return fails
 
 
@@ -145,7 +165,8 @@ def fingerprint(hits):
     for h in hits:
         ss = h.get("source_system")
         pub = ss in PUBLIC_SOURCE_SYSTEMS
-        out.append({"chunk_file": _ident(h.get("chunk_file"), pub),
+        out.append({"id": _ident(h.get("id"), pub),
+                    "chunk_file": _ident(h.get("chunk_file"), pub),
                     "source": _ident(h.get("source"), pub),
                     "source_system": ss,          # a category, not a document
                     "score": h.get("score")})
@@ -153,9 +174,21 @@ def fingerprint(hits):
 
 
 def overlap(base, now):
-    """Fraction of the baseline's chunks still present. 1.0 == unchanged set."""
-    b = [h["chunk_file"] for h in base if h.get("chunk_file")]
-    n = {h["chunk_file"] for h in now if h.get("chunk_file")}
+    """Fraction of the baseline's chunks still present. 1.0 == unchanged set.
+
+    Keyed on `id`, which is unique per chunk. It used to key on `chunk_file`, which
+    is NOT: all 679 scope items share the literal chunk_file "catalog:scope_items",
+    so for every scope-catalog case the baseline list collapsed to one distinct
+    value and the overlap was 100% by construction -- five cases (R-020/021/022/
+    043/047) were reporting a passing drift number while measuring nothing at all.
+
+    Falls back to chunk_file when the baseline predates the `id` field, so an old
+    baseline stays comparable for one transition instead of reading as total drift.
+    """
+    keyed = bool(base) and all(h.get("id") for h in base)
+    field = "id" if keyed else "chunk_file"
+    b = [h.get(field) for h in base if h.get(field)]
+    n = {h.get(field) for h in now if h.get(field)}
     if not b:
         return 1.0 if not n else 0.0
     return sum(1 for c in b if c in n) / float(len(b))
