@@ -78,20 +78,24 @@ def tool_search_brain(args):
 
 TOOLS = {
     "search_brain": {
-        "description": ("Semantic search over the S4PC Public Cloud Brain — the harvested SharePoint "
-                        "delivery knowledge (FDs, TDs, workshop decks, test/cutover/change material) "
-                        "plus the SAP scope-item catalog, embedded with Bedrock Titan. Returns the most "
-                        "relevant chunks with phase / agent role / deliverable / source. Optional filters "
-                        "narrow to a phase (Discover/Prepare/Explore/Realize/Deploy/Run), an agent role "
-                        "(e.g. build_agent, qe_agent), or a deliverable type. All content is PII-masked. "
-                        "Use to ground a deliverable in prior delivery experience."),
+        "description": ("Semantic search over the S4PC Public Cloud Brain, embedded with Bedrock Titan. "
+                        "THREE KINDS OF KNOWLEDGE: (1) harvested SharePoint delivery knowledge — FDs, TDs, "
+                        "workshop decks, test/cutover/change material; (2) the SAP scope-item catalog; "
+                        "(3) OFFICIAL DEVELOPER DOCUMENTATION for side-by-side / UI code — SAP UI5, SAP "
+                        "Fiori Elements, CAP and Node.js, mirrored here as source_system='developer_docs'. "
+                        "For (3), SEARCH HERE FIRST rather than fetching the vendor site: ui5.sap.com is a "
+                        "single-page app that returns a ~2 KB JavaScript shell to any fetch, so a web fetch "
+                        "of it succeeds while grounding nothing. This works offline and on Bedrock, where "
+                        "web tools may be unavailable. Returns the most relevant chunks with phase / agent "
+                        "role / deliverable / source. All SharePoint content is PII-masked. Use to ground a "
+                        "deliverable in prior delivery experience OR in authoritative vendor documentation."),
         "schema": {"type": "object", "properties": {
             "query":            {"type": "string", "description": "Natural-language query"},
             "top_k":            {"type": "integer", "description": "Number of results (default 5)"},
-            "phase":            {"type": "string", "description": "Filter: Discover/Prepare/Explore/Realize/Deploy/Run"},
+            "phase":            {"type": "string", "description": "Filter: Discover/Prepare/Explore/Realize/Deploy/Run. NOTE: vendor documentation is phase-independent and is tagged Realize, so a phase filter will hide it — omit this, or filter on source_system/deliverable_type instead, when looking for developer docs."},
             "agent_role":       {"type": "string", "description": "Filter: e.g. build_agent, qe_agent, pmo_agent"},
-            "deliverable_type": {"type": "string", "description": "Filter: e.g. functional_design, test_strategy"},
-            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | accelerator_hub | ..."},
+            "deliverable_type": {"type": "string", "description": "Filter: e.g. functional_design, test_strategy; for vendor docs: ui5_docs | cap_docs | nodejs_docs"},
+            "source_system":    {"type": "string", "description": "Filter: sharepoint | sap_scope_catalog | developer_docs (official UI5/Fiori-Elements/CAP/Node docs) | accelerator_hub | ..."},
             "dedup":            {"type": "boolean", "description": "Collapse to one hit per source document (default true)"}},
             "required": ["query"]},
         "handler": tool_search_brain,

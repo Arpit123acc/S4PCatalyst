@@ -24,10 +24,12 @@ Produce a defensible, clean-core extensibility decision. Never decide from memor
       non-SAP users, complex orchestration, **or when a required object is not released for
       in-tenant developer use** (e.g. the CDS view/object has no C1 contract) — reach the data via
       a released OData/SOAP API on BTP instead. Uses released APIs + events only. When you build
-      side-by-side, follow the authoritative developer docs: CAP https://cap.cloud.sap/docs/,
-      SAP UI5 https://ui5.sap.com/, Node.js https://nodejs.org/docs/latest/api/, JavaScript
-      https://www.w3schools.com/js/default.asp, npm https://www.npmjs.com/package/npm, and
-      SAP Community https://community.sap.com/.
+      side-by-side, follow the authoritative developer docs — **read UI5 / Fiori Elements / CAP /
+      Node from the brain** via `search_brain(query="…", source_system="developer_docs")` (no
+      `phase` filter; ui5.sap.com is an SPA and returns a ~2 KB shell to any fetch). Cite for
+      humans: CAP https://cap.cloud.sap/docs/, SAP UI5 https://ui5.sap.com/, Node.js
+      https://nodejs.org/docs/latest/api/, JavaScript https://www.w3schools.com/js/default.asp,
+      npm https://www.npmjs.com/package/npm, and SAP Community https://community.sap.com/.
 5. Rate every option on **Feasibility (1-5) / Approach fit (1-5) / Cost** (rating model comes
    back from `extensibility_advisor`). Key user and developer extensibility are included in the
    subscription; **every BTP service has consumption cost** — link its SAP Discovery Center

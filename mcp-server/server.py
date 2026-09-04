@@ -146,6 +146,25 @@ FETCH_DOCS_BY_OBJECT = {
     "capm": ["cap_docs", "nodejs_docs", "npm_registry", "javascript_ref"],
 }
 
+# Doc sets mirrored into the Public Cloud Brain by scripts/webdocs_ingest.py, and
+# therefore searchable offline via search_brain(source_system="developer_docs") --
+# these key names are also the brain's `deliverable_type`, so they can be filtered
+# on directly.
+#
+# Search the brain FIRST for anything listed here. Fetching ui5.sap.com cannot work:
+# every topic URL is a '#/topic/...' fragment, and a fragment is never sent to the
+# server, so all 1000+ pages return the same ~2 KB JavaScript shell. The fetch
+# SUCCEEDS and grounds nothing, so the usual "if the fetch fails, cite the URL"
+# fallback never triggers. That is how finding F-17 (OData apostrophe quoting)
+# reached a deliverable. It also matters on Bedrock, where web tools are unavailable.
+#
+# Anything NOT listed here still needs a live fetch (or is cite-only).
+BRAIN_MIRRORED_DOCS = {
+    "ui5_docs":    "SAP UI5 + Fiori Elements — brain only; ui5.sap.com is an SPA and cannot be fetched",
+    "cap_docs":    "CAP (cap.cloud.sap) — mirrored; fetch only for content newer than the last harvest",
+    "nodejs_docs": "Node.js API docs — mirrored; fetch only for content newer than the last harvest",
+}
+
 # Deterministic per-mode facts: tooling, skillset, cost class, doc links.
 MODE_PROFILES = {
     "key_user": {
@@ -742,6 +761,7 @@ def tool_get_reference_links(args):
         "source": "curated authoritative SAP documentation sources",
         "links": REFERENCE_LINKS,
         "fetch_docs_by_object": FETCH_DOCS_BY_OBJECT,
+        "brain_mirrored_docs": BRAIN_MIRRORED_DOCS,
         "usage_rules": [
             "Released CDS views -> SAP Help 'Released CDS Views' list (released_cds_views_list) + ADT Released Objects / View Browser; cite the list for every CDS view's release (C1) state.",
             "BAdIs -> SAP Help 'List of BAdIs' (released_badis_list) + Custom Logic app; cite it for every BAdI.",
@@ -749,7 +769,11 @@ def tool_get_reference_links(args):
             "BTP services + PRICING -> SAP Discovery Center; every side-by-side proposal links each service's page and names its pricing metric.",
             "Configuration objects, released applications, release notes, any other released objects -> S/4HANA Cloud docs root (sap_help_s4hana_cloud).",
             "Standard app check (fit-to-standard) -> Fiori Apps Library.",
-            "SIDE-BY-SIDE (BTP) BUILDS: READ (WebFetch) the developer docs matching the object type you are building, per 'fetch_docs_by_object' — CAP/CAPM -> [cap_docs, nodejs_docs, npm_registry, javascript_ref]; UI5/Fiori -> [ui5_docs, javascript_ref, html_ref, css_ref, npm_registry]; both -> the union. For npm_registry, fetch its 'fetch_url' (https://registry.npmjs.org/<package> — JSON), not the npmjs.com web page. sap_community is CITE-ONLY (anti-bot blocks automated fetch) — link it for humans, do NOT fetch it. Ground the code in the fetched pages. If a fetch fails (e.g. proxy or site blocks it), fall back to citing the URL for manual verification — never block the build.",
+            "SIDE-BY-SIDE (BTP) BUILDS: ground the code in the developer docs matching the object type you are building, per 'fetch_docs_by_object' — CAP/CAPM -> [cap_docs, nodejs_docs, npm_registry, javascript_ref]; UI5/Fiori -> [ui5_docs, javascript_ref, html_ref, css_ref, npm_registry]; both -> the union.",
+            "SEARCH THE BRAIN FIRST for any doc set listed in 'brain_mirrored_docs' (ui5_docs, cap_docs, nodejs_docs): search_brain(query=\"<the API/pattern you need>\", source_system=\"developer_docs\") — or narrow with deliverable_type=\"ui5_docs\". Do NOT put a phase filter on that call: vendor docs are phase-independent, are tagged Realize, and a phase filter will silently hide them.",
+            "UI5 MUST come from the brain. ui5.sap.com is a single-page app — every topic URL is a '#/topic/...' fragment, a fragment is never sent to the server, and all 1000+ pages return the same ~2 KB JavaScript shell. The fetch SUCCEEDS and grounds nothing, so the 'if the fetch fails, cite the URL' fallback never fires. That is how finding F-17 (OData apostrophe quoting) reached a deliverable.",
+            "WebFetch only what the brain does NOT mirror (javascript_ref, html_ref, css_ref, npm_registry), or when you specifically need content newer than the brain's last harvest. For npm_registry, fetch its 'fetch_url' (https://registry.npmjs.org/<package> — JSON), not the npmjs.com web page. sap_community is CITE-ONLY (anti-bot blocks automated fetch) — link it for humans, do NOT fetch it. If a fetch fails, fall back to citing the URL for manual verification — never block the build.",
+            "On Bedrock, web tools may be unavailable entirely — the brain is then the ONLY grounding route, which is why it comes first rather than as a fallback.",
         ],
     }
 

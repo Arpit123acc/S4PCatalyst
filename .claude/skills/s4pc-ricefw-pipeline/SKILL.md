@@ -236,14 +236,23 @@ assume approval; never continue on silence.
    guess a custom field / CDS / RAP / CBO / table name;** the code and the in-tenant objects the
    developer creates must share the same names (this is what keeps a mixed solution consistent).
    ABAP-for-Cloud / RAP / CDS for developer mode; Custom Fields & Logic etc. for key user; CAP +
-   UI5 for side-by-side. For side-by-side, **READ (WebFetch) the official developer docs that match
-   the object type being built** (WebFetch is auto-enabled for side-by-side runs) — via
-   `get_reference_links` → `fetch_docs_by_object`: CAP/CAPM → CAP (cap.cloud.sap), Node.js
-   (nodejs.org), JavaScript; UI5/Fiori → UI5 (ui5.sap.com), HTML, CSS, JavaScript; both → the union.
-   For npm, fetch the JSON registry `registry.npmjs.org/<package>` (not the npmjs.com web page — it
-   blocks bots). SAP Community (community.sap.com) is cite-only (anti-bot) — link it, don't fetch it.
-   Ground the code in the fetched pages; if a fetch fails, cite the URL for manual verification and
-   continue. Write `06-code.md`.
+   UI5 for side-by-side. For side-by-side, **READ the official developer docs that match the object
+   type being built** — via `get_reference_links` → `fetch_docs_by_object` + `brain_mirrored_docs`
+   (that response is the source of truth if this list is out of date):
+   - **Brain first** for UI5, Fiori Elements, CAP and Node.js:
+     `search_brain(query="<API or pattern>", source_system="developer_docs")`, optionally narrowed
+     with `deliverable_type="ui5_docs" | "cap_docs" | "nodejs_docs"`. **No `phase` filter** — vendor
+     docs are phase-independent and a phase filter silently hides them.
+   - **UI5 is brain-ONLY** — never WebFetch ui5.sap.com. It is an SPA; every topic URL is a
+     `#/topic/...` fragment that never reaches the server, so all 1000+ pages return the same ~2 KB
+     JavaScript shell. The fetch *succeeds* and grounds nothing, which is how F-17 (OData apostrophe
+     quoting) reached a deliverable.
+   - **WebFetch only the un-mirrored**: HTML, CSS, JavaScript (w3schools). For npm, fetch the JSON
+     registry `registry.npmjs.org/<package>` (not the npmjs.com web page — it blocks bots). SAP
+     Community (community.sap.com) is cite-only (anti-bot) — link it, don't fetch it.
+   Ground the code in what you actually read. On Bedrock web tools may be unavailable, so the brain
+   is the only grounding route — first, not a fallback. If a permitted fetch fails, cite the URL for
+   manual verification and continue. Write `06-code.md`.
 7. **GATE 2: Code review** — clean-core + security review of the generated code (released objects
    only, no classical ABAP; authorisations, secret hygiene, input validation); verdict
    SHIP/FIX/REDESIGN. Then ✋ **CHECKPOINT 2 — Code approval.** In `run.json.checkpoint_request`,
