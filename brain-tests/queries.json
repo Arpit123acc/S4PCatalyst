@@ -149,9 +149,33 @@
     {
       "id": "R-041",
       "query": "how do I sort and filter a list binding in a UI5 table",
-      "why": "FILTER CONTRACT — the multi-agent case, and the whole argument for changing filter semantics. A discovery/KDD agent filtering phase=Explore gets a full page of SharePoint hits and ZERO developer_docs, because the vendor docs are tagged phase=Realize. So it does not look empty — it looks answered, with the authoritative source silently missing. If the reference-exemption rule is ever added, THIS case flips and must be re-baselined deliberately.",
+      "why": "FILTER CONTRACT — the multi-agent case, and the reason the provenance exemption exists. This case previously asserted the OPPOSITE (developer_docs absent), pinning the old behaviour so that changing it had to be deliberate. It was: PROVENANCE_EXEMPT_SOURCES now exempts vendor docs from phase/agent_role filters, because those fields describe which project phase produced an artifact and vendor docs were not produced by a project. A discovery agent asking phase=Explore must now reach the authoritative UI5 docs instead of getting a confident page of delivery documents with the real source missing.",
       "filters": {"phase": "Explore"},
+      "expect_source_system": "developer_docs",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-045",
+      "query": "cutover and deployment activities",
+      "why": "GUARD on the exemption. Vendor docs are now visible to every phase filter, so they must not become noise in genuine delivery queries. A cutover question in phase=Deploy must still be answered by delivery material, not UI5 pages.",
+      "filters": {"phase": "Deploy"},
       "expect_absent_source_system": "developer_docs",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-046",
+      "query": "UI5 annotations and OData binding",
+      "why": "GUARD on the exemption. Exempting phase/agent_role must NOT make these sources unfilterable — deliverable_type is descriptive, not provenance, so it still has to select precisely.",
+      "filters": {"deliverable_type": "ui5_docs"},
+      "expect_source_system": "developer_docs",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-047",
+      "query": "scope item for supplier invoice processing",
+      "why": "GUARD on the exemption. sap_scope_catalog is exempt too (phase=Reference), so confirm a phase filter no longer hides the catalog from a phase-scoped agent.",
+      "filters": {"phase": "Explore"},
+      "expect_source_system": "sap_scope_catalog",
       "expect_min_hits": 1
     },
     {

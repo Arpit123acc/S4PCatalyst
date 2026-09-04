@@ -30,6 +30,27 @@ from pathlib import Path
 BASE_DIR  = Path(__file__).resolve().parent.parent
 INDEX_DIR = BASE_DIR / "brain" / "index"
 
+# `phase` and `agent_role` describe DELIVERY PROVENANCE — which project phase and
+# which role produced an artifact. The sources below were not produced by a project
+# at all: they are vendor documentation and SAP's own catalogs. Filtering them by
+# phase is a category error, and it silently hides them.
+#
+# It matters because the brain serves more than one agent. The UI5 docs are tagged
+# phase=Realize purely to match the S4PC pipeline's build call, so a discovery agent
+# asking phase=Explore, or an architect asking phase=Design, gets a confident page of
+# delivery documents with the authoritative source missing. That is the pipeline's
+# vocabulary dictating what every other consumer can see.
+#
+# Scoped by SOURCE, not by content_type. Measured 2026-09-04: content_type=reference
+# covers 2,416 chunks of which 1,462 are SharePoint delivery material that DOES have
+# provenance — exempting those would be wrong. By source it is 954 chunks (1.9%).
+#
+# Only phase/agent_role are exempted. deliverable_type and source_system are
+# descriptive rather than provenance, so they still filter these sources normally --
+# source_system="developer_docs" and deliverable_type="ui5_docs" keep working.
+PROVENANCE_EXEMPT_SOURCES = {"developer_docs", "sap_scope_catalog"}
+PROVENANCE_FIELDS = {"phase", "agent_role"}
+
 
 # ── Interface ──────────────────────────────────────────────────────────────────
 class VectorStore:
@@ -140,6 +161,15 @@ class FaissStore(VectorStore):
         qv = np.array([vector], dtype="float32")
         total = len(self.metas)
 
+        def excluded(m):
+            exempt = m.get("source_system") in PROVENANCE_EXEMPT_SOURCES
+            for f, v in active.items():
+                if exempt and f in PROVENANCE_FIELDS:
+                    continue          # not phase-specific; a phase filter must not hide it
+                if str(m.get(f, "")).lower() != str(v).lower():
+                    return True
+            return False
+
         def window(fetch):
             scores, ids = self.index.search(qv, min(fetch, total))
             hits = []
@@ -147,8 +177,7 @@ class FaissStore(VectorStore):
                 if idx < 0:
                     continue
                 m = self.metas[idx]
-                if any(str(m.get(f, "")).lower() != str(v).lower()
-                       for f, v in active.items()):
+                if excluded(m):
                     continue
                 hits.append({"score": round(float(score), 4), **m})
                 if len(hits) >= k:
