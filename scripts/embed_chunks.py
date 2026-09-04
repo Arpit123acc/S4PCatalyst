@@ -37,8 +37,15 @@ BRAIN_DIR  = BASE_DIR / "brain"
 # Chunk sources to embed (add more roots here as the brain grows).
 CHUNK_ROOTS = [
     BRAIN_DIR / "sharepoint" / "chunks",     # SharePoint delivery docs
-    BRAIN_DIR / "webdocs" / "chunks",        # curated CAP/UI5/Node docs (webdocs_ingest.py)
+    BRAIN_DIR / "webdocs" / "chunks",        # curated CAP/UI5/Node/Clean-ABAP docs (webdocs_ingest.py)
+    BRAIN_DIR / "guidance" / "chunks",       # local ABAP Cloud/RAP standards (guidance_ingest.py)
 ]
+# A new connector is not wired in until its root is listed HERE. guidance_ingest.py
+# wrote 8 chunks, reported success, and they were silently absent from the index
+# because this list had not been updated -- the ingest and the embed are separate
+# steps and nothing joins them but this constant. Add the root in the same change as
+# the connector, and confirm the new source_system appears in the build's
+# "Sources:" line.
 # The SAP scope catalog is embedded directly from its committed JSON (no need to
 # pre-emit 679 files, and no dependency on the source xlsx on the server).
 SCOPE_CATALOG = BASE_DIR / "mcp-server" / "catalog" / "scope_items.json"
