@@ -110,5 +110,34 @@ module.exports = {
       error_file: '/home/ec2-user/.pm2/logs/brain-backup-err.log',
       time: true,
     },
+    {
+      // Monthly brain refresh: catalog sync -> doc harvest -> re-embed -> restart
+      // -> retrieval regression gate. See scripts/monthly_refresh.sh.
+      //
+      // WHY MONTHLY: api.sap.com adds released APIs continuously and SAP rewrites
+      // the UI5/CAP docs on its own cadence, so a brain that was accurate at build
+      // time drifts into being confidently wrong -- and a stale release verdict
+      // reads exactly like a current one.
+      //
+      // 03:30 UTC on the 3rd: after the 02:15 daily backup has captured the CURRENT
+      // index, so there is an off-box copy of the last known-good brain before the
+      // refresh replaces it. Not the 1st, to stay clear of month-end batch load.
+      //
+      // Same one-shot idiom as brain-backup: 'stopped' between runs is correct.
+      // SAP_HUB_API_KEY must be present in the EC2 environment or step 1 is skipped
+      // (reported, not silent). Never put the key in this file.
+      name: 'brain-refresh',
+      cwd: '/home/ec2-user/s4pc',
+      script: 'scripts/monthly_refresh.sh',
+      interpreter: 'bash',
+      cron_restart: '30 3 3 * *',       // 03:30 UTC, 3rd of each month
+      autorestart: false,
+      env: {
+        AWS_REGION: 'us-east-1',
+      },
+      out_file: '/home/ec2-user/.pm2/logs/brain-refresh-out.log',
+      error_file: '/home/ec2-user/.pm2/logs/brain-refresh-err.log',
+      time: true,
+    },
   ],
 };
