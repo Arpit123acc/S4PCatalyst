@@ -225,7 +225,7 @@ def main():
             "top_k": args.k, "cases": results,
         }, indent=2, ensure_ascii=False), encoding="utf-8")
         print("\n== baseline written: %s (%d cases)" % (BASELINE, len(results)))
-        print("== commit it — a reviewable diff is the point")
+        print("== client document names are redacted to hashes — safe to commit")
         return
 
     print("\n== %d passed, %d FAILED, %d pending (%d cases)"
