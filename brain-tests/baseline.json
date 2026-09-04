@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-09-04T07:02:13.830544+00:00",
+  "recorded_utc": "2026-09-04T09:24:44.161864+00:00",
   "top_k": 10,
   "cases": [
     {
@@ -1464,64 +1464,277 @@
       "failures": [],
       "hits": [
         {
-          "chunk_file": "redacted:0b96bad46f8a",
-          "source": "redacted:239cf4dd7d58",
-          "source_system": "sharepoint",
-          "score": 0.1726
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.569
         },
         {
-          "chunk_file": "redacted:dea670b02afd",
-          "source": "redacted:9b17b2c4eff4",
-          "source_system": "sharepoint",
-          "score": 0.1616
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.5382
         },
         {
-          "chunk_file": "redacted:60065d57b5ac",
-          "source": "redacted:a2f373a7621f",
-          "source_system": "sharepoint",
-          "score": 0.1527
+          "chunk_file": "webdocs/chunks/ui5_docs/2d58cd81e662_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-grouping-and-filtering-for-list-binding-and-tree-binding-ec79a5d",
+          "source_system": "developer_docs",
+          "score": 0.4423
         },
         {
-          "chunk_file": "redacted:560da4a09d14",
-          "source": "redacted:499707779eaa",
-          "source_system": "sharepoint",
-          "score": 0.1526
+          "chunk_file": "webdocs/chunks/ui5_docs/22190c61b364_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — sorting-d2ce3f5",
+          "source_system": "developer_docs",
+          "score": 0.4339
         },
         {
-          "chunk_file": "redacted:a7214a321417",
-          "source": "redacted:16eedb339276",
-          "source_system": "sharepoint",
-          "score": 0.1525
+          "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
+          "source_system": "developer_docs",
+          "score": 0.3954
         },
         {
-          "chunk_file": "redacted:5c79fe543b01",
-          "source": "redacted:41d3bfb1464e",
-          "source_system": "sharepoint",
-          "score": 0.1524
+          "chunk_file": "webdocs/chunks/ui5_docs/15926a15783d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — filtering-5338bd1",
+          "source_system": "developer_docs",
+          "score": 0.3635
         },
         {
-          "chunk_file": "redacted:60a146bd120f",
-          "source": "redacted:9b17b2c4eff4",
-          "source_system": "sharepoint",
-          "score": 0.152
+          "chunk_file": "webdocs/chunks/ui5_docs/62b27a213ba2_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — list-binding-and-tree-binding-aggregation-binding-91f0577",
+          "source_system": "developer_docs",
+          "score": 0.3518
         },
         {
-          "chunk_file": "redacted:c4a060699905",
-          "source": "redacted:fc282fd5b3f0",
-          "source_system": "sharepoint",
-          "score": 0.1516
+          "chunk_file": "webdocs/chunks/ui5_docs/4308698b9b18_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — bindings-54e0ddf",
+          "source_system": "developer_docs",
+          "score": 0.3496
         },
         {
-          "chunk_file": "redacted:490fb080d302",
-          "source": "redacted:aad9678751ef",
-          "source_system": "sharepoint",
-          "score": 0.1503
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.3206
         },
         {
-          "chunk_file": "redacted:a86ab5e56bae",
-          "source": "redacted:239cf4dd7d58",
+          "chunk_file": "webdocs/chunks/ui5_docs/d3fb7cd81d5b_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — json-model-96804e3",
+          "source_system": "developer_docs",
+          "score": 0.3203
+        }
+      ]
+    },
+    {
+      "id": "R-045",
+      "query": "cutover and deployment activities",
+      "filters": {
+        "phase": "Deploy"
+      },
+      "pending": null,
+      "failures": [],
+      "hits": [
+        {
+          "chunk_file": "redacted:686758a44f61",
+          "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.1488
+          "score": 0.5225
+        },
+        {
+          "chunk_file": "redacted:34ed9c13049f",
+          "source": "redacted:e3cff14fab69",
+          "source_system": "sharepoint",
+          "score": 0.4871
+        },
+        {
+          "chunk_file": "redacted:8059af9c424d",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4822
+        },
+        {
+          "chunk_file": "redacted:3d485dab34db",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4743
+        },
+        {
+          "chunk_file": "redacted:8d6629106614",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4599
+        },
+        {
+          "chunk_file": "redacted:c7eb1b130f76",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4551
+        },
+        {
+          "chunk_file": "redacted:e95be3c5218c",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4546
+        },
+        {
+          "chunk_file": "redacted:3e59c365e7f6",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4458
+        },
+        {
+          "chunk_file": "redacted:009df4945f47",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.439
+        },
+        {
+          "chunk_file": "redacted:844dca396ea9",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4326
+        }
+      ]
+    },
+    {
+      "id": "R-046",
+      "query": "UI5 annotations and OData binding",
+      "filters": {
+        "deliverable_type": "ui5_docs"
+      },
+      "pending": null,
+      "failures": [],
+      "hits": [
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/ed2b3d34c81f_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — working-with-odata-annotations-83c89cc",
+          "source_system": "developer_docs",
+          "score": 0.5674
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/4308698b9b18_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — bindings-54e0ddf",
+          "source_system": "developer_docs",
+          "score": 0.5375
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.5345
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/e4f4c40c7082_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — creating-bindings-95cf4b1",
+          "source_system": "developer_docs",
+          "score": 0.5225
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/33851ea44271_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — replacement-of-bindings-604b1eb",
+          "source_system": "developer_docs",
+          "score": 0.503
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/608ecbffbb01_0002.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — upgrading-your-odata-model-cda632b",
+          "source_system": "developer_docs",
+          "score": 0.4986
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/1cfbfc4b76a9_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — property-metadata-binding-f5aa4bb",
+          "source_system": "developer_docs",
+          "score": 0.4979
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/9129ea25c802_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-events-1a010d3",
+          "source_system": "developer_docs",
+          "score": 0.4958
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/ac2669492a83_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — working-with-odata-annotations-8b55ead",
+          "source_system": "developer_docs",
+          "score": 0.4923
+        },
+        {
+          "chunk_file": "webdocs/chunks/ui5_docs/53fccfa8ee8c_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — support-for-extended-odata-annotations-0e7b890",
+          "source_system": "developer_docs",
+          "score": 0.4881
+        }
+      ]
+    },
+    {
+      "id": "R-047",
+      "query": "scope item for supplier invoice processing",
+      "filters": {
+        "phase": "Explore"
+      },
+      "pending": null,
+      "failures": [],
+      "hits": [
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5555
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5467
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5456
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5454
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5448
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5436
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5298
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5282
+        },
+        {
+          "chunk_file": "redacted:a9de28cebb21",
+          "source": "redacted:5d63dd5ea6c2",
+          "source_system": "sharepoint",
+          "score": 0.5237
+        },
+        {
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5207
         }
       ]
     },
