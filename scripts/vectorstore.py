@@ -48,7 +48,12 @@ INDEX_DIR = BASE_DIR / "brain" / "index"
 # Only phase/agent_role are exempted. deliverable_type and source_system are
 # descriptive rather than provenance, so they still filter these sources normally --
 # source_system="developer_docs" and deliverable_type="ui5_docs" keep working.
-PROVENANCE_EXEMPT_SOURCES = {"developer_docs", "sap_scope_catalog"}
+# abap_guidance (internal ABAP Cloud / RAP review standards, scripts/guidance_ingest.py)
+# is exempt for the same reason and is deliberately NOT public-by-construction: these
+# documents can carry a client name, so brain_regression keeps their names hashed in
+# the committed baseline. Provenance-exemption and name-publicity are separate
+# decisions and this source is the case where they diverge.
+PROVENANCE_EXEMPT_SOURCES = {"developer_docs", "sap_scope_catalog", "abap_guidance"}
 PROVENANCE_FIELDS = {"phase", "agent_role"}
 
 

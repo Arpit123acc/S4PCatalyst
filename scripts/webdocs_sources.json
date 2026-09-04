@@ -62,6 +62,16 @@
       "max_files": 90,
       "deliverable_type": "ui5_docs",
       "_tuning": "Measured 2026-09-04 against the live tree: ['annotation','list','object','table','filter','odata'] matched 267 (too broad — 'table' and 'list' hit most of the folder); ['annotation','odata'] matched only 22. The set above targets the middle. 04_Essentials already carries binding/sorting/OData fundamentals, so this entry is deliberately annotation-led — that is the content unique to Fiori Elements."
+    },
+    {
+      "topic": "Clean ABAP — abap-cleaner rule reference",
+      "repo": "SAP/abap-cleaner",
+      "ref": "main",
+      "include_prefix": "docs/rules",
+      "max_files": 150,
+      "deliverable_type": "clean_abap_docs",
+      "_why": "The brain had no ABAP style/quality reference. Measured 2026-09-04, ABAP Cloud and RAP queries scored 0.34-0.41 across every hit — uniformly weak, because nothing in the corpus covered developer extensibility. These 142 rule pages carry before/after code examples, which is what makes them useful for grounding generated ABAP rather than just citing a principle.",
+      "_prefix_note": "'docs/rules' has NO trailing slash on purpose: it matches the docs/rules.md index AND all 142 files under docs/rules/, in one entry. Excluding docs/release-notes.md (47 KB of changelog) and the Eclipse-plugin UI pages, which are noise for code grounding."
     }
   ]
 }
