@@ -1,0 +1,183 @@
+{
+  "_meta": {
+    "purpose": "Golden retrieval set for the Public Cloud Brain. Run before and after ANY change to the index, the embedding model, the chunker, or the metadata filters.",
+    "why_it_exists": "The brain is shared infrastructure — the S4PC pipeline is only its first consumer. A retrieval change cannot be validated by 'the pipeline still ran'; a silently worse index still produces a confident deliverable. This set makes retrieval quality a measurable property instead of an assumption.",
+    "two_mechanisms": [
+      "assertions — hand-written, encode INTENT ('a UI5 sorting question must reach developer_docs'). Few, durable, and they survive a full re-index because they key on `source`, not on chunk ids.",
+      "baseline snapshot — records what the brain returns today, so a later run can show DRIFT. Catches the regressions nobody thought to assert."
+    ],
+    "identity_note": "Hits are identified by `chunk_file`. For SharePoint that is stable. For webdocs, doc_id is sha1(url) so it is stable per URL, but the _NNNN chunk suffix shifts if the upstream page is rewritten — that drift is legitimate and the report says so.",
+    "assertion_vocabulary": {
+      "filters": "dict passed straight to brain_search.search() — phase / agent_role / deliverable_type / source_system",
+      "expect_source_system": "at least one hit carries this source_system",
+      "expect_source_contains": "at least one hit's `source` contains this substring (case-insensitive)",
+      "expect_min_hits": "at least N hits come back",
+      "expect_no_hits": "expect zero hits — used to pin filter-exclusion behaviour"
+    },
+    "red_tests": "Cases tagged \"pending\": \"ui5_ingest\" FAIL until scripts/webdocs_ingest.py + embed_chunks.py have run. That is deliberate — they are the executable definition of the F-17 gap being closed."
+  },
+
+  "cases": [
+    {
+      "id": "R-001",
+      "query": "how do I sort and filter a list binding in a UI5 table",
+      "why": "F-17 (SUPPLIER-PO-STATUS-VIEWER-FD-R2): the agent wrote sorting that did not work. This is the exact doc that would have prevented it.",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs",
+      "expect_source_contains": "sorting"
+    },
+    {
+      "id": "R-002",
+      "query": "escaping an apostrophe in an OData filter query string",
+      "why": "F-17's root cause. Must reach either the UI5 OData docs or the Node querystring docs.",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-003",
+      "query": "OData V4 model server messages and error handling in UI5",
+      "pending": "ui5_ingest",
+      "expect_source_contains": "server-messages"
+    },
+    {
+      "id": "R-004",
+      "query": "what is the default binding mode and how do I change it",
+      "why": "Short page (306 chars) — pins the MIN_USEFUL_CHARS_MD floor. If the 800-char HTML floor ever gets reapplied to markdown, this goes red.",
+      "pending": "ui5_ingest",
+      "expect_source_contains": "binding-mode"
+    },
+    {
+      "id": "R-005",
+      "query": "ValueList annotation for a value help dropdown in Fiori Elements",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-006",
+      "query": "variant management on a list report page",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-007",
+      "query": "hide a field using the UI.Hidden annotation",
+      "pending": "ui5_ingest",
+      "expect_source_contains": "hidden"
+    },
+    {
+      "id": "R-008",
+      "query": "defining an entity and associations in CAP CDL",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-009",
+      "query": "CAP authorization restrict annotation role based access",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-010",
+      "query": "percent encoding a URL query parameter in Node.js",
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+
+    {
+      "id": "R-020",
+      "query": "scope item for supplier invoice processing",
+      "expect_source_system": "sap_scope_catalog",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-021",
+      "query": "which scope items are prerequisites for procurement of direct materials",
+      "expect_source_system": "sap_scope_catalog"
+    },
+    {
+      "id": "R-022",
+      "query": "accounts payable scope item and its required master data",
+      "expect_source_system": "sap_scope_catalog"
+    },
+
+    {
+      "id": "R-030",
+      "query": "cutover plan and go-live checklist",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-031",
+      "query": "test strategy and defect management approach",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-032",
+      "query": "functional design document for a custom report",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-033",
+      "query": "RAP business object behaviour definition managed implementation",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-034",
+      "query": "released BAdI implementation for custom logic",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-035",
+      "query": "custom CDS view projection on a released interface view",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-036",
+      "query": "integration with an external system using released OData APIs",
+      "expect_min_hits": 1
+    },
+
+    {
+      "id": "R-040",
+      "query": "how do I sort and filter a list binding in a UI5 table",
+      "why": "FILTER CONTRACT. Same text as R-001 but scoped to the pipeline's documented build call. Must keep working — this is the one filter pair the webdocs chunks are tagged for.",
+      "filters": {"phase": "Realize", "agent_role": "build_agent"},
+      "pending": "ui5_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-041",
+      "query": "how do I sort and filter a list binding in a UI5 table",
+      "why": "FILTER CONTRACT — the multi-agent case. A discovery/KDD agent filtering phase=Explore currently gets NOTHING, because the chunks are tagged phase=Realize. Documented here as the current behaviour so that changing it is a visible, deliberate diff rather than an accident.",
+      "filters": {"phase": "Explore"},
+      "expect_no_hits": true
+    },
+    {
+      "id": "R-042",
+      "query": "UI5 annotations and OData binding",
+      "why": "FILTER CONTRACT — source_system is the agent-neutral filter and must reach the docs regardless of phase vocabulary.",
+      "filters": {"source_system": "developer_docs"},
+      "pending": "ui5_ingest",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-043",
+      "query": "scope item classification by line of business",
+      "filters": {"source_system": "sap_scope_catalog"},
+      "expect_source_system": "sap_scope_catalog"
+    },
+    {
+      "id": "R-044",
+      "query": "cutover and deployment activities",
+      "filters": {"phase": "Deploy"},
+      "why": "Pins that an existing phase filter still selects the SharePoint corpus. If the reference-exemption rule is added, this is where unintended widening would show up first.",
+      "expect_min_hits": 1
+    },
+
+    {
+      "id": "R-050",
+      "query": "zzzz qqqq xxxx nonsense token that matches nothing meaningful",
+      "why": "Sanity floor. Vector search always returns its top-k, so this documents that low-relevance queries still return hits — a reminder that score, not presence, is the quality signal.",
+      "expect_min_hits": 1
+    }
+  ]
+}
