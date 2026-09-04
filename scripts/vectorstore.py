@@ -117,22 +117,52 @@ class FaissStore(VectorStore):
         # Keep .prev on disk as the rollback copy; the next successful build replaces it.
 
     def search(self, vector, k, filters=None):
+        """Top-k by cosine, optionally filtered. Widens the window until k survive.
+
+        FAISS has no native metadata filter, so filtering happens AFTER the vector
+        search -- and that makes a fixed over-fetch window quietly wrong. Measured
+        2026-09-04, right after 275 UI5 chunks were added: for a UI5 query with
+        phase=Explore, 90 of the top 200 candidates were the new developer_docs, the
+        filter discarded them, and 2 hits came back. The index held 184 qualifying
+        documents. Nothing errored; the caller just got a short answer.
+
+            window=200   developer_docs=90   Explore survivors=2
+            window=3000  developer_docs=158  Explore survivors=184
+
+        So the failure worsens with every source added, which is the opposite of what
+        a growing brain should do, and it hits filtered callers only -- exactly the
+        per-phase agents this brain is meant to serve. Escalate instead of guessing:
+        widen and retry until k survive or the index is exhausted. Unfiltered queries
+        are unaffected and still fetch exactly k.
+        """
         import numpy as np
         active = {f: v for f, v in (filters or {}).items() if v}
-        fetch  = min(len(self.metas), k * 20 if active else k) or k
         qv = np.array([vector], dtype="float32")
-        scores, ids = self.index.search(qv, fetch)
-        hits = []
-        for score, idx in zip(scores[0], ids[0]):
-            if idx < 0:
-                continue
-            m = self.metas[idx]
-            if any(str(m.get(f, "")).lower() != str(v).lower() for f, v in active.items()):
-                continue
-            hits.append({"score": round(float(score), 4), **m})
-            if len(hits) >= k:
-                break
-        return hits
+        total = len(self.metas)
+
+        def window(fetch):
+            scores, ids = self.index.search(qv, min(fetch, total))
+            hits = []
+            for score, idx in zip(scores[0], ids[0]):
+                if idx < 0:
+                    continue
+                m = self.metas[idx]
+                if any(str(m.get(f, "")).lower() != str(v).lower()
+                       for f, v in active.items()):
+                    continue
+                hits.append({"score": round(float(score), 4), **m})
+                if len(hits) >= k:
+                    break
+            return hits
+
+        if not active:
+            return window(k)
+        fetch = max(k * 20, k)
+        while True:
+            hits = window(fetch)
+            if len(hits) >= k or fetch >= total:
+                return hits
+            fetch *= 4
 
     def count(self):
         return self.index.ntotal
