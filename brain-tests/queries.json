@@ -217,7 +217,8 @@
     {
       "id": "R-062",
       "query": "ATC check profile that must pass before a transport",
-      "pending": "abap_ingest",
+      "why": "KNOWN LIMITATION, kept red deliberately. The guidance doc answers this verbatim — 'ATC check profile \"ABAP Cloud\" must pass with zero Critical/High findings before any transport' — and still does not make the top 10. Measured 2026-09-04: drop the word 'transport' and abap_guidance ranks 1st at 0.477; keep it and three SharePoint transport-process documents win at 0.338/0.332/0.325. Note the winners score LOWER than the guidance did without that term: one dominant word pulls the query embedding into the wrong cluster, and 8 chunks cannot outvote 44,586 on term competition. Rewording the query would hide this rather than fix it. The real fixes are corpus depth (more ABAP guidance) or hybrid keyword+vector retrieval, which is the standard remedy for exactly this failure.",
+      "pending": "hybrid_search",
       "expect_source_system": "abap_guidance"
     },
     {
