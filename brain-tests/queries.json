@@ -201,6 +201,69 @@
     },
 
     {
+      "id": "R-060",
+      "query": "RAP business object behaviour definition managed implementation",
+      "why": "The query that exposed the gap. Before the ABAP sources landed it scored 0.34-0.41 across every hit — uniformly weak, with a UI5 page winning by default because nothing in the corpus covered developer extensibility. It must now reach real ABAP material.",
+      "pending": "abap_ingest",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-061",
+      "query": "which ABAP language version must custom development on S/4HANA Public Cloud use",
+      "why": "Core clean-core rule. Should reach the internal ABAP Cloud review standard.",
+      "pending": "abap_ingest",
+      "expect_source_system": "abap_guidance"
+    },
+    {
+      "id": "R-062",
+      "query": "ATC check profile that must pass before a transport",
+      "pending": "abap_ingest",
+      "expect_source_system": "abap_guidance"
+    },
+    {
+      "id": "R-063",
+      "query": "why can I not SELECT directly from VBAK or EKKO in ABAP Cloud",
+      "why": "Classical-table access is the single most common clean-core violation; the guidance names the released CDS alternative.",
+      "pending": "abap_ingest",
+      "expect_source_system": "abap_guidance"
+    },
+    {
+      "id": "R-064",
+      "query": "should I declare variables inline or up front, and how are declarations aligned",
+      "pending": "abap_ingest",
+      "expect_source_system": "developer_docs",
+      "expect_source_contains": "Declarations"
+    },
+    {
+      "id": "R-065",
+      "query": "removing unused variables and unused method parameters from ABAP code",
+      "pending": "abap_ingest",
+      "expect_source_contains": "Unused"
+    },
+    {
+      "id": "R-066",
+      "query": "prefer NEW over CREATE OBJECT and other constructor expression style rules",
+      "pending": "abap_ingest",
+      "expect_source_system": "developer_docs"
+    },
+    {
+      "id": "R-067",
+      "query": "clean ABAP naming and upper lower case conventions",
+      "filters": {"deliverable_type": "clean_abap_docs"},
+      "why": "GUARD: the new deliverable_type must select precisely, the same contract R-046 pins for ui5_docs.",
+      "pending": "abap_ingest",
+      "expect_source_system": "developer_docs",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-068",
+      "query": "ABAP Cloud released API C1 contract requirement",
+      "filters": {"phase": "Explore"},
+      "why": "GUARD on the provenance exemption for the new abap_guidance source: a phase-scoped agent must be able to reach guidance that carries no delivery provenance.",
+      "pending": "abap_ingest",
+      "expect_source_system": "abap_guidance"
+    },
+    {
       "id": "R-050",
       "query": "zzzz qqqq xxxx nonsense token that matches nothing meaningful",
       "why": "Sanity floor. Vector search always returns its top-k, so this documents that low-relevance queries still return hits — a reminder that score, not presence, is the quality signal.",
