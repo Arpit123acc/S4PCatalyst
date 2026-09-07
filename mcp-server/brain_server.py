@@ -102,7 +102,12 @@ TOOLS = {
                         "governance server those names arrive with a CURRENT release verdict, so a document "
                         "that cites a since-deprecated object is visible as such — but the verdict is about "
                         "the object today, not a claim the document was right then. To go the other way "
-                        "(object -> which documents mention it), use get_object_usage."),
+                        "(object -> which documents mention it), use get_object_usage. Hits also carry "
+                        "`is_current` / `doc_version` / `superseded_by`: the corpus holds multiple "
+                        "revisions of the same document (one spec exists as v2.0 through v11.0), and "
+                        "`is_current: false` means you are reading a SUPERSEDED revision — prefer the "
+                        "named successor before quoting it. `is_current: null` means the index predates "
+                        "lifecycle tracking, which is NOT the same as current."),
         "schema": {"type": "object", "properties": {
             "query":            {"type": "string", "description": "Natural-language query"},
             "top_k":            {"type": "integer", "description": "Number of results (default 5)"},

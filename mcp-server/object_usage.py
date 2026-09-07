@@ -115,8 +115,16 @@ def find_usage(object_name, entries=None, limit=10, source_system=None):
         corpus = ("corpus NOT INDEXED for object mentions (this is not the same as "
                   "'never used') — rebuild: python3.11 scripts/keyword_index.py")
     elif docs.get("total_documents"):
-        corpus = "%d mention(s) across %d document(s)" % (
-            docs.get("total_mentions", 0), docs.get("total_documents", 0))
+        raw = docs.get("total_documents", 0)
+        arts = docs.get("total_artifacts") or raw
+        corpus = "%d mention(s) across %d distinct artifact(s)" % (
+            docs.get("total_mentions", 0), arts)
+        # Say BOTH numbers when they differ. The raw filename count is what made the
+        # first real VBAK lookup read "21 documents" when ten of them were revisions
+        # of a single EDI spec -- which overstates precedent to anyone skimming it.
+        if raw > arts:
+            corpus += (" — %d filenames in total, so %d are superseded revisions or "
+                       "duplicate copies of the same documents" % (raw, raw - arts))
     else:
         corpus = "no mentions found in the indexed corpus"
 
@@ -126,6 +134,9 @@ def find_usage(object_name, entries=None, limit=10, source_system=None):
         "corpus_mentions": {"indexed": docs.get("indexed", False),
                             "total_mentions": docs.get("total_mentions", 0),
                             "total_documents": docs.get("total_documents", 0),
+                            "total_artifacts": docs.get("total_artifacts",
+                                                        docs.get("total_documents", 0)),
+                            "collapsed_by_version": docs.get("collapsed", False),
                             "error": doc_error},
         "lessons": lessons,
         "summary": "%s; %d recorded lesson(s) name it" % (corpus, len(lessons)),
@@ -150,7 +161,10 @@ def usage_brief(object_name, entries=None):
                         "evidence that the object was never used"}
     return {
         "indexed": cm["indexed"],
-        "documents": cm["total_documents"],
+        # Distinct artifacts, not filenames -- a caller reading this as "how much
+        # precedent exists" must not have ten revisions counted as ten documents.
+        "documents": cm.get("total_artifacts", cm["total_documents"]),
+        "filenames": cm["total_documents"],
         "mentions": cm["total_mentions"],
         "lesson_ids": [l["id"] for l in full["lessons"]],
         "top_documents": [d["source"] for d in full["delivery_documents"][:3]],

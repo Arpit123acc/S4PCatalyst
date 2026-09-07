@@ -52,6 +52,10 @@ from vectorstore import PROVENANCE_EXEMPT_SOURCES, PROVENANCE_FIELDS
 FILTERABLE = {"source_system", "phase", "agent_role", "deliverable_type"}
 SELECT_COLS = ["chunk_id", "source", "source_system", "phase", "agent_role",
                "deliverable_type", "chunk_file", "scope_item_id"]
+# Document-lifecycle columns, added 2026-09-07. Selected SEPARATELY from SELECT_COLS
+# because a keyword.db built before that change does not have them, and a single
+# SELECT naming them would fail outright rather than degrade -- see _lifecycle_cols().
+LIFECYCLE_COLS = ["doc_family", "doc_version", "is_current", "superseded_by"]
 
 # Matches the index's tokenizer: unicode61 + '_' as a token character, so
 # API_CLFN_PRODUCT_SRV survives as one term on the query side too.
@@ -109,6 +113,51 @@ def _where(filters):
 
 
 @lru_cache(maxsize=1)
+def _lifecycle_cols():
+    """Which lifecycle columns this keyword.db actually has.
+
+    Returns () for an index built before the columns existed, so every query below
+    degrades to "no lifecycle information" instead of raising OperationalError. Same
+    reasoning as has_mentions(): the caller must be able to tell "not indexed" from
+    "this document is current", because they are different claims.
+    """
+    try:
+        have = {r[1] for r in _con().execute("PRAGMA table_info(meta)").fetchall()}
+    except Exception:
+        return ()
+    return tuple(c for c in LIFECYCLE_COLS if c in have)
+
+
+def lifecycle_for_chunks(chunk_ids):
+    """{chunk_id: {doc_family, doc_version, is_current, superseded_by}} for these chunks.
+
+    One query for a whole page of hits, and it covers hits the VECTOR half found on
+    its own -- those come from metadata.json, which carries no lifecycle fields, so
+    without this join a vector-only hit could never be marked superseded.
+    """
+    cols = _lifecycle_cols()
+    ids = [c for c in (chunk_ids or []) if c]
+    if not ids or not cols:
+        return {}
+    out = {}
+    for start in range(0, len(ids), 400):
+        batch = ids[start:start + 400]
+        marks = ",".join("?" * len(batch))
+        sql = ("SELECT chunk_id, %s FROM meta WHERE chunk_id IN (%s)"
+               % (", ".join(cols), marks))
+        try:
+            rows = _con().execute(sql, batch).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        for r in rows:
+            rec = dict(zip(cols, r[1:]))
+            if "is_current" in rec and rec["is_current"] is not None:
+                rec["is_current"] = bool(rec["is_current"])   # SQLite has no bool
+            out[r[0]] = rec
+    return out
+
+
+@lru_cache(maxsize=1)
 def has_mentions():
     """Whether this keyword.db carries the object_mentions table (added 2026-09-07).
 
@@ -154,7 +203,8 @@ def mentions_for_chunks(chunk_ids):
     return out
 
 
-def documents_for_object(object_name, limit=10, source_system=None):
+def documents_for_object(object_name, limit=10, source_system=None,
+                         collapse_versions=True):
     """REVERSE edge: which corpus documents mention this SAP object.
 
     The question a delivery accelerator actually gets asked ("have we used this
@@ -169,31 +219,49 @@ def documents_for_object(object_name, limit=10, source_system=None):
     name = (object_name or "").strip().upper()
     if not name:
         return {"indexed": has_mentions(), "documents": [], "total_mentions": 0,
-                "total_documents": 0}
+                "total_documents": 0, "total_artifacts": 0}
     if not has_mentions():
         return {"indexed": False, "documents": [], "total_mentions": 0,
-                "total_documents": 0}
+                "total_documents": 0, "total_artifacts": 0}
     where, params = "om.object_name = ?", [name]
     if source_system:
         where += " AND lower(coalesce(m.source_system,'')) = ?"
         params.append(str(source_system).lower())
     base = ("FROM object_mentions om JOIN meta m ON m.rowid = om.chunk_rowid "
             "WHERE " + where)
+    # Distinct ARTIFACTS, not distinct filenames. The raw count is what made the first
+    # real query read "104 mentions across 21 documents" when ten of those documents
+    # were versions of one EDI spec. Falls back to source on a pre-lifecycle index.
+    lifecycle = bool(_lifecycle_cols())
+    fam_expr = "coalesce(m.doc_family, m.source)" if lifecycle else "m.source"
     try:
-        total_mentions, total_docs = _con().execute(
-            "SELECT count(*), count(DISTINCT m.source) " + base, params).fetchone()
+        total_mentions, total_docs, total_artifacts = _con().execute(
+            "SELECT count(*), count(DISTINCT m.source), count(DISTINCT %s) %s"
+            % (fam_expr, base), params).fetchone()
+        # Over-fetch before collapsing: a versioned family can hold a dozen members,
+        # so applying LIMIT first would fill the page with one artifact's revisions
+        # and drop genuinely different documents off the end.
+        fetch = int(limit) * 12 if collapse_versions and lifecycle else int(limit)
         rows = _con().execute(
             "SELECT m.source, m.source_system, m.deliverable_type, m.phase, "
             "count(*) AS hits, min(m.chunk_id) " + base +
             " GROUP BY m.source, m.source_system ORDER BY hits DESC, m.source LIMIT ?",
-            params + [int(limit)]).fetchall()
+            params + [fetch]).fetchall()
     except sqlite3.OperationalError:
         return {"indexed": False, "documents": [], "total_mentions": 0,
-                "total_documents": 0}
+                "total_documents": 0, "total_artifacts": 0}
     docs = [{"source": r[0], "source_system": r[1], "deliverable_type": r[2],
              "phase": r[3], "mentions": r[4], "sample_chunk_id": r[5]} for r in rows]
+    if collapse_versions:
+        try:
+            import doc_version                            # noqa: PLC0415
+            docs = doc_version.collapse(docs)
+        except Exception:
+            pass                                          # collapsing is a nicety
+    docs = docs[:int(limit)]
     return {"indexed": True, "documents": docs,
-            "total_mentions": total_mentions, "total_documents": total_docs}
+            "total_mentions": total_mentions, "total_documents": total_docs,
+            "total_artifacts": total_artifacts, "collapsed": bool(collapse_versions)}
 
 
 def search(query, k=10, filters=None):

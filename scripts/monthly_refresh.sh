@@ -192,6 +192,18 @@ fi
 #    failures: a stale L2 answers every query successfully and merely omits what it
 #    has not indexed, which is indistinguishable from a correct empty result. This is
 #    the check that would have caught L2 sitting 3 lessons behind L3.
+say "── document-lifecycle round-trip"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_doc_version.py"
+elif $PY brain-tests/test_doc_version.py > /dev/null 2>&1; then
+  say "   ok: version parsing and supersession round-trip"
+else
+  say "   FAILED: document-lifecycle detection is broken — superseded revisions"
+  say "   will be reported as current. Detail:"
+  say "     $PY brain-tests/test_doc_version.py"
+  fail_steps="$fail_steps doc-lifecycle"
+fi
+
 say "── object-mention index round-trip"
 if [ -n "$DRY" ]; then
   say "   DRY RUN, would run brain-tests/test_object_mentions.py"

@@ -22,6 +22,7 @@
     --bar-soft:        #cde2fb;
     --good:            #0ca30c;
     --critical:        #d03b3b;
+    --warning:         #a8650a;   /* 4.51:1 on --surface-1 */
     --shadow:          0 1px 2px rgba(11,11,11,.05), 0 4px 12px rgba(11,11,11,.04);
   }
   :root[data-theme="dark"] {
@@ -41,6 +42,7 @@
     --bar-soft:        #184f95;
     --good:            #0ca30c;
     --critical:        #d03b3b;
+    --warning:         #d99a2b;   /* 7.14:1 on dark --surface-1 */
     --shadow:          none;
   }
 
@@ -148,6 +150,7 @@
   .tag.s1 { border-color: var(--series-1); color: var(--series-1); }
   .tag.s2 { border-color: var(--series-2); color: var(--series-2); }
   .tag.s3 { border-color: var(--series-3); color: var(--series-3); }
+  .tag.warn { border-color: var(--warning); color: var(--warning); }
   .snip { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
 
   .note { font-size: 12px; color: var(--text-muted); margin-top: 14px;
@@ -398,6 +401,11 @@ async function doSearch() {
         h.scope_item_id ? `<span class="tag">scope ${esc(h.scope_item_id)}</span>` : "",
         via ? `<span class="tag">via ${esc(via)}</span>` : "",
         objTag,
+        // Lifecycle. is_current is null on a pre-lifecycle index, which must NOT
+        // render as "superseded" — absence of information is not evidence.
+        h.is_current === false
+          ? `<span class="tag warn">superseded${h.superseded_by ? " by " + esc(h.superseded_by) : ""}</span>`
+          : (h.doc_version ? `<span class="tag">v${esc(h.doc_version)}</span>` : ""),
       ].join("");
       return `<div class="hit">
         <div class="top"><div class="src">${esc(h.source || "(unnamed)")}</div>

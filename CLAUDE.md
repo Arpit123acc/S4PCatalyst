@@ -104,6 +104,12 @@ governance layer. Use it as follows — these are gates, not suggestions:
       correct empty result** — so when a search comes back thin, or a lesson you just recorded
       does not turn up, check this before concluding the knowledge is absent. It names the exact
       rebuild command.
+    - **Check `is_current` before quoting a retrieved document.** The corpus holds multiple
+      revisions of the same artifact (one spec exists as v2.0 through v11.0). A hit with
+      `is_current: false` is a **superseded** revision — read the document named in
+      `superseded_by` instead, or say explicitly that you are citing an old revision. Filenames
+      carrying "do not use" / "obsolete" are flagged the same way. `is_current: null` means the
+      index predates lifecycle tracking and is **not** a statement that the document is current.
 
 ## Deliverable standards
 

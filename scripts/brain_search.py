@@ -107,6 +107,10 @@ DEFAULT_MODE = os.environ.get("BRAIN_SEARCH_MODE", "hybrid").lower()
 FUSION       = os.environ.get("BRAIN_FUSION", "wsum").lower()      # wsum | rrf
 RRF_K        = int(os.environ.get("BRAIN_RRF_K", "60"))
 CAND_DEPTH   = int(os.environ.get("BRAIN_CAND_DEPTH", "100"))
+# Down-rank factor for a superseded / obsolete-marked document. 0 = OFF (default):
+# unlike every other constant here it has NOT been swept against the regression set,
+# so it ships inert rather than as a guess. See _demote_superseded for how to sweep.
+SUPERSEDED_PENALTY = float(os.environ.get("BRAIN_SUPERSEDED_PENALTY", "0"))
 # Weight on the lexical half when fusing normalised scores. The dense retriever is
 # the better generalist, so BM25 gets the smaller share and earns its keep through
 # _promote() when it is decisively right.
@@ -223,6 +227,81 @@ def _finish(merged):
 
 def _fuse(rankings):
     return _rrf_fuse(rankings) if FUSION == "rrf" else _wsum_fuse(rankings)
+
+
+def _demote_superseded(fused):
+    """Multiply a superseded / obsolete-marked hit's fused score by (1 - penalty).
+
+    OFF BY DEFAULT, and that is deliberate rather than timid. Every other ranking
+    constant in this file was chosen by sweeping the 40-case regression set on the
+    host that has the corpus; this one cannot be swept from a laptop, so shipping it
+    active would mean shipping a guessed ranking change to production -- which is
+    exactly the mistake the downgrade guard made. It ships inert, measurable, and
+    behind one variable.
+
+    To sweep it on the delivery host:
+        for p in 0 0.1 0.2 0.35 0.5; do
+          BRAIN_SUPERSEDED_PENALTY=$p python3.11 scripts/brain_regression.py
+        done
+    Watch BOTH the assertions and mean overlap. R-030 ("cutover plan and go-live
+    checklist") is the case to watch: its current top hit is a document with "NO USE
+    THIS" in the filename, so a working penalty SHOULD move it -- that is a real
+    improvement showing up as baseline drift, and the baseline should then be
+    re-recorded rather than the penalty backed out.
+
+    Multiplicative, not a fixed subtraction: fused scores are min-max normalised into
+    [0,1], so a flat subtraction would annihilate mid-ranked hits and barely touch the
+    top one. Superseded material is DEMOTED, never dropped -- an old revision is often
+    the only place some detail survives, and silently hiding it would be worse than
+    ranking it below the current version.
+    """
+    if SUPERSEDED_PENALTY <= 0 or not fused:
+        return fused
+    life = _lifecycle_for([h.get("id") for h in fused])
+    if not life:
+        return fused
+    factor = max(0.0, 1.0 - SUPERSEDED_PENALTY)
+    for h in fused:
+        rec = life.get(h.get("id")) or {}
+        # is_current is None on a pre-lifecycle index: absence of information is not
+        # evidence of supersession, so leave those alone.
+        if rec.get("is_current") is False:
+            h["rrf"] = round((h.get("rrf") or 0.0) * factor, 6)
+            h["demoted"] = True
+    fused.sort(key=lambda h: (-(h.get("rrf") or 0.0),
+                              -(h.get("score") or 0.0), str(h.get("id"))))
+    return fused
+
+
+def _lifecycle_for(ids):
+    """Lifecycle records for these chunk ids, or {} if unavailable."""
+    ids = [i for i in (ids or []) if i]
+    if not ids:
+        return {}
+    try:
+        import keyword_search                             # noqa: PLC0415
+        return keyword_search.lifecycle_for_chunks(ids)
+    except Exception:
+        return {}
+
+
+def _attach_lifecycle(hits):
+    """Add doc_version / is_current / superseded_by to each hit.
+
+    Joined from keyword.db so it also covers hits the VECTOR half found alone --
+    metadata.json carries no lifecycle fields, so without this a vector-only hit
+    could never be shown as superseded. Silent no-op on a pre-lifecycle index.
+    """
+    life = _lifecycle_for([h.get("id") for h in hits])
+    if not life:
+        return
+    for h in hits:
+        rec = life.get(h.get("id"))
+        if not rec:
+            continue
+        h["doc_version"]   = rec.get("doc_version")
+        h["is_current"]    = rec.get("is_current")
+        h["superseded_by"] = rec.get("superseded_by")
 
 
 def _promote(fused, khits, quota=None, pos=None):
@@ -364,6 +443,9 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
     # that list's own order, and every hit still carries `retrievers` so callers
     # see one shape regardless of mode.
     raw = _fuse(rankings)
+    # Before the quota: the quota is a guarantee, so a hit it promotes should keep
+    # its slot even if it is a superseded revision.
+    raw = _demote_superseded(raw)
     # Applied BEFORE the trim to k, so a promoted hit displaces a weaker one rather
     # than being appended out of view. Only meaningful when both halves ran.
     if mode == "hybrid":
@@ -392,10 +474,12 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
                     h["score"] = got.get(h.get("id"))
 
     _attach_mentions(raw)
+    _attach_lifecycle(raw)
 
     keep = ("score", "keyword_score", "rrf", "retrievers", "promoted", "id",
             "source", "source_system", "phase", "agent_role", "deliverable_type",
-            "scope_item_id", "chunk_file", "objects_mentioned")
+            "scope_item_id", "chunk_file", "objects_mentioned",
+            "doc_version", "is_current", "superseded_by", "demoted")
     return [{k2: h.get(k2) for k2 in keep} for h in raw]
 
 

@@ -55,9 +55,17 @@ WHY IT ALSO BUILDS THE OBJECT-MENTION INDEX
 
     Extraction is unbounded here (limit=None) on purpose -- see entity_link.extract.
 
+WHY IT ALSO RESOLVES DOCUMENT VERSIONS
+    Supersession is a corpus-GLOBAL fact: whether a document is the newest version
+    of itself cannot be decided from a page of search results, because the newest
+    version may not be in them. So doc_version.resolve_families runs over the whole
+    row set here and each chunk is stamped with its family, version, is_current and
+    superseded_by. Measured on the real corpus, one EDI spec exists as _v2.0 through
+    _v11.0 -- ten near-identical documents competing for top-k, nine of them stale.
+
 Outputs (brain/index/):
-    keyword.db       FTS5 + metadata + object_mentions, published atomically with a
-                     .prev rollback copy
+    keyword.db       FTS5 + metadata (incl. document lifecycle) + object_mentions,
+                     published atomically with a .prev rollback copy
 
 Usage:
     python3.11 scripts/keyword_index.py
@@ -75,11 +83,17 @@ BASE_DIR  = Path(__file__).resolve().parent.parent
 INDEX_DIR = BASE_DIR / "brain" / "index"
 DB_PATH   = INDEX_DIR / "keyword.db"
 
+# Document-lifecycle columns (see doc_version.py). Computed here rather than at query
+# time because "is this the newest version of this document" is a corpus-GLOBAL fact:
+# the newest version may not appear in a given page of search results, so a query-time
+# check would mark v2.0 superseded without being able to name what superseded it.
+VERSION_COLS = ["doc_family", "doc_version", "is_current", "superseded_by"]
+
 # Metadata carried into the keyword index. Deliberately the FILTERABLE fields plus
 # the identity fields -- everything brain_search needs to fuse and to apply the same
 # filters as the vector path, and nothing else.
 META_COLS = ["chunk_id", "source", "source_system", "phase", "agent_role",
-             "deliverable_type", "chunk_file", "scope_item_id"]
+             "deliverable_type", "chunk_file", "scope_item_id"] + VERSION_COLS
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
@@ -97,7 +111,11 @@ def _schema(cur):
             agent_role       TEXT,
             deliverable_type TEXT,
             chunk_file       TEXT,
-            scope_item_id    TEXT
+            scope_item_id    TEXT,
+            doc_family       TEXT,
+            doc_version      TEXT,
+            is_current       INTEGER,
+            superseded_by    TEXT
         )""")
     # Contentless: index only, no stored copy of the text.
     cur.execute("CREATE VIRTUAL TABLE fts USING fts5("
@@ -119,6 +137,9 @@ def _schema(cur):
 def _indexes(cur):
     # Built AFTER the bulk insert -- indexing as you go is markedly slower.
     for col in ("source_system", "phase", "agent_role", "deliverable_type", "chunk_id"):
+        cur.execute("CREATE INDEX idx_meta_%s ON meta(%s)" % (col, col))
+    # Lifecycle lookups: collapse a result set by family, or exclude superseded rows.
+    for col in ("doc_family", "is_current"):
         cur.execute("CREATE INDEX idx_meta_%s ON meta(%s)" % (col, col))
     # One index per direction: object -> chunks (reverse edge) and chunk -> objects
     # (forward edge, used to annotate a page of search hits in one query).
@@ -143,6 +164,31 @@ def _entity_link():
                  "query answer 'never used', which is indistinguishable from a true "
                  "negative.\n  Nothing was written." % exc)
     return entity_link
+
+
+def _annotate_versions(rows):
+    """Stamp each row with its document family and whether it is the current version.
+
+    Runs over the WHOLE row set at once because supersession is only decidable
+    corpus-globally. Returns how many chunks belong to a superseded or
+    obsolete-marked document, which is worth logging: it went from "nobody knew" to
+    a number, and a sudden jump in it means a re-harvest brought in old revisions.
+    """
+    import doc_version                                    # noqa: PLC0415
+    info = doc_version.resolve_families([r["meta"].get("source") for r in rows])
+    n = 0
+    for r in rows:
+        m = info.get(r["meta"].get("source")) or {}
+        r["meta"]["doc_family"]  = m.get("family")
+        r["meta"]["doc_version"] = m.get("version")
+        # Default to CURRENT when the source is unknown: an unparseable name is not
+        # evidence of supersession, and marking it stale would hide it.
+        current = (not m) or bool(m.get("is_current"))
+        r["meta"]["is_current"]    = 1 if current else 0
+        r["meta"]["superseded_by"] = m.get("superseded_by")
+        if not current:
+            n += 1
+    return n
 
 
 def _insert_mentions(cur, rows, el):
@@ -194,8 +240,12 @@ def build(rows, allow_shrink=False):
     cur.execute("PRAGMA synchronous=OFF")
     _schema(cur)
 
+    n_superseded = _annotate_versions(rows)
+    # Placeholders generated from META_COLS, not hard-coded: the previous literal
+    # "?,?,?,?,?,?,?,?,?" meant adding a column silently broke the insert.
     cur.executemany(
-        "INSERT INTO meta (rowid, %s) VALUES (?,?,?,?,?,?,?,?,?)" % ",".join(META_COLS),
+        "INSERT INTO meta (rowid, %s) VALUES (%s)"
+        % (",".join(META_COLS), ",".join("?" * (len(META_COLS) + 1))),
         [(i, *(r["meta"].get(c) for c in META_COLS)) for i, r in enumerate(rows, 1)])
     cur.executemany("INSERT INTO fts (rowid, text) VALUES (?,?)",
                     [(i, r["text"]) for i, r in enumerate(rows, 1)])
@@ -203,6 +253,7 @@ def build(rows, allow_shrink=False):
     _indexes(cur)
     con.commit()
     log.info("  object mentions: %d across %d chunks", n_mentions, len(rows))
+    log.info("  superseded/obsolete chunks: %d of %d", n_superseded, len(rows))
 
     n = cur.execute("SELECT count(*) FROM meta").fetchone()[0]
     # The two tables are joined on rowid, so a mismatch is not a clean failure --

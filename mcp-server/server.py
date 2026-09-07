@@ -1509,7 +1509,10 @@ TOOLS = {
                         "prior usage is evidence about this team's history, not about SAP's release contract, "
                         "so an object can appear in ten documents and still be unreleased — call "
                         "check_object_release_state for the verdict. If the reply says indexed=false, the "
-                        "mention index has not been built on this host; that is NOT 'never used'."),
+                        "mention index has not been built on this host; that is NOT 'never used'. Counts are "
+                        "DISTINCT ARTIFACTS: revisions of one document (v2.0 … v11.0) collapse into a "
+                        "single entry carrying the summed mentions and a `collapsed_versions` count, so "
+                        "ten revisions do not read as ten separate precedents."),
         "schema": {"type": "object", "properties": {
             "object_name":   {"type": "string", "description": "e.g. EKKO, API_BUSINESS_PARTNER, I_MaterialStock"},
             "limit":         {"type": "integer", "description": "Max documents and lessons to return (default 10)"},
