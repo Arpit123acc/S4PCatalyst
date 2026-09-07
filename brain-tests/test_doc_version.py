@@ -16,7 +16,14 @@ WHAT IT PINS
       the dangerous way round);
     * end-to-end through keyword.db: the lifecycle columns are populated at index
       time and the reverse edge collapses revisions into artifacts;
-    * a pre-lifecycle keyword.db degrades to "no information", never to a wrong claim.
+    * a pre-lifecycle keyword.db degrades to "no information", never to a wrong claim;
+    * the "Copy of ..." and "- BACKUP <date>" copy conventions, including that
+      "Backup Strategy.docx" is ordinary vocabulary and must NOT be stripped;
+    * words that only LOOK like revision markers stay in the family name. "Final" is
+      data-migration load terminology in this corpus ("final load" vs "mock load"),
+      and a bare date identifies content rather than ordering it. Those assertions
+      exist so a future "improvement" that starts stripping them fails loudly rather
+      than silently merging distinct documents.
 
 Usage:
     python brain-tests/test_doc_version.py
@@ -74,6 +81,54 @@ def test_parsing():
     check("no token -> no version", dv.parse("Cutover Plan.xlsx")["version_key"], None)
     check("family strips the token",
           dv.parse("850_Purchase Order_v11.0.xlsx")["family"], "850 purchase order")
+
+
+def test_copy_conventions():
+    print("\ncopy conventions (unordered, like ' (1)')")
+    # Real names from the corpus.
+    p = dv.parse("Copy of 20240814 ___ATL01_Payment File V1.xlsx")
+    check("'Copy of ' prefix marks a duplicate", p["duplicate"], 1)
+    check("and collapses to the original's family",
+          p["family"], dv.parse("20240814 ___ATL01_Payment File V1.xlsx")["family"])
+    p = dv.parse("SAP S4 Public Cloud Security Run Book - BACKUP 1-26-2024.docx")
+    check("trailing '- BACKUP <date>' marks a duplicate", p["duplicate"], 1)
+    check("and rejoins the live document's family",
+          p["family"], dv.parse("SAP S4 Public Cloud Security Run Book.docx")["family"])
+    check("the live document wins over its backup",
+          dv.pick_current(["Run Book.docx", "Run Book - BACKUP 1-26-2024.docx"]),
+          "Run Book.docx")
+    # A lone backup is still the only copy there is, so it must stay usable.
+    lone = "Run Book - BACKUP 1-26-2024.docx"
+    check("a lone backup remains current",
+          dv.resolve_families([lone])[lone]["is_current"], True)
+    # Anchoring: 'backup' as ordinary vocabulary must not be stripped.
+    check("'Backup Strategy' is not a copy", dv.parse("Backup Strategy.docx")["duplicate"], None)
+    check("'SAP Backup and Recovery Plan' is not a copy",
+          dv.parse("SAP Backup and Recovery Plan.docx")["duplicate"], None)
+    check("a copy marker does not eat the version",
+          dv.parse("Spec_v2.0 - BACKUP 2024.xlsx")["version_key"], (2, 0))
+
+
+def test_measured_non_markers():
+    """Words that LOOK like revision markers but measured as business vocabulary.
+
+    "Final" is data-migration load terminology in this corpus ("final load" vs "mock
+    load"), and bare dates identify content rather than ordering it. Both must be left
+    in the family name -- these assertions exist so a future "improvement" that starts
+    stripping them fails loudly instead of silently merging distinct documents.
+    """
+    print("\nmeasured NON-markers stay in the family name")
+    check("'Final Load' is not a version",
+          dv.parse("Final Load Material Classification.xlsx")["version_key"], None)
+    check("a final load and a mock load stay distinct",
+          dv.parse("Master recipe Final Load.xlsx")["family"]
+          != dv.parse("Master recipe Mock Load.xlsx")["family"], True)
+    check("a workshop date is not a version",
+          dv.parse("Finance Workshop - Discovery #2 APRIL 24 2023.docx")["version_key"], None)
+    check("a data-as-of date stays in the family",
+          "2023" in dv.parse("CFIN Plants (11 SEPT 2023).xlsx")["family"], True)
+    check("'Final' alone is not an obsolescence marker",
+          dv.parse("DDA Export - Final Phase 1.xlsx")["obsolete_marker"], False)
 
 
 def test_ordering():
@@ -168,6 +223,8 @@ def test_legacy_db():
 
 def main():
     test_parsing()
+    test_copy_conventions()
+    test_measured_non_markers()
     test_ordering()
     test_obsolete()
     test_index_roundtrip()

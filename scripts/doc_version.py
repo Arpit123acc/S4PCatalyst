@@ -48,6 +48,39 @@ _VERSION_RE = [re.compile(p, re.IGNORECASE) for p in _VERSION_PATTERNS]
 # genuine parenthetical like "(2024)" is not mistaken for a copy index.
 _DUPLICATE_RE = re.compile(r"\s*\((\d{1,2})\)$")
 
+# Two more copy conventions, both UNORDERED like " (1)": the SharePoint/Drive
+# "Copy of ..." prefix, and a hand-made "- BACKUP <date>" snapshot. Each is a copy OF
+# something, so it loses to a sibling but stays current when it is the only member --
+# a backup can be the sole surviving record.
+#
+# BACKUP is anchored to the END and must follow a separator, so "Backup Strategy.docx"
+# and "SAP Backup and Recovery Plan.docx" are untouched; only a trailing snapshot
+# marker like "Run Book - BACKUP 1-26-2024" matches.
+_COPY_PREFIX_RE   = re.compile(r"^copy\s+of\s+", re.IGNORECASE)
+_BACKUP_SUFFIX_RE = re.compile(r"[-_(\s]+backup\b[\s\-_./\d]*\)?$", re.IGNORECASE)
+
+# MEASURED AND DELIBERATELY NOT IMPLEMENTED (2026-09-07, over 2,731 distinct sources).
+# 135 names carry a word that LOOKS like a revision marker. Counting them before
+# writing a parser is what stopped a bad one shipping:
+#
+#   final    38  -- overwhelmingly NOT versioning. It is data-migration LOAD
+#                  terminology: "Final Load Material Classification", "Customer
+#                  Material Info Record - Final load", "Master recipe Final Load
+#                  Mock2", "DDA Export - Final Phase 1". Stripping it would delete
+#                  business meaning from the family name and merge a final load with
+#                  a mock load.
+#   dates     7  -- content identity, not revision: "Finance Workshop - Discovery #2
+#                  APRIL 24 2023" is when the workshop happened; "CFIN Plants
+#                  (11 SEPT 2023)" is when the data was pulled. Neither orders
+#                  anything.
+#   revised   8  -- the case that prompted the search, and too rare to justify a
+#   updated   4     date-parsing rule whose failure mode is merging distinct
+#   latest    4     documents. Revisit only if these counts grow.
+#   new      14  -- almost always a real word ("New Plants", "new GL").
+#
+# The lesson generalises: a marker is only usable when it carries ORDERING. "Final"
+# and a bare date do not, so no amount of parsing makes them a version.
+
 # Explicit human "this is dead" markers. Deliberately a short, unambiguous list:
 # "old" and "draft" alone are NOT here, because plenty of live documents carry them.
 # The NO/NOT alternation is not pedantry -- the real corpus contains
@@ -79,6 +112,15 @@ def parse(source):
     obsolete = bool(_OBSOLETE_RE.search(raw))
 
     duplicate = None
+    # Copy conventions first, so a name carrying both a copy marker and a version
+    # ("Foo_v2.0 - BACKUP 2024") still yields version 2.0 from the remaining stem.
+    if _COPY_PREFIX_RE.search(stem):
+        duplicate = 1
+        stem = _COPY_PREFIX_RE.sub("", stem)
+    m = _BACKUP_SUFFIX_RE.search(stem)
+    if m:
+        duplicate = duplicate or 1
+        stem = stem[:m.start()]
     m = _DUPLICATE_RE.search(stem)
     if m:
         duplicate = int(m.group(1))
