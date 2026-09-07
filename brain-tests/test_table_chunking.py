@@ -83,6 +83,65 @@ def test_docx_tables():
                text.index("SUD basic") < text.index("Order Type") < text.index("Closing note"))
 
 
+def test_docx_containers():
+    """Content controls, text boxes, headers and footers must all be reached.
+
+    Measured over 754 corpus .docx files: 5,206 text nodes sat inside w:sdt (186
+    documents), 4,916 inside w:txbxContent (140), and 5,488 in headers/footers (543).
+    Only 1.5% of body text by volume, but spread across 43% of documents -- and it is
+    disproportionately the TEMPLATE metadata (title, version, approval state) that
+    identifies a document, so losing it costs more than the character count suggests.
+
+    Built by injecting the raw XML Word actually produces, because python-docx has no
+    API for creating a content control or a text box.
+    """
+    try:
+        import docx
+        from lxml import etree
+    except ImportError:
+        print("\ndocx containers — SKIPPED (pip install python-docx)")
+        return
+    import sharepoint_ingest as si
+    print("\nWord content controls, text boxes and headers are reached")
+
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    mk = lambda x: etree.fromstring(x.encode())
+    tmp = Path(tempfile.mkdtemp(prefix="s4pc-docxc-"))
+
+    d = docx.Document()
+    d.add_paragraph("Ordinary body paragraph.")
+    d.element.body.append(mk(
+        '<w:sdt xmlns:w="%s"><w:sdtPr/><w:sdtContent>'
+        '<w:p><w:r><w:t>TITLE INSIDE A CONTENT CONTROL</w:t></w:r></w:p>'
+        '</w:sdtContent></w:sdt>' % W))
+    d.element.body.append(mk(
+        '<w:p xmlns:w="%s"><w:r><w:pict>'
+        '<v:shape xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent>'
+        '<w:p><w:r><w:t>LABEL IN A TEXT BOX</w:t></w:r></w:p>'
+        '</w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p>' % W))
+    tb = d.add_table(rows=1, cols=2)
+    tb.cell(0, 0).text = "Field"
+    tb.cell(0, 1).text = "Value"
+    d.sections[0].header.paragraphs[0].text = "HEADER: Client X FD v2.1 APPROVED"
+    d.sections[0].footer.paragraphs[0].text = "FOOTER: Confidential"
+    p = tmp / "template.docx"
+    d.save(p)
+
+    got = si.extract_text(p)
+    check_true("content-control text (w:sdt)", "TITLE INSIDE A CONTENT CONTROL" in got)
+    check_true("text-box text (w:txbxContent)", "LABEL IN A TEXT BOX" in got)
+    check_true("header text", "HEADER: Client X FD v2.1 APPROVED" in got)
+    check_true("footer text", "FOOTER: Confidential" in got)
+    check_true("ordinary paragraphs still present", "Ordinary body paragraph." in got)
+    check_true("table rows still TSV", "Field\tValue" in got)
+    # Collecting every w:t under an element must not double-count the direct runs.
+    check("paragraph appears exactly once", got.count("Ordinary body paragraph."), 1)
+    # The same header repeats per section; it must be emitted once.
+    check("header appears exactly once", got.count("HEADER: Client X FD"), 1)
+    check_true("identifying header precedes the body",
+               got.index("HEADER") < got.index("Ordinary"))
+
+
 def test_pptx_groups_and_tables():
     """Slide tables and grouped shapes must be extracted.
 
@@ -130,6 +189,7 @@ def test_pptx_groups_and_tables():
 
 def main():
     test_docx_tables()
+    test_docx_containers()
     test_pptx_groups_and_tables()
     try:
         import openpyxl

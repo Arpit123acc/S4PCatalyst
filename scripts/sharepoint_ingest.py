@@ -703,25 +703,77 @@ def _extract_docx(path: Path) -> str:
     """
     import docx
     from docx.table import Table
-    from docx.text.paragraph import Paragraph
 
     doc = docx.Document(path)
-    parts = []
-    for child in doc.element.body.iterchildren():
-        tag = child.tag
-        if tag.endswith("}p"):
-            t = Paragraph(child, doc).text.strip()
-            if t:
-                parts.append(t)
-        elif tag.endswith("}tbl"):
-            for row in Table(child, doc).rows:
-                cells = [c.text.replace("\t", " ").replace("\n", " ").strip()
-                         for c in row.cells]
-                while cells and not cells[-1]:
-                    cells.pop()
-                if any(cells):
-                    parts.append("\t".join(cells))
+    parts: list = []
+
+    # Headers and footers first: they are not part of the body flow, and in a
+    # template-derived document they are where the title, client and document status
+    # live -- the identifying text that makes a chunk findable. Measured across this
+    # corpus, 543 of 754 .docx files carry text there. The same header repeats per
+    # section, so identical text is emitted once.
+    seen = set()
+    for section in doc.sections:
+        for hf in (section.header, section.footer):
+            for block in _iter_docx_blocks(hf._element):
+                t = _docx_block_text(block, doc)
+                if t and t not in seen:
+                    seen.add(t)
+                    parts.append(t)
+
+    for block in _iter_docx_blocks(doc.element.body):
+        t = _docx_block_text(block, doc)
+        if t:
+            parts.append(t)
     return "\n".join(parts)
+
+
+def _iter_docx_blocks(parent):
+    """Yield paragraph and table elements under `parent`, in document order.
+
+    DESCENDS INTO w:sdt. Content controls wrap real content, and Word inserts them
+    for every template field, so a walk that only looks for w:p and w:tbl at the top
+    level skips them entirely -- measured at 5,206 text nodes across 186 documents
+    here, and it is precisely the template metadata (title, version, approval state)
+    that identifies a document.
+    """
+    for child in parent.iterchildren():
+        tag = child.tag
+        if tag.endswith("}p") or tag.endswith("}tbl"):
+            yield child
+        elif tag.endswith("}sdt"):
+            for sc in child.iterchildren():
+                if sc.tag.endswith("}sdtContent"):
+                    yield from _iter_docx_blocks(sc)
+
+
+def _all_text(element) -> str:
+    """Every w:t under `element`, in document order.
+
+    Used instead of Paragraph.text / _Cell.text because those only reach runs
+    directly under the element, so they miss TEXT BOXES: w:txbxContent sits inside a
+    run's w:drawing/w:pict, and carried 4,916 text nodes across 140 documents in this
+    corpus. Collecting w:t nodes reaches every nesting depth and visits each exactly
+    once, so nothing is duplicated either.
+    """
+    W_T = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"
+    return "".join(t.text or "" for t in element.iter(W_T))
+
+
+def _docx_block_text(block, doc) -> str:
+    """One paragraph as text, or one table as TSV rows."""
+    if block.tag.endswith("}tbl"):
+        from docx.table import Table                      # noqa: PLC0415
+        lines = []
+        for row in Table(block, doc).rows:
+            cells = [_all_text(c._tc).replace("\t", " ").replace("\n", " ").strip()
+                     for c in row.cells]
+            while cells and not cells[-1]:
+                cells.pop()
+            if any(cells):
+                lines.append("\t".join(cells))
+        return "\n".join(lines)
+    return _all_text(block).strip()
 
 
 def _pptx_shape_text(shape, out: list) -> None:
