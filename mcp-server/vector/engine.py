@@ -378,6 +378,26 @@ def build_and_save(documents):
     return _build_tfidf(documents)
 
 
+def index_meta():
+    """What the LIVE index was actually built with — not what this host is configured for.
+
+    The two genuinely differ: `backend()` reports this host's S4PC_VECTOR_BACKEND
+    preference, while an index built elsewhere and copied here keeps scoring with the
+    engine that produced it (search() dispatches on exactly this header, not on
+    backend()). Callers that describe their own provenance must use THIS, or they end
+    up telling the reader the scores mean something they don't -- which for a
+    governance tool is the same class of error as a release verdict without evidence.
+    """
+    try:
+        with open(INDEX_PATH, encoding="utf-8") as fh:
+            header = json.load(fh)
+    except Exception:
+        return {"engine": None, "model": None, "docs": 0}
+    return {"engine": header.get("engine", "tfidf"),
+            "model":  header.get("model"),
+            "docs":   len(header.get("docs") or [])}
+
+
 def search(query, top_k=5, filter_type=None, min_score=None):
     """Search the index, dispatching on the backend recorded when it was built."""
     try:

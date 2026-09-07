@@ -97,7 +97,12 @@ TOOLS = {
                         "content is PII-masked. Use to ground a deliverable in prior delivery experience, in "
                         "authoritative vendor documentation, or in the ABAP Cloud review standard. Results "
                         "are retrieval context for grounding — they are NOT a release contract; object "
-                        "release state still comes from check_object_release_state."),
+                        "release state still comes from check_object_release_state. Each hit also carries "
+                        "`objects_mentioned`: the SAP object names appearing in that chunk's text. Via the "
+                        "governance server those names arrive with a CURRENT release verdict, so a document "
+                        "that cites a since-deprecated object is visible as such — but the verdict is about "
+                        "the object today, not a claim the document was right then. To go the other way "
+                        "(object -> which documents mention it), use get_object_usage."),
         "schema": {"type": "object", "properties": {
             "query":            {"type": "string", "description": "Natural-language query"},
             "top_k":            {"type": "integer", "description": "Number of results (default 5)"},

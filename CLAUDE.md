@@ -47,6 +47,13 @@ governance layer. Use it as follows — these are gates, not suggestions:
    Never downgrade a **`catalog_hit`** CDS view (e.g. `I_MaterialStock`) or API (e.g.
    `API_CLFN_PRODUCT_SRV`) to "not verified" — finalise APIs from the SAP Business Accelerator Hub
    (api.sap.com). Equally, never promote a `naming_heuristic_only` hit to "released".
+
+   **`prior_usage` is not evidence of release state.** The verdict may arrive with a `prior_usage`
+   block (past delivery documents and lessons naming the object). That is history about *this
+   team*, not a release contract from SAP: an object can appear in ten previous deliveries and be
+   unreleased or since deprecated. Use it to find precedent worth reading, never to upgrade a
+   verdict. Likewise `objects_mentioned` on a `search_brain` hit carries **today's** verdict for a
+   name the document wrote *then* — a document is not a claim that its objects are still released.
 2. **Lint every ABAP snippet** with `abap_cloud_lint` before showing it. A `FAIL` verdict means
    redesign, not apology text.
 3. **Every extensibility decision** goes through `extensibility_advisor` and is documented with
@@ -84,6 +91,19 @@ governance layer. Use it as follows — these are gates, not suggestions:
     key user = released BAdIs + custom fields + Adapt UI + analytical queries + Flexible
     Workflow; developer = RAP on Eclipse ADT; side-by-side = SAP BTP (CAP/UI5, Integration
     Suite, SBPA).
+11. **Look for precedent before designing, and distrust a thin result.**
+    - `get_object_usage` answers the reverse question the other tools cannot: *where have we
+      already used this object?* It returns the delivery documents and lessons that name it. Call
+      it before designing around an object — prior usage usually means an FD/TD worth reading
+      first, and a classical table (`EKKO`, `VBAK`) appearing in recent documents is a clean-core
+      signal to chase. If it replies `indexed: false`, the mention index is not built on this
+      host — that is **not** "never used", so do not report it as such.
+    - `layer_health` reports whether the derived stores still match their sources. The brain is
+      four layers (L1 object graph, L2 semantic index, L3 experience, L4 corpus) and L1/L2 are
+      *derived*. **A stale layer fails by returning less, which is indistinguishable from a
+      correct empty result** — so when a search comes back thin, or a lesson you just recorded
+      does not turn up, check this before concluding the knowledge is absent. It names the exact
+      rebuild command.
 
 ## Deliverable standards
 

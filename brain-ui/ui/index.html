@@ -380,6 +380,16 @@ async function doSearch() {
       const pct = hasScore ? Math.max(0, Math.min(1, h.score)) * 100 : 0;
       const slot = SRC_SLOT[h.source_system] || "";
       const via = (h.retrievers || []).join("+") + (h.promoted ? "+quota" : "");
+      // SAP object names found in this chunk, from the mention index built at ingest.
+      // Names only here: a release verdict needs the catalog, which this read-only
+      // viewer deliberately does not load. Capped so a spec-heavy chunk naming twenty
+      // objects cannot bury the metadata tags that identify the document.
+      const objs = (h.objects_mentioned || [])
+        .map(o => (o && o.name) || "").filter(Boolean);
+      const objMore = objs.length > 3 ? " +" + (objs.length - 3) : "";
+      const objTag = objs.length
+        ? `<span class="tag">objects: ${esc(objs.slice(0, 3).join(", "))}${objMore}</span>`
+        : "";
       const tags = [
         h.source_system ? `<span class="tag ${slot}">${esc(h.source_system)}</span>` : "",
         h.phase ? `<span class="tag">${esc(h.phase)}</span>` : "",
@@ -387,6 +397,7 @@ async function doSearch() {
         h.deliverable_type ? `<span class="tag">${esc(h.deliverable_type)}</span>` : "",
         h.scope_item_id ? `<span class="tag">scope ${esc(h.scope_item_id)}</span>` : "",
         via ? `<span class="tag">via ${esc(via)}</span>` : "",
+        objTag,
       ].join("");
       return `<div class="hit">
         <div class="top"><div class="src">${esc(h.source || "(unnamed)")}</div>
@@ -397,6 +408,9 @@ async function doSearch() {
       `<p class="note">${d.results.length} distinct documents, ranked by hybrid relevance
        (dense cosine + BM25). The number shown is the cosine similarity; <code>via</code>
        names which retrievers found the hit — <code>vector+keyword</code> means both agreed.
+       <code>objects</code> lists the SAP object names appearing in that chunk, from the
+       mention index; this viewer shows names only, and a release verdict for each comes
+       from <code>check_object_release_state</code> on the governance server.
        Retrieval context for grounding — not an authoritative SAP object source.</p>`;
   } catch (e) {
     $("results").innerHTML = `<p class="err">Request failed: ${esc(String(e))}</p>`;

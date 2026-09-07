@@ -202,11 +202,46 @@ def build_documents():
     return docs
 
 
+# Retrieval quality, worst to best. A rebuild must never move the LIVE index down
+# this list by accident.
+_BACKEND_RANK = {"tfidf": 0, "dense": 1, "bedrock": 2}
+
+
+def _guard_downgrade(new_backend, allow):
+    """Refuse to replace a stronger index with a weaker one.
+
+    engine.backend() reports what THIS HOST is configured for; the live index carries
+    the backend it was actually BUILT with, and the two diverge easily -- an index
+    built where sentence-transformers or boto3 was installed, rebuilt somewhere it is
+    not, silently becomes TF-IDF keyword overlap. Nothing would fail: the build prints
+    success, semantic_search keeps answering, and every paraphrased query quietly
+    stops matching.
+
+    Same posture as embed_chunks' shrink guard and keyword_index's row-count check:
+    a derived index may only be replaced by something at least as good, unless a
+    human says otherwise.
+    """
+    live = engine.index_meta().get("engine")
+    if not live or allow:
+        return
+    if _BACKEND_RANK.get(new_backend, -1) < _BACKEND_RANK.get(live, -1):
+        sys.exit(
+            "REFUSING to rebuild: the live index was built with '%s' but this host is "
+            "configured for '%s', which is weaker.\n"
+            "  Publishing it would silently downgrade semantic_search to keyword "
+            "overlap — no error, just worse answers.\n"
+            "  Fix the host (install the missing deps, or set S4PC_VECTOR_BACKEND), "
+            "or pass --allow-downgrade if that is genuinely intended.\n"
+            "  Nothing was written." % (live, new_backend))
+
+
 if __name__ == "__main__":
+    allow_downgrade = "--allow-downgrade" in sys.argv
     be = engine.backend()
     print("S4PC Digital Brain — building semantic search index  [backend: %s]" % be)
     if be == "tfidf":
         print("  Tip: pip install sentence-transformers  for dense semantic embeddings")
+    _guard_downgrade(be, allow_downgrade)
 
     docs = build_documents()
 

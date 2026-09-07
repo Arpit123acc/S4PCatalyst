@@ -13,12 +13,20 @@
 #   loudly instead of being left for someone to notice in a deliverable weeks later.
 #   The index publish is atomic and keeps a .prev, so a bad refresh is recoverable.
 #
+# WHY IT REBUILDS L1 AND L2 TOO
+#   The catalog sync changes the released-object catalog, and the object graph (L1) and
+#   the semantic index (L2) are DERIVED from it -- L2 also indexes the experience
+#   lessons (L3). A refresh that updated only the brain corpus left those two behind,
+#   which is how L2 came to be 3 lessons short of L3 with nothing reporting it. A
+#   derived store nobody rebuilds is a store that is confidently wrong.
+#
 # ORDER MATTERS
-#   catalog sync first (cheap, independent), then the doc harvest (network, no
+#   catalog sync first (cheap, independent), then the two stores derived from it
+#   (L1 graph, then L2 -- L2 indexes L1's objects), then the doc harvest (network, no
 #   embedding cost on failure), then the vector rebuild (expensive), then the
 #   keyword index (cheap, but must match the vector corpus), then the MCP restart
-#   (the server caches the catalog and both indexes in memory -- without this, none
-#   of the above is visible to a running agent), then the gate.
+#   (the server caches the catalog and every index in memory -- without this, none
+#   of the above is visible to a running agent), then the gates.
 #
 #   Both indexes publish atomically and keep a .prev, so a bad refresh is
 #   recoverable: brain/index/faiss.index.prev + metadata.json.prev + keyword.db.prev.
@@ -106,6 +114,23 @@ else
   fail_steps="$fail_steps catalog-sync-skipped"
 fi
 
+# 1b. Object graph (L1) — derived from the catalog the step above just changed.
+#     Pure stdlib, no embeddings, seconds to run: there is no reason to let it drift.
+run "object graph rebuild (L1)" $PY mcp-server/graph/build_graph.py || true
+
+# 1c. Semantic index (L2) — indexes L1's objects PLUS L3's lessons, so it goes stale
+#     from two directions: a catalog sync above, and every record_experience call in
+#     between refreshes.
+#
+#     Safe to run unattended only because build_index.py now refuses to publish a
+#     WEAKER backend than the live index. engine.backend() reports what this host is
+#     configured for, not what the index was built with, so on a host missing
+#     sentence-transformers/boto3 this step would otherwise have quietly replaced a
+#     dense index with TF-IDF keyword overlap -- succeeding loudly and answering
+#     worse. If it refuses here, fix the host deps; do not reach for
+#     --allow-downgrade in an unattended job.
+run "semantic index rebuild (L2)" $PY mcp-server/vector/build_index.py || true
+
 # 2. Vendor documentation (CAP / Node over HTTP, UI5 + Fiori Elements from GitHub).
 #    Exits non-zero if it stored nothing, which is a real failure, not a no-op.
 run "developer-doc harvest" $PY scripts/webdocs_ingest.py || true
@@ -159,6 +184,46 @@ else
     say "   FAILED: RETRIEVAL REGRESSED — investigate before trusting this brain."
     say "   The previous index is still on disk as brain/index/faiss.index.prev"
     fail_steps="$fail_steps regression-gate"
+  fi
+fi
+
+# 6. Cross-layer freshness. Step 5 proves RETRIEVAL still works; it says nothing about
+#    whether the derived stores still match their sources. Those are different
+#    failures: a stale L2 answers every query successfully and merely omits what it
+#    has not indexed, which is indistinguishable from a correct empty result. This is
+#    the check that would have caught L2 sitting 3 lessons behind L3.
+say "── object-mention index round-trip"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_object_mentions.py"
+elif $PY brain-tests/test_object_mentions.py > /dev/null 2>&1; then
+  say "   ok: mention index round-trips in both directions"
+else
+  say "   FAILED: the object-mention index is broken — get_object_usage and the"
+  say "   objects_mentioned annotation on search hits will be wrong. Detail:"
+  say "     $PY brain-tests/test_object_mentions.py"
+  fail_steps="$fail_steps object-mentions"
+fi
+
+say "── cross-layer freshness"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run freshness.report() across L1-L4"
+else
+  if $PY -c "
+import sys
+sys.path.insert(0, 'mcp-server')
+import freshness
+r = freshness.report()
+for c in r['consistency']:
+    if c['status'] != 'OK':
+        print('   %-8s %s — %s' % (c['status'], c['check'], c['detail']))
+        if c.get('fix'):
+            print('            fix: %s' % c['fix'])
+sys.exit(0 if r['status'] == 'OK' else 3)
+"; then
+    say "   ok: all layers consistent with their sources"
+  else
+    say "   ATTENTION: a derived layer no longer matches its source (see above)."
+    fail_steps="$fail_steps layer-freshness"
   fi
 fi
 

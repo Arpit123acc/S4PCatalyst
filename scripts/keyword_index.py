@@ -38,8 +38,26 @@ TOKENIZER
     rare term instead of four common ones (API / CLFN / PRODUCT / SRV). That is the
     whole point of the keyword half: high IDF on an identifier makes it decisive.
 
+WHY IT ALSO BUILDS THE OBJECT-MENTION INDEX
+    Entity linking (mcp-server/entity_link.py) used to run at QUERY time: for every
+    hit, read the chunk off disk, regex it, resolve each name against the catalog.
+    That cost O(hits) file reads per search and only ever produced the FORWARD edge
+    (chunk -> object). Extracting the same names HERE, once, buys three things:
+
+      * the forward edge becomes a rowid join instead of a disk read, so every
+        consumer of brain_search gets it -- not just the one MCP handler that
+        happened to wrap the tool;
+      * the REVERSE edge becomes possible at all ("which delivery documents mention
+        EKKO?"), which is the question a delivery accelerator actually gets asked and
+        which no amount of query-time extraction can answer;
+      * it rides this file's atomic publish and corpus guarantee, so the mentions can
+        never describe a corpus the index does not contain.
+
+    Extraction is unbounded here (limit=None) on purpose -- see entity_link.extract.
+
 Outputs (brain/index/):
-    keyword.db       FTS5 + metadata, published atomically with a .prev rollback copy
+    keyword.db       FTS5 + metadata + object_mentions, published atomically with a
+                     .prev rollback copy
 
 Usage:
     python3.11 scripts/keyword_index.py
@@ -84,12 +102,60 @@ def _schema(cur):
     # Contentless: index only, no stored copy of the text.
     cur.execute("CREATE VIRTUAL TABLE fts USING fts5("
                 "text, content='', tokenize=\"unicode61 tokenchars '_'\")")
+    # Which SAP object names appear in which chunk -- see module docstring.
+    # object_name is upper-cased as the lookup key because SAP prose is inconsistent
+    # about case (I_MaterialStock vs I_MATERIALSTOCK are the same object); the
+    # display form is kept alongside so output can echo what the document wrote.
+    # chunk_rowid rather than chunk_id: it joins straight to meta, which already
+    # carries source / source_system / phase, so nothing is duplicated here.
+    cur.execute("""
+        CREATE TABLE object_mentions (
+            object_name  TEXT    NOT NULL,
+            display_name TEXT    NOT NULL,
+            chunk_rowid  INTEGER NOT NULL
+        )""")
 
 
 def _indexes(cur):
     # Built AFTER the bulk insert -- indexing as you go is markedly slower.
     for col in ("source_system", "phase", "agent_role", "deliverable_type", "chunk_id"):
         cur.execute("CREATE INDEX idx_meta_%s ON meta(%s)" % (col, col))
+    # One index per direction: object -> chunks (reverse edge) and chunk -> objects
+    # (forward edge, used to annotate a page of search hits in one query).
+    cur.execute("CREATE INDEX idx_mentions_object ON object_mentions(object_name)")
+    cur.execute("CREATE INDEX idx_mentions_rowid  ON object_mentions(chunk_rowid)")
+
+
+def _entity_link():
+    """The extractor, imported from mcp-server/ so ingest and query agree on what an
+    SAP object name IS.
+
+    A second copy of those regexes here would drift, and the failure would be silent
+    in the worst way: mentions recorded under patterns the query side never looks up.
+    Same reasoning as importing the loaders from embed_chunks -- one definition.
+    """
+    sys.path.insert(0, str(BASE_DIR / "mcp-server"))
+    try:
+        import entity_link
+    except ImportError as exc:
+        sys.exit("Cannot import entity_link from mcp-server/ (%s).\n  Refusing to "
+                 "build: an empty object_mentions table makes every reverse-edge "
+                 "query answer 'never used', which is indistinguishable from a true "
+                 "negative.\n  Nothing was written." % exc)
+    return entity_link
+
+
+def _insert_mentions(cur, rows, el):
+    """Extract SAP object names from every chunk and record them."""
+    batch = []
+    for i, r in enumerate(rows, 1):
+        # limit=None: index-time extraction must be exhaustive or the reverse edge
+        # silently loses objects that appear late in a long chunk.
+        for name in el.extract(r["text"], limit=None):
+            batch.append((name.upper(), name, i))
+    cur.executemany("INSERT INTO object_mentions "
+                    "(object_name, display_name, chunk_rowid) VALUES (?,?,?)", batch)
+    return len(batch)
 
 
 def build(rows, allow_shrink=False):
@@ -114,6 +180,10 @@ def build(rows, allow_shrink=False):
             "smaller index is genuinely intended.\n  Nothing was written." %
             (len(rows), existing))
 
+    # Resolved BEFORE the temp DB exists, so an unimportable extractor costs nothing
+    # and leaves no partial file behind.
+    el = _entity_link()
+
     tmp = DB_PATH.with_suffix(".db.tmp")
     tmp.unlink(missing_ok=True)
 
@@ -129,8 +199,10 @@ def build(rows, allow_shrink=False):
         [(i, *(r["meta"].get(c) for c in META_COLS)) for i, r in enumerate(rows, 1)])
     cur.executemany("INSERT INTO fts (rowid, text) VALUES (?,?)",
                     [(i, r["text"]) for i, r in enumerate(rows, 1)])
+    n_mentions = _insert_mentions(cur, rows, el)
     _indexes(cur)
     con.commit()
+    log.info("  object mentions: %d across %d chunks", n_mentions, len(rows))
 
     n = cur.execute("SELECT count(*) FROM meta").fetchone()[0]
     # The two tables are joined on rowid, so a mismatch is not a clean failure --
@@ -193,8 +265,11 @@ def main():
     con = sqlite3.connect("file:%s?mode=ro" % DB_PATH, uri=True)
     tally = con.execute("SELECT source_system, count(*) FROM meta "
                         "GROUP BY source_system ORDER BY 2 DESC").fetchall()
+    m_rows, m_objs = con.execute(
+        "SELECT count(*), count(DISTINCT object_name) FROM object_mentions").fetchone()
     con.close()
     log.info("Sources: %s", {s: c for s, c in tally})
+    log.info("Object mentions: %d rows, %d distinct object names", m_rows, m_objs)
 
 
 if __name__ == "__main__":

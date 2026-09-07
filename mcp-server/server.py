@@ -674,6 +674,82 @@ def _save_experience(entry):
     _catalog_db.append_experience(entry)
     _catalog_db.sync_experience_to_seed(entry)  # auto-sync seed so git diff is always ready
 
+def _experience_index_lag():
+    """L3 -> L2 staleness, surfaced on the tools that actually read lessons.
+
+    Kept as a thin wrapper so a missing/broken freshness module can never stop an
+    experience query from answering.
+    """
+    try:
+        import freshness                                     # noqa: PLC0415
+        return freshness.experience_index_lag()
+    except Exception:
+        return None
+
+
+def _usage_brief(object_name):
+    """Prior-usage context for an object, or None. Additive and never fatal.
+
+    Deliberately routed through object_usage.usage_brief rather than assembled here,
+    so the "prior usage is not a release contract" caveat travels with the data
+    instead of depending on each call site to restate it.
+    """
+    try:
+        import object_usage                                  # noqa: PLC0415
+        return object_usage.usage_brief(
+            object_name, entries=(EXPERIENCE.get("entries") or []))
+    except Exception:
+        return None
+
+
+def tool_check_object_release_state_public(args):
+    """check_object_release_state + where this team has used the object before.
+
+    Registered as the TOOL handler while the core function stays the INTERNAL one,
+    because the core is called once per mentioned object when annotating a page of
+    search hits or a set of lessons. Attaching a keyword.db lookup to the core would
+    turn one annotated search into dozens of SQL round-trips for context nobody asked
+    for. Direct callers get the extra; internal resolution stays cheap.
+
+    The verdict is never touched. Prior usage is deliberately additive and carries its
+    own "not a release contract" caveat: an object used in ten past deliveries can
+    still be unreleased today, and the whole point of this gate is that the verdict
+    comes from the catalog, not from familiarity.
+    """
+    result = tool_check_object_release_state(args)
+    brief = _usage_brief(result.get("object_name"))
+    if brief:
+        result["prior_usage"] = brief
+    return result
+
+
+def tool_get_object_usage(args):
+    name = (args.get("object_name") or "").strip()
+    if not name:
+        return {"error": "object_name is required"}
+    try:
+        import object_usage                                  # noqa: PLC0415
+    except Exception as exc:
+        return {"error": "object_usage unavailable: %s" % exc}
+    out = object_usage.find_usage(
+        name, entries=(EXPERIENCE.get("entries") or []),
+        limit=int(args.get("limit") or 10),
+        source_system=args.get("source_system"))
+    # The release verdict is the question this tool does NOT answer, so point at the
+    # one that does rather than letting prior usage stand in for it.
+    out["release_state"] = ("Not answered here. Call check_object_release_state for "
+                            "the verdict; this tool answers 'where have we used it'.")
+    return out
+
+
+def tool_layer_health(args):
+    try:
+        import freshness                                     # noqa: PLC0415
+    except Exception as exc:
+        return {"error": "freshness unavailable: %s" % exc}
+    return freshness.report(deep=bool(args.get("deep")))
+
+
 def tool_query_experience(args):
     query = (args.get("query") or "").strip().lower()
     category = (args.get("category") or "").strip().lower()
@@ -685,8 +761,11 @@ def tool_query_experience(args):
         hay = " ".join([e.get("topic") or "", e.get("lesson") or "", e.get("category") or "",
                         " ".join(str(t) for t in (e.get("tags") or []))]).lower()
         if not query or any(tok in hay for tok in query.split()):
-            hits.append(e)
-    return {
+            # COPY, never the stored dict: the annotation below would otherwise mutate
+            # the in-memory experience DB and could be persisted by a later save.
+            hits.append(dict(e))
+    stale = _experience_index_lag()
+    result = {
         "verified": True,
         "source": "experience database (mcp-server/catalog/catalog.db · experience table) — team delivery lessons, grows with every run",
         "count": len(hits),
@@ -696,6 +775,32 @@ def tool_query_experience(args):
                                  "record_experience if the run taught anything non-obvious."),
         "reference_links": REFERENCE_LINKS,
     }
+    # L3 -> L1: a lesson written in 2024 that names API_X says nothing about whether
+    # API_X is released today — the same staleness the brain hits have, and the same
+    # fix. Cheap here because the memo collapses repeated names across lessons.
+    try:
+        import entity_link                                   # noqa: PLC0415
+        memo = {}
+        def _resolve(name):
+            if name not in memo:
+                memo[name] = tool_check_object_release_state({"object_name": name})
+            return memo[name]
+        for h in hits:
+            text = " ".join([h.get("topic") or "", h.get("lesson") or "",
+                             h.get("impact") or ""])
+            found = entity_link.annotate(text, _resolve)
+            if found:
+                h["objects_mentioned"] = found
+        if memo:
+            result["objects_note"] = (
+                "objects_mentioned carries each named object's verdict AS OF NOW, not as "
+                "of when the lesson was written. A lesson can still be sound advice while "
+                "the object it cites has been deprecated — re-verify before reusing a name.")
+    except Exception:
+        pass                                                 # additive; never fatal
+    if stale:
+        result["index_staleness_warning"] = stale
+    return result
 
 def _reject_client_identifiers(args, topic, lesson):
     """Keep client identifiers out of the lesson TEXT.
@@ -753,7 +858,17 @@ def tool_record_experience(args):
     EXPERIENCE["entries"].append(entry)
     _save_experience(entry)
     return {"verified": True, "source": "experience database (persisted)", "recorded": entry,
-            "total_entries": len(EXPERIENCE["entries"])}
+            "total_entries": len(EXPERIENCE["entries"]),
+            # Say it HERE, at the moment the divergence is created. This write makes L2
+            # stale by exactly one lesson, and nothing else would mention it: the lesson
+            # is instantly visible to query_experience (which reads L3 directly) and
+            # invisible to semantic_search / find_similar_delivery (which read the
+            # index). That gap sat unnoticed for three lessons before layer_health.
+            "semantic_index_note": (
+                "Stored in L3 and immediately visible to query_experience. The semantic "
+                "index (L2) is built separately, so semantic_search and "
+                "find_similar_delivery will NOT see this lesson until "
+                "rebuild_vector_index runs. Check layer_health for the current gap.")}
 
 def tool_get_reference_links(args):
     return {
@@ -869,6 +984,11 @@ def tool_guardrails_status(args):
         "tls_verification": "always on",
         "credential_policy": "env vars only (SAP_COMM_USER / SAP_COMM_PASSWORD); never stored, never logged",
         "llm_api_keys": "none — LLM runtime is the connecting Claude Code client",
+        # Only the CHEAP freshness signal here (two stat calls). The full cross-layer
+        # report parses graph.json and index.json, which is too much for a status call
+        # that exists to be instant — hence the pointer rather than the payload.
+        "layer_staleness": _experience_index_lag() or "none detected (cheap check only)",
+        "layer_health_tool": "call layer_health for the full cross-layer freshness report",
     }
 
 def tool_observability_snapshot(args):
@@ -904,6 +1024,32 @@ def _load_vector_engine():
     except Exception as exc:
         return None, str(exc)
 
+_VEC_ENGINE_LABELS = {
+    "bedrock": "Amazon Bedrock Titan Text Embeddings v2 (dense, cosine)",
+    "dense":   "sentence-transformers all-MiniLM-L6-v2 (dense, cosine)",
+    "tfidf":   "TF-IDF keyword overlap (cosine) — no synonyms, exact terms only",
+}
+
+def _vector_provenance(eng):
+    """Describe the index as BUILT, so the tool cannot misstate its own evidence.
+
+    These handlers used to hard-code "TF-IDF" in `source` and `note` regardless of
+    the actual backend, so a dense/Bedrock index was reported to the agent as keyword
+    overlap. That matters beyond tidiness: an agent told "exact terms only" reasonably
+    concludes a miss means absence and reformulates as keywords, when the live index
+    would have matched the paraphrase. Read it from the index header via index_meta().
+    """
+    try:
+        meta = eng.index_meta()
+    except Exception:
+        return None, "unknown (index header unreadable)"
+    engine = meta.get("engine")
+    label  = _VEC_ENGINE_LABELS.get(engine, "unknown backend (%s)" % engine)
+    model = meta.get("model")
+    if model and engine != "tfidf" and model not in label:
+        label += " [model: %s]" % model
+    return meta, label
+
 def tool_semantic_search(args):
     query = (args.get("query") or "").strip()
     if not query:
@@ -917,13 +1063,21 @@ def tool_semantic_search(args):
     if isinstance(results, dict) and "error" in results:
         return {"error": results["error"],
                 "hint": "Run: python mcp-server/vector/build_index.py to build the index."}
+    meta, label = _vector_provenance(eng)
+    _attach_graph_context(results)
     return {
         "verified": False,
-        "source":   "S4PC TF-IDF index (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT.",
+        "source":   "S4PC semantic index over the released-object catalog (%d docs), built with %s. "
+                    "Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
+                    % ((meta or {}).get("docs", 0), label),
         "query":    query,
         "filter":   filter_type,
+        "retrieval": label,
+        "staleness": _experience_index_lag(),
         "results":  results,
-        "note":     "Scores are TF-IDF cosine similarity [0-1]. Higher = more relevant. Re-verify objects before use in designs.",
+        "note":     "Scores are cosine similarity [0-1]; higher = more relevant. Thresholds are "
+                    "NOT comparable across backends, so treat the ordering rather than the "
+                    "absolute value as the signal. Re-verify objects before use in designs.",
     }
 
 def tool_find_similar_delivery(args):
@@ -938,13 +1092,18 @@ def tool_find_similar_delivery(args):
     if isinstance(results, dict) and "error" in results:
         return {"error": results["error"],
                 "hint": "Run: python mcp-server/vector/build_index.py. No delivery history yet if output/ is empty."}
+    meta, label = _vector_provenance(eng)
     return {
         "verified": True,
         "source":   "S4PC Experience Graph (output/<RUN-ID>/run.json files)",
         "description": description,
+        "retrieval": label,
         "similar_deliveries": results,
-        "note":     ("Matched by TF-IDF similarity on FD name, approved approach, objects used, and run summary. "
-                     "Open the run.json for full context. Experience Graph grows with every completed pipeline run."),
+        "note":     ("Matched by %s on FD name, approved approach, objects used, and run summary. "
+                     "Open the run.json for full context. The Experience Graph grows with every "
+                     "completed pipeline run, but this index is a SNAPSHOT: it only sees runs and "
+                     "lessons present when it was last built, so a recent run is invisible here "
+                     "until rebuild_vector_index runs." % label),
     }
 
 def tool_rebuild_vector_index(args):
@@ -997,6 +1156,38 @@ def _load_graph_engine():
     except Exception as exc:
         return None, str(exc)
 
+def _attach_graph_context(hits):
+    """L2 -> L1: give each catalog hit its position in the object graph.
+
+    semantic_search answers "what is this object called"; the graph answers "what does
+    it connect to and which business area is it in". Without this an agent has to make
+    a second call per hit to learn whether a promising name sits in the right area or
+    is an isolated node -- and in practice it does not, so it picks on name similarity
+    alone. Cheap now that graph_engine._load() caches on mtime.
+    """
+    catalog = [h for h in (hits or []) if isinstance(h, dict) and h.get("id")
+               and h.get("type") in ("api", "cds_view", "badi")]
+    if not catalog:
+        return
+    try:
+        ge, _err = _load_graph_engine()
+        if ge is None:
+            return
+        graph, _err2 = ge._load()
+        if not graph:
+            return
+        nodes = graph.get("nodes") or {}
+        edges = graph.get("edges") or {}
+    except Exception:
+        return                                       # additive context; never fatal
+    for h in catalog:
+        node = nodes.get(h["id"])
+        if not node:
+            continue
+        h["graph"] = {"area": node.get("area") or None,
+                      "connections": len(edges.get(h["id"]) or [])}
+
+
 def tool_get_object_graph(args):
     object_name = (args.get("object_name") or "").strip()
     if not object_name:
@@ -1009,6 +1200,13 @@ def tool_get_object_graph(args):
     if "error" not in result:
         result["verified"] = False
         result["source"]   = "S4PC Live Object Graph (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
+        # L1 -> L4/L3: the graph says what this object RELATES to; prior usage says
+        # where we have actually touched it, which is usually the more useful next
+        # read. Keyed on the RESOLVED name — the graph matches case-insensitively and
+        # by prefix, so the caller's spelling may not be the node's.
+        brief = _usage_brief(result.get("object") or object_name)
+        if brief:
+            result["prior_usage"] = brief
     return result
 
 def tool_get_area_map(args):
@@ -1125,12 +1323,16 @@ TOOLS = {
                         "ALWAYS read the 'evidence' field alongside the verdict: 'catalog_hit' means a real entry "
                         "backs it; 'naming_heuristic_only' means ONLY the name pattern matched, so a fabricated "
                         "name returns the same verdict — cross-check it and report it as 'name unconfirmed', never "
-                        "as released. Call this for EVERY object referenced in a technical design."),
+                        "as released. Call this for EVERY object referenced in a technical design. Also returns "
+                        "'prior_usage' when the object appears in past delivery documents or recorded lessons — "
+                        "useful context for finding precedent, but NOT evidence of release state: a heavily-used "
+                        "object can still be unreleased today. The verdict comes from the catalog, never from "
+                        "familiarity."),
         "schema": {"type": "object", "properties": {
             "object_name": {"type": "string", "description": "e.g. BAPI_SALESORDER_CREATEFROMDAT2, VBAK, I_SalesDocument, API_BUSINESS_PARTNER"},
             "object_type": {"type": "string", "description": "Optional: bapi | table | api | badi | cds_view | auto"}},
             "required": ["object_name"]},
-        "handler": tool_check_object_release_state,
+        "handler": tool_check_object_release_state_public,
     },
     "extensibility_advisor": {
         "description": ("Deterministic rule-based advisor: given a requirement in plain language, recommends the "
@@ -1291,6 +1493,37 @@ TOOLS = {
                             "description": "Enrich API nodes with live $metadata from the tenant (live mode only)"}},
             "required": []},
         "handler": tool_sync_object_graph,
+    },
+    "get_object_usage": {
+        "description": ("REVERSE lookup: given an SAP object name, where has this team already used it? "
+                        "Returns the delivery documents in the brain corpus that mention it (with counts "
+                        "and phase/deliverable metadata) plus the recorded experience lessons that name it. "
+                        "Use to find precedent before designing — an object with prior usage usually has an "
+                        "FD/TD you should read first, and a classical table (EKKO, VBAK) showing up in recent "
+                        "documents is a clean-core signal worth chasing. This does NOT answer release state: "
+                        "prior usage is evidence about this team's history, not about SAP's release contract, "
+                        "so an object can appear in ten documents and still be unreleased — call "
+                        "check_object_release_state for the verdict. If the reply says indexed=false, the "
+                        "mention index has not been built on this host; that is NOT 'never used'."),
+        "schema": {"type": "object", "properties": {
+            "object_name":   {"type": "string", "description": "e.g. EKKO, API_BUSINESS_PARTNER, I_MaterialStock"},
+            "limit":         {"type": "integer", "description": "Max documents and lessons to return (default 10)"},
+            "source_system": {"type": "string", "description": "Optional: restrict documents to sharepoint | developer_docs | abap_guidance | ..."}},
+            "required": ["object_name"]},
+        "handler": tool_get_object_usage,
+    },
+    "layer_health": {
+        "description": ("Cross-layer freshness: are the DERIVED stores still consistent with their sources? "
+                        "L1 (object graph) and L2 (semantic index) are built from the released-object catalog "
+                        "and L3 (lessons); L4 is the brain corpus, whose vector and keyword halves must cover "
+                        "the same chunks. Reports STALE per check with the exact rebuild command. Call this "
+                        "when a search result looks thin or a recently-recorded lesson does not turn up — a "
+                        "stale index fails by returning LESS, which is indistinguishable from a correct empty "
+                        "result. MISSING is normal for L4 on a host without the brain."),
+        "schema": {"type": "object", "properties": {
+            "deep": {"type": "boolean", "description": "Also count the brain's vector rows (parses a ~50k-entry file; slower)"}},
+            "required": []},
+        "handler": tool_layer_health,
     },
 }
 
@@ -2003,9 +2236,17 @@ try:
     # and check it separately, which is the step that gets skipped. Annotate every hit
     # with a CURRENT verdict for the objects its text mentions.
     #
-    # Done here rather than in brain_server.py on purpose: this module owns the catalog,
-    # so brain_server stays pure retrieval. Wrapping also means the annotation cannot
-    # change what was retrieved or how it was ranked — it only adds a field.
+    # EXTRACTION moved to ingest (scripts/keyword_index.py -> object_mentions), so
+    # brain_search already returns the names on each hit and this wrapper only adds
+    # the verdicts. Three consequences worth knowing:
+    #   * no per-hit disk read any more — the names arrive with the hit;
+    #   * surfaces that do NOT go through this server (brain-ui, the brain_search CLI)
+    #     now get the names too, where before they got nothing;
+    #   * the same mention index answers the reverse question, which query-time
+    #     extraction never could — see object_usage.find_usage.
+    # Still done here rather than in brain_server.py: this module owns the catalog, so
+    # brain_server stays pure retrieval, and wrapping cannot change what was retrieved
+    # or how it ranked — it only fills in fields.
     def _wrap_search_brain(_inner):
         def _handler(args):
             payload = _inner(args)
@@ -2013,7 +2254,6 @@ try:
                 return payload
             try:
                 import entity_link                       # noqa: PLC0415
-                import brain_search                      # scripts/ is on sys.path via brain_server
             except Exception:
                 return payload                           # annotation is additive; never fatal
             memo = {}
@@ -2021,16 +2261,15 @@ try:
                 if name not in memo:
                     memo[name] = tool_check_object_release_state({"object_name": name})
                 return memo[name]
-            flagged = 0
+            flagged, annotated = 0, 0
             for hit in payload["results"]:
-                try:
-                    text = brain_search._read_chunk_text(hit.get("chunk_file"))
-                except Exception:
+                names = [m.get("name") for m in (hit.get("objects_mentioned") or [])
+                         if isinstance(m, dict) and m.get("name")]
+                if not names:
                     continue
-                if not text:
-                    continue
-                found = entity_link.annotate(text, _resolve)
+                found = entity_link.resolve_names(names, _resolve)
                 if found:
+                    annotated += 1
                     hit["objects_mentioned"] = found
                     flagged += sum(1 for f in found
                                    if f.get("verdict") == "NOT_AVAILABLE"
@@ -2039,9 +2278,10 @@ try:
                 "objects_mentioned lists SAP object names found IN the retrieved text, each "
                 "with its verdict from the live catalog as of now — not as of when the "
                 "document was written. Treat it as a lead, not as the document's own claim: "
-                "%d mentioned object(s) are NOT_AVAILABLE or name-unconfirmed. Re-verify on "
-                "api.sap.com / the Released CDS Views list before using any of them."
-                % flagged)
+                "%d mentioned object(s) across %d hit(s) are NOT_AVAILABLE or name-unconfirmed. "
+                "Re-verify on api.sap.com / the Released CDS Views list before using any of "
+                "them. An empty list can also mean the mention index has not been rebuilt — "
+                "check layer_health." % (flagged, annotated))
             return payload
         return _handler
 

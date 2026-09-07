@@ -24,6 +24,14 @@ QUERY SANITISATION IS NOT OPTIONAL
     in is a syntax error at best ("what's the cutover plan?") and a silently
     different query at worst. Every term is therefore extracted and quoted.
 
+TWO MORE DIRECTIONS OVER THE SAME DB
+    keyword_index.py also records which SAP object names appear in which chunk, so
+    this module answers both directions of the document<->object edge:
+      mentions_for_chunks()   forward -- annotate a page of hits in ONE query
+      documents_for_object()  reverse -- "which delivery documents mention EKKO?"
+    Both degrade to an explicit "not indexed" rather than to a bare empty result,
+    because "never mentioned" and "never indexed" are opposite claims to a reader.
+
 Usage:
     from keyword_search import search
     hits = search("ATC check profile before transport", k=10, filters={...})
@@ -98,6 +106,94 @@ def _where(filters):
             clauses.append("lower(coalesce(m.%s,'')) = ?" % field)
             params.append(str(value).lower())
     return (" AND " + " AND ".join(clauses) if clauses else ""), params
+
+
+@lru_cache(maxsize=1)
+def has_mentions():
+    """Whether this keyword.db carries the object_mentions table (added 2026-09-07).
+
+    A keyword.db built before that change has no such table, and every mention query
+    would raise. Callers must be able to tell "not indexed yet" apart from "this
+    object was never mentioned" -- they mean opposite things to a reader, and only the
+    first is fixed by rebuilding. freshness.py reports on exactly this.
+    """
+    try:
+        return bool(_con().execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='object_mentions'"
+        ).fetchone())
+    except Exception:
+        return False
+
+
+def mentions_for_chunks(chunk_ids):
+    """FORWARD edge: {chunk_id: [object names as written]} for the given chunks.
+
+    One query for a whole page of search hits, rather than the previous design's one
+    file read per hit. Returns {} when the table is absent so annotation degrades to
+    "no annotation" instead of taking down the search.
+    """
+    ids = [c for c in (chunk_ids or []) if c]
+    if not ids or not has_mentions():
+        return {}
+    out = {}
+    # Chunked IN(...) to stay clear of SQLITE_MAX_VARIABLE_NUMBER on a big top_k.
+    for start in range(0, len(ids), 400):
+        batch = ids[start:start + 400]
+        marks = ",".join("?" * len(batch))
+        sql = ("SELECT m.chunk_id, om.display_name FROM object_mentions om "
+               "JOIN meta m ON m.rowid = om.chunk_rowid "
+               "WHERE m.chunk_id IN (%s)" % marks)
+        try:
+            rows = _con().execute(sql, batch).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        for chunk_id, name in rows:
+            bucket = out.setdefault(chunk_id, [])
+            if name not in bucket:
+                bucket.append(name)
+    return out
+
+
+def documents_for_object(object_name, limit=10, source_system=None):
+    """REVERSE edge: which corpus documents mention this SAP object.
+
+    The question a delivery accelerator actually gets asked ("have we used this
+    before, and where?") and the one no amount of query-time extraction could answer,
+    because it requires having looked at every chunk rather than at the ones a query
+    happened to return.
+
+    Returns {"indexed": bool, "documents": [...], "total_mentions": n,
+             "total_documents": n}. `indexed=False` means the table is missing --
+    report that as "not indexed", never as "no prior usage".
+    """
+    name = (object_name or "").strip().upper()
+    if not name:
+        return {"indexed": has_mentions(), "documents": [], "total_mentions": 0,
+                "total_documents": 0}
+    if not has_mentions():
+        return {"indexed": False, "documents": [], "total_mentions": 0,
+                "total_documents": 0}
+    where, params = "om.object_name = ?", [name]
+    if source_system:
+        where += " AND lower(coalesce(m.source_system,'')) = ?"
+        params.append(str(source_system).lower())
+    base = ("FROM object_mentions om JOIN meta m ON m.rowid = om.chunk_rowid "
+            "WHERE " + where)
+    try:
+        total_mentions, total_docs = _con().execute(
+            "SELECT count(*), count(DISTINCT m.source) " + base, params).fetchone()
+        rows = _con().execute(
+            "SELECT m.source, m.source_system, m.deliverable_type, m.phase, "
+            "count(*) AS hits, min(m.chunk_id) " + base +
+            " GROUP BY m.source, m.source_system ORDER BY hits DESC, m.source LIMIT ?",
+            params + [int(limit)]).fetchall()
+    except sqlite3.OperationalError:
+        return {"indexed": False, "documents": [], "total_mentions": 0,
+                "total_documents": 0}
+    docs = [{"source": r[0], "source_system": r[1], "deliverable_type": r[2],
+             "phase": r[3], "mentions": r[4], "sample_chunk_id": r[5]} for r in rows]
+    return {"indexed": True, "documents": docs,
+            "total_mentions": total_mentions, "total_documents": total_docs}
 
 
 def search(query, k=10, filters=None):

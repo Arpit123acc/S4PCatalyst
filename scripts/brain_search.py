@@ -2,7 +2,8 @@
 """
 Search the Public Cloud Brain — hybrid dense + keyword retrieval.
 
-Two retrievers, fused with Reciprocal Rank Fusion:
+Two retrievers, fused by weighted sum of within-list normalised scores (NOT RRF --
+see the fusion note below, which is the whole reason this default was chosen):
   * dense    Bedrock Titan embedding + cosine over the FAISS index (embed_chunks.py)
   * keyword  BM25 over the SQLite FTS5 index (keyword_index.py)
 
@@ -37,10 +38,15 @@ Usable two ways:
   * CLI:      python3.11 scripts/brain_search.py "how do we do cutover" --phase Deploy
   * import:   from brain_search import search;  hits = search("...", k=5, phase="Realize")
 
-Mode: --mode hybrid|vector|keyword, or BRAIN_SEARCH_MODE. `keyword` makes no Bedrock
-call at all, which makes it the cheap way to sanity-check the lexical half.
+Mode: --mode hybrid|vector|keyword, or BRAIN_SEARCH_MODE. `keyword` needs NOTHING
+beyond the stdlib -- no boto3, no faiss, no FAISS index on disk, no Bedrock call and
+therefore no cost. That is deliberate: it is the cheap way to sanity-check the
+lexical half, and it is the only retrieval path the pure-stdlib governance server can
+offer on a host without the dense stack. (Until 2026-09-07 the store and Bedrock
+client were loaded before the mode was even examined, so `keyword` exited on a box
+missing either -- the docstring claimed offline capability the code did not have.)
 
-Install:
+Install (only for the dense/hybrid modes):
     pip3.11 install boto3 faiss-cpu numpy      # FTS5 ships with stdlib sqlite3
 """
 
@@ -62,18 +68,26 @@ MAX_CHARS  = 40_000
 
 
 @lru_cache(maxsize=1)
-def _load():
-    """Load and cache the vector store (pluggable backend) + Bedrock client."""
+def _load_dense():
+    """Load and cache the vector store (pluggable backend) + Bedrock client.
+
+    Called ONLY from the branches that actually run the dense retriever. It used to
+    run unconditionally at the top of search(), which quietly made every mode depend
+    on boto3 + faiss + a FAISS index on disk -- so `--mode keyword`, documented as
+    needing none of those, exited on any host that lacked them. Keeping the dense
+    dependency behind the dense branch is what lets the lexical half stand alone.
+    """
     try:
         import boto3
     except ImportError:
-        sys.exit("Missing deps. Run: pip3.11 install boto3 faiss-cpu numpy")
+        sys.exit("Dense/hybrid mode needs boto3. Run: pip3.11 install boto3 faiss-cpu "
+                 "numpy — or use --mode keyword, which is pure stdlib.")
     from vectorstore import get_store
     backend = os.environ.get("BRAIN_BACKEND", "faiss").lower()
     try:
         store = get_store(0, load=True, backend=backend)   # dim inferred on load
     except FileNotFoundError as e:
-        sys.exit(str(e))
+        sys.exit("%s\n  (--mode keyword needs no vector index and would still work.)" % e)
     except ImportError as e:
         sys.exit(f"Backend '{backend}' deps missing: {e}. "
                  f"pgvector needs: pip3.11 install psycopg2-binary")
@@ -304,8 +318,9 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
     """Return the top-k brain chunks for a query, optionally filtered by metadata.
 
     Hybrid by default: a dense vector search (Bedrock Titan + cosine) and a BM25
-    keyword search are fused with RRF. Override per call with mode=, or globally
-    with BRAIN_SEARCH_MODE=vector|keyword|hybrid.
+    keyword search are fused by weighted sum of within-list normalised scores (see
+    the module docstring for why not RRF). Override per call with mode=, or globally
+    with BRAIN_SEARCH_MODE=vector|keyword|hybrid; `keyword` needs no dense stack.
 
     Filters (applied by the backend): phase, agent_role, deliverable_type,
     source_system (sharepoint / sap_scope_catalog / developer_docs / ...).
@@ -317,20 +332,25 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
     found on its own, which are scored exactly via the backend rather than left
     null or faked. Ranking is by `rrf`; `score` stays comparable across modes so
     consumers reading it as a 0-1 relevance figure keep working.
+
+    Hits also carry `objects_mentioned` -- the SAP object names appearing in that
+    chunk's text, as NAMES ONLY. Release verdicts are added by the caller that owns
+    the catalog; see _attach_mentions.
     """
     mode = (mode or DEFAULT_MODE).lower()
     if mode not in ("hybrid", "vector", "keyword"):
         raise ValueError("mode must be hybrid | vector | keyword, got %r" % mode)
 
-    store, client, dim = _load()
     filters = {"phase": phase, "agent_role": agent_role,
                "deliverable_type": deliverable_type, "source_system": source_system}
     want  = k * 8 if dedup_source else k       # over-fetch, then collapse dupes
     depth = max(want, CAND_DEPTH) if mode == "hybrid" else want
 
     # (name, hits, score field, weight) — the weight is only read by _wsum_fuse.
-    rankings, qvec, khits = [], None, []
+    rankings, qvec, khits, store = [], None, [], None
     if mode in ("hybrid", "vector"):
+        # Loaded HERE, not above: keyword mode must not require the dense stack.
+        store, client, dim = _load_dense()
         qvec = _embed_query(client, query, dim)
         vhits = store.search(qvec, depth, filters=filters)
         if vhits:
@@ -363,7 +383,7 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
 
     # Backfill cosine for keyword-only hits — after trimming, so this costs at most
     # k lookups rather than one per candidate.
-    if qvec is not None:
+    if qvec is not None and store is not None:
         need = [h["id"] for h in raw if h.get("score") is None and h.get("id")]
         if need:
             got = store.score_ids(qvec, need)
@@ -371,10 +391,39 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
                 if h.get("score") is None:
                     h["score"] = got.get(h.get("id"))
 
+    _attach_mentions(raw)
+
     keep = ("score", "keyword_score", "rrf", "retrievers", "promoted", "id",
             "source", "source_system", "phase", "agent_role", "deliverable_type",
-            "scope_item_id", "chunk_file")
+            "scope_item_id", "chunk_file", "objects_mentioned")
     return [{k2: h.get(k2) for k2 in keep} for h in raw]
+
+
+def _attach_mentions(hits):
+    """Add `objects_mentioned` — the SAP object names appearing in each hit's text.
+
+    NAMES ONLY, no release verdict: resolving a verdict needs the catalog, which lives
+    in the governance server, and this module deliberately stays pure retrieval. The
+    caller that owns the catalog (mcp-server/server.py) adds verdict/evidence on top.
+    Surfaces without a catalog -- brain-ui, the standalone CLI -- still get the names,
+    which is strictly more than the nothing they got while annotation lived inside a
+    single MCP handler's wrapper.
+
+    One SQL query for the whole page, against the mention table keyword_index.py
+    builds. Silent no-op if that table is absent, so an older keyword.db still serves.
+    """
+    ids = [h.get("id") for h in hits if h.get("id")]
+    if not ids:
+        return
+    try:
+        import keyword_search
+        found = keyword_search.mentions_for_chunks(ids)
+    except Exception:
+        return                       # additive metadata; never break a search over it
+    for h in hits:
+        names = found.get(h.get("id"))
+        if names:
+            h["objects_mentioned"] = [{"name": n} for n in names]
 
 
 def _read_chunk_text(chunk_file):

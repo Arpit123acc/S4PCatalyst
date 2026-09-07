@@ -57,9 +57,16 @@ def extract(text, limit=12):
 
     `limit` bounds downstream catalog lookups: a long document can name dozens of
     objects and annotating all of them would cost more than it informs.
+
+    `limit=None` means unbounded, which is what INDEX-time extraction wants: the
+    mention index is built once and queried in both directions, so truncating there
+    would silently drop the reverse edge ("which documents mention EKKO?") for any
+    object that happened to appear late in a long chunk. The cost argument that
+    justifies a limit applies to per-query catalog lookups, not to a one-off build.
     """
     if not text:
         return []
+    capped = limit is not None
     found, seen = [], set()
     for match in _RE.finditer(text):
         name = match.group(0)
@@ -72,10 +79,10 @@ def extract(text, limit=12):
             continue
         seen.add(upper)
         found.append(name)
-        if len(found) >= limit:
+        if capped and len(found) >= limit:
             break
     for table in _CLASSICAL_TABLES:                 # exact-word classical tables
-        if len(found) >= limit:
+        if capped and len(found) >= limit:
             break
         if table not in seen and re.search(r"\b%s\b" % table, text):
             seen.add(table)
@@ -83,15 +90,24 @@ def extract(text, limit=12):
     return found
 
 
-def annotate(text, resolver, limit=12):
-    """Extract names from `text` and resolve each via `resolver(name) -> dict`.
+def resolve_names(names, resolver, limit=12):
+    """Resolve already-extracted `names` via `resolver(name) -> dict`.
+
+    Split out from annotate() because names now arrive two ways: extracted here from
+    prose (lessons, ad-hoc text) or read from the mention index that keyword_index.py
+    builds at ingest. Both must order and shape the result identically, so the
+    ordering rule lives in exactly one place.
 
     Returns [{"name", "verdict", "evidence"}], most concerning first, so a
     NOT_AVAILABLE object cannot be buried under a list of healthy ones.
+
+    `limit` still applies: index-time extraction is unbounded, so a long chunk can
+    name dozens of objects, and resolving all of them for every hit on a page would
+    cost more than it informs.
     """
     order = {"NOT_AVAILABLE": 0, "NOT_VERIFIED": 1, "LIKELY_RELEASED": 2}
     out = []
-    for name in extract(text, limit=limit):
+    for name in (names or [])[:limit] if limit is not None else (names or []):
         try:
             res = resolver(name) or {}
         except Exception:
@@ -102,3 +118,8 @@ def annotate(text, resolver, limit=12):
     out.sort(key=lambda d: (order.get(d.get("verdict"), 3),
                             0 if d.get("evidence") == "naming_heuristic_only" else 1))
     return out
+
+
+def annotate(text, resolver, limit=12):
+    """Extract names from `text` and resolve each. See resolve_names."""
+    return resolve_names(extract(text, limit=limit), resolver, limit=limit)

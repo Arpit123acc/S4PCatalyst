@@ -218,14 +218,34 @@ def save_graph(graph_data: dict) -> dict:
     return graph_data["stats"]
 
 
+# Parsed graph, keyed on the file's mtime. graph.json is ~10.7k nodes and ~138k
+# edges, so re-parsing it per call is far too expensive now that the graph is read on
+# search paths (semantic_search attaches area + degree to each catalog hit) rather
+# than only by an explicit get_object_graph call.
+#
+# Keyed on MTIME rather than cached outright so that sync_object_graph / build_graph.py
+# are picked up automatically: a plain lru_cache here would serve the pre-rebuild graph
+# until the process restarted, which is precisely the class of silent staleness
+# freshness.py exists to catch.
+_CACHE: dict = {"mtime": None, "graph": None}
+
+
 def _load() -> tuple:
     try:
+        mtime = os.path.getmtime(GRAPH_PATH)
+    except OSError:
+        return None, "Graph not built — run: python mcp-server/graph/build_graph.py"
+    if _CACHE["mtime"] == mtime and _CACHE["graph"] is not None:
+        return _CACHE["graph"], None
+    try:
         with open(GRAPH_PATH, "r", encoding="utf-8") as fh:
-            return json.load(fh), None
+            graph = json.load(fh)
     except FileNotFoundError:
         return None, "Graph not built — run: python mcp-server/graph/build_graph.py"
     except Exception as exc:
         return None, "Graph load error: %s" % exc
+    _CACHE.update(mtime=mtime, graph=graph)
+    return graph, None
 
 
 # ── query API ────────────────────────────────────────────────────────────────────
