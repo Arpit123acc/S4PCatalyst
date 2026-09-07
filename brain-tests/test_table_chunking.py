@@ -45,12 +45,97 @@ def check_true(label, got):
     check(label, bool(got), True)
 
 
+def test_docx_tables():
+    """Word tables must be extracted, in document order.
+
+    python-docx's `doc.paragraphs` excludes table content, and SAP configuration and
+    test documents are largely tables. That returned "" for a table-only document --
+    and, far worse, returned ONLY the prose for a document that was two paragraphs and
+    thirty tables, which never looked like an error.
+    """
+    try:
+        import docx
+    except ImportError:
+        print("\ndocx tables — SKIPPED (pip install python-docx)")
+        return
+    import sharepoint_ingest as si
+    print("\nWord tables are extracted, in document order")
+    tmp = Path(tempfile.mkdtemp(prefix="s4pc-docx-"))
+    d = docx.Document()
+    d.add_heading("SUD basic configuration in OTC", 1)
+    t = d.add_table(rows=3, cols=3)
+    for r, row in enumerate([["Field", "Value", "Notes"],
+                             ["Order Type", "OR", "standard"],
+                             ["Plant", "1710", "US"]]):
+        for c, v in enumerate(row):
+            t.cell(r, c).text = v
+    d.add_paragraph("Closing note after the table.")
+    p = tmp / "cfg.docx"
+    d.save(p)
+
+    paras_only = "\n".join(x.text for x in docx.Document(p).paragraphs if x.text.strip())
+    text = si.extract_text(p)
+    check_true("table-only content is no longer lost", len(text) > len(paras_only))
+    check_true("table rows come through as TSV", "Order Type\tOR\tstandard" in text)
+    # Order matters: concatenating doc.paragraphs + doc.tables would detach every
+    # table from the heading that introduces it.
+    check_true("heading, then table, then trailing prose",
+               text.index("SUD basic") < text.index("Order Type") < text.index("Closing note"))
+
+
+def test_pptx_groups_and_tables():
+    """Slide tables and grouped shapes must be extracted.
+
+    `shape.text` alone reaches neither, which is why workshop decks built from grouped
+    diagrams extracted to zero characters.
+    """
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches
+    except ImportError:
+        print("\npptx groups/tables — SKIPPED (pip install python-pptx)")
+        return
+    import sharepoint_ingest as si
+    print("\nSlide tables and grouped shapes are extracted")
+    tmp = Path(tempfile.mkdtemp(prefix="s4pc-pptx-"))
+
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    tb = slide.shapes.add_table(2, 2, Inches(1), Inches(1), Inches(4), Inches(1)).table
+    tb.cell(0, 0).text = "Decision"
+    tb.cell(0, 1).text = "Owner"
+    tb.cell(1, 0).text = "Payroll in scope"
+    tb.cell(1, 1).text = "Finance"
+    p = tmp / "deck.pptx"
+    prs.save(p)
+    check_true("slide table rows extracted",
+               "Payroll in scope\tFinance" in si.extract_text(p))
+
+    prs2 = Presentation()
+    s2 = prs2.slides.add_slide(prs2.slide_layouts[6])
+    try:
+        grp = s2.shapes.add_group_shape()
+    except AttributeError:
+        print("  (group shapes unsupported by this python-pptx — partial check)")
+        return
+    for i, label in enumerate(("Inside a grouped diagram", "Second grouped label")):
+        box = grp.shapes.add_textbox(Inches(1), Inches(1 + i), Inches(2), Inches(1))
+        box.text_frame.text = label
+    p2 = tmp / "grouped.pptx"
+    prs2.save(p2)
+    got = si.extract_text(p2)
+    check_true("text inside grouped shapes extracted",
+               "Inside a grouped diagram" in got and "Second grouped label" in got)
+
+
 def main():
+    test_docx_tables()
+    test_pptx_groups_and_tables()
     try:
         import openpyxl
     except ImportError:
         print("openpyxl not installed — skipping (pip install openpyxl)")
-        return 0
+        return 1 if FAILS else 0
     import sharepoint_ingest as si
 
     tmp = Path(tempfile.mkdtemp(prefix="s4pc-xlsx-"))

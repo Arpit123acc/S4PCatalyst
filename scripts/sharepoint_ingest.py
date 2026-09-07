@@ -638,22 +638,13 @@ def extract_text(path: Path) -> str:
         if ext in (".txt", ".md"):
             return path.read_text(errors="ignore")
         if ext == ".docx":
-            import docx
-            doc = docx.Document(path)
-            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            return _extract_docx(path)
         if ext == ".pdf":
             import fitz
             doc = fitz.open(path)
             return "\n".join(page.get_text() for page in doc)
         if ext == ".pptx":
-            from pptx import Presentation
-            prs = Presentation(path)
-            parts = []
-            for slide in prs.slides:
-                for shape in slide.shapes:
-                    if hasattr(shape, "text") and shape.text.strip():
-                        parts.append(shape.text)
-            return "\n".join(parts)
+            return _extract_pptx(path)
         if ext == ".xlsx":
             return _extract_xlsx(path)
     except Exception as e:
@@ -686,6 +677,89 @@ TABLE_MIN_DENSITY = 0.5
 # pathological file -- not just the sparse-sheet case fixed above -- can stall a
 # full ingest with no indication of which file or why. Truncation is logged.
 MAX_DOC_CHARS = 4_000_000
+
+# Ceiling on how much of the corpus ONE document may become. Measured 2026-09-07:
+# five spreadsheets produced 6,596 of 41,257 chunks -- 16% of the whole brain from
+# five files, and all five are bulk DATA extracts (production ledger entries, a
+# chart-of-accounts value list, a product/storage-location dump) rather than
+# delivery knowledge. 1,550 chunks of ledger lines dominate similarity for any
+# finance query while containing no design information, so they crowd out the FDs
+# and TDs the brain exists to surface -- and cost Titan calls to do it.
+#
+# Truncation rather than exclusion: the leading rows still convey the schema and
+# shape of the data, which IS useful for grounding a design, and each tabular chunk
+# repeats its header so the columns survive. 300 is far above any real design
+# document (the largest FD/TD here yields ~27) and is always logged.
+MAX_CHUNKS_PER_DOC = 300
+
+
+def _extract_docx(path: Path) -> str:
+    """Extract a Word document INCLUDING its tables, in document order.
+
+    python-docx's `doc.paragraphs` collection excludes table content entirely, and
+    SAP configuration and test documents are largely tables -- so the previous
+    one-liner returned "" for a document made of tables, and silently returned only
+    the prose for a document that was 2 paragraphs and 30 tables. That second case is
+    the dangerous one: it never showed up as an error, just as a document that seemed
+    to say very little.
+
+    Paragraphs and tables are interleaved by walking the body XML rather than
+    concatenating doc.paragraphs + doc.tables, because those are separate collections
+    and joining them detaches every table from the heading that introduces it.
+    """
+    import docx
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    doc = docx.Document(path)
+    parts = []
+    for child in doc.element.body.iterchildren():
+        tag = child.tag
+        if tag.endswith("}p"):
+            t = Paragraph(child, doc).text.strip()
+            if t:
+                parts.append(t)
+        elif tag.endswith("}tbl"):
+            for row in Table(child, doc).rows:
+                cells = [c.text.replace("\t", " ").replace("\n", " ").strip()
+                         for c in row.cells]
+                while cells and not cells[-1]:
+                    cells.pop()
+                if any(cells):
+                    parts.append("\t".join(cells))
+    return "\n".join(parts)
+
+
+def _pptx_shape_text(shape, out: list) -> None:
+    """Collect text from one shape, recursing into groups and reading tables.
+
+    `shape.text` alone misses both, which is why decks built from grouped diagrams or
+    tables extracted to nothing at all.
+    """
+    if getattr(shape, "shape_type", None) is not None and hasattr(shape, "shapes"):
+        for inner in shape.shapes:               # group shape
+            _pptx_shape_text(inner, out)
+        return
+    if getattr(shape, "has_table", False):
+        for row in shape.table.rows:
+            cells = [c.text.replace("\t", " ").replace("\n", " ").strip()
+                     for c in row.cells]
+            if any(cells):
+                out.append("\t".join(cells))
+        return
+    text = getattr(shape, "text", "")
+    if text and text.strip():
+        out.append(text.strip())
+
+
+def _extract_pptx(path: Path) -> str:
+    from pptx import Presentation
+    prs = Presentation(path)
+    parts: list = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            _pptx_shape_text(shape, parts)
+    return "\n".join(parts)
 
 
 def _extract_xlsx(path: Path) -> str:
@@ -957,6 +1031,12 @@ def _ingest_one_local(f) -> int:
     # chunked on a word window. Routed on the extension because that is what actually
     # determines whether the extracted text is tabular.
     chunks = chunk_table(text) if f.suffix.lower() == ".xlsx" else chunk(text)
+    if len(chunks) > MAX_CHUNKS_PER_DOC:
+        log.warning("  %s: %d chunks exceeds the %d-per-document ceiling — keeping "
+                    "the first %d. Likely a bulk data extract rather than a "
+                    "delivery document; consider removing it from raw/.",
+                    safe_name, len(chunks), MAX_CHUNKS_PER_DOC, MAX_CHUNKS_PER_DOC)
+        chunks = chunks[:MAX_CHUNKS_PER_DOC]
 
     # hash the raw path (surrogatepass) so IDs stay unique even when a bad
     # byte collapsed to '?' in the display name
