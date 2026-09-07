@@ -666,12 +666,6 @@ TABLE_CHUNK_WORDS = 400
 MAX_TABLE_COLS = 512
 MAX_TABLE_ROWS = 20_000
 
-# Below this fraction of populated cells across the used column range, a sheet is
-# emitted as column=value pairs instead of padded TSV. 0.5 means: if more than half
-# the grid is gaps, stop paying a tab for each one. Sheets with <=8 columns always
-# use TSV -- padding a narrow sheet costs nothing and TSV reads better.
-TABLE_MIN_DENSITY = 0.5
-
 # Last-resort bound on one document's extracted text. mask() runs spaCy NER over
 # whatever comes out of extraction at roughly linear cost, so without a ceiling ANY
 # pathological file -- not just the sparse-sheet case fixed above -- can stall a
@@ -842,22 +836,36 @@ def _extract_xlsx(path: Path) -> str:
             # populated cells only: no padding, no inflation, and each row becomes
             # self-describing, which is strictly better for grounding. Dense sheets --
             # the normal case for a mapping spec -- keep the compact TSV form.
-            filled = sum(len(c) for c in sparse_rows)
-            density = filled / float(len(sparse_rows) * len(cols)) if cols else 1.0
-            if density < TABLE_MIN_DENSITY and len(cols) > 8:
-                names = sparse_rows[0] if sparse_rows else {}
-                for cells in sparse_rows[1:] if names else sparse_rows:
-                    rows.append("\t".join(
-                        "%s=%s" % (names.get(i, "C%d" % i), v)
-                        for i, v in sorted(cells.items())))
-                if names:
-                    rows.insert(0, "\t".join(names[i] for i in sorted(names)))
-                log.info("  %s [%s]: %d cols at %.0f%% density — emitted as "
-                         "column=value pairs", path.name, sheet.title,
-                         len(cols), density * 100)
+            # MEASURE BOTH REPRESENTATIONS AND KEEP THE SHORTER ONE.
+            #
+            # This was a density threshold, and the threshold was wrong: at 0.5 it
+            # chose pairs for a 63-column sheet at 46% density, where padding adds ~34
+            # tabs per row but pairs adds a whole "columnname=" to each of ~29
+            # populated cells -- roughly doubling the text it was meant to shrink.
+            # The real break-even is about 1/(avg column-name length + 1), i.e. ~8-10%
+            # density, and it moves with every sheet's column names.
+            #
+            # So there is no constant to tune. Both forms are built and the smaller
+            # wins, which is exact per sheet and cannot be mis-set. Ties go to TSV: it
+            # reads as a table and the chunker repeats its header.
+            padded = [ "\t".join(cells.get(i, "") for i in cols)
+                       for cells in sparse_rows ]
+            names = sparse_rows[0] if sparse_rows else {}
+            paired = [ "\t".join("%s=%s" % (names.get(i, "C%d" % i), v)
+                                 for i, v in sorted(cells.items()))
+                       for cells in sparse_rows[1:] ]
+            if names:
+                paired.insert(0, "\t".join(names[i] for i in sorted(names)))
+
+            pad_len = sum(map(len, padded))
+            pair_len = sum(map(len, paired))
+            if paired and pair_len < pad_len:
+                rows.extend(paired)
+                log.info("  %s [%s]: %d cols, %d rows — column=value pairs "
+                         "(%d chars vs %d padded)", path.name, sheet.title,
+                         len(cols), len(sparse_rows), pair_len, pad_len)
             else:
-                for cells in sparse_rows:
-                    rows.append("\t".join(cells.get(i, "") for i in cols))
+                rows.extend(padded)
             if rows:
                 parts.append(f"{SHEET_PREFIX}{sheet.title}]")
                 parts.extend(rows)
