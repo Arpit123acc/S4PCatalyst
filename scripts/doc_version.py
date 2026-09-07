@@ -200,7 +200,13 @@ def collapse(documents, key="source"):
             if total:
                 entry["mentions"] = total
             entry["collapsed_versions"] = len(members)
-            entry["also_in"] = sorted(d[key] for d in members if d[key] != winner_name)[:8]
+            others = sorted(d[key] for d in members if d[key] != winner_name)
+            entry["also_in"] = others[:8]
+            # Say so when the list is cut. Otherwise collapsed_versions=10 arrives
+            # beside an also_in of 8 and the reader is left to wonder which two
+            # revisions were dropped -- a silent truncation reads as a miscount.
+            if len(others) > 8:
+                entry["also_in_truncated"] = len(others) - 8
         out.append(entry)
     out.sort(key=lambda d: (-(d.get("mentions") or 0), d.get(key) or ""))
     return out
