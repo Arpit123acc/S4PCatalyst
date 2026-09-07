@@ -910,19 +910,30 @@ def chunk_table(text: str) -> list:
     cur_words = 0
     sheet = None
     header = None
+    emitted = False              # has anything been emitted for the current sheet?
 
-    def flush():
-        nonlocal cur, cur_words
-        if not cur:
+    def flush(closing=False):
+        """Emit the accumulated rows. `closing` also emits a header-only sheet.
+
+        A sheet whose only row IS the header would otherwise vanish: the header lives
+        in the prefix rather than the body, so `cur` stays empty and this returned
+        without writing anything. Observed live -- "EUT-HW DEC2024.xlsx [58 chars]"
+        produced 0 chunks and its content was simply lost. A lone header row is still
+        content (the column names, and quite possibly a one-row sheet whose single row
+        was read as a header), so it is emitted when the sheet closes.
+        """
+        nonlocal cur, cur_words, emitted
+        if not cur and not (closing and header and not emitted):
             return
         prefix = [p for p in (sheet, header) if p]
         chunks.append("\n".join(prefix + cur))
+        emitted = True
         cur, cur_words = [], 0
 
     for line in lines:
         if _SHEET_RE.match(line):
-            flush()
-            sheet, header = line, None
+            flush(closing=True)
+            sheet, header, emitted = line, None, False
             continue
         if header is None:
             # First row of a sheet is its header: it lives in the prefix so every
@@ -934,7 +945,7 @@ def chunk_table(text: str) -> list:
             flush()
         cur.append(line)
         cur_words += n
-    flush()
+    flush(closing=True)
     return chunks
 
 def _safe_str(s: str) -> str:

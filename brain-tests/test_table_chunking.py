@@ -252,6 +252,21 @@ def main():
           len(dtext), unpadded_len(dense_x))
     check_true("dense rows stay TSV, not pairs", "C0=V0" not in dtext)
 
+    print("\na sheet with no data rows is not silently dropped")
+    # Observed live: "EUT-HW DEC2024.xlsx [58 chars]" produced 0 chunks. The header
+    # lives in the per-chunk prefix, so a sheet whose only row IS the header left the
+    # body empty and nothing was written -- the document just vanished.
+    check("header-only sheet still yields a chunk",
+          len(si.chunk_table("[Sheet: HW]\nItem\tOwner\tDate")), 1)
+    check("and it carries the column names",
+          "Item\tOwner\tDate" in si.chunk_table("[Sheet: HW]\nItem\tOwner\tDate")[0], True)
+    check("a header-only SECOND sheet is kept too",
+          len(si.chunk_table("[Sheet: A]\nH1\tH2\nv1\tv2\n[Sheet: B]\nOnly\tHeaders")), 2)
+    # Genuinely empty input must still yield nothing, not an empty chunk.
+    check("empty text yields no chunks", len(si.chunk_table("")), 0)
+    check("a marker with nothing after it yields no chunks",
+          len(si.chunk_table("[Sheet: Empty]")), 0)
+
     print("\nrow budget is respected without splitting a row")
     wide = si.chunk_table("\n".join(
         ["[Sheet: Big]", "A\tB\tC"] + ["v%d\tw%d\tx%d" % (i, i, i) for i in range(600)]))
