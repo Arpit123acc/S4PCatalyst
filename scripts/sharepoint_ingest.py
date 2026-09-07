@@ -667,6 +667,26 @@ _SHEET_RE = re.compile(r"^\[Sheet: ")
 # budget is smaller than CHUNK_WORDS to keep chunks comparable in real content.
 TABLE_CHUNK_WORDS = 400
 
+# Hard bounds on what one sheet can contribute. These are guards against a workbook
+# whose DECLARED dimension is wrong, which is common: read_only mode trusts the
+# declaration, so a sheet holding five columns can yield 16,384-wide rows of None.
+# Both are far past anything a real mapping spec needs, and exceeding either is
+# logged rather than silently accepted.
+MAX_TABLE_COLS = 512
+MAX_TABLE_ROWS = 20_000
+
+# Below this fraction of populated cells across the used column range, a sheet is
+# emitted as column=value pairs instead of padded TSV. 0.5 means: if more than half
+# the grid is gaps, stop paying a tab for each one. Sheets with <=8 columns always
+# use TSV -- padding a narrow sheet costs nothing and TSV reads better.
+TABLE_MIN_DENSITY = 0.5
+
+# Last-resort bound on one document's extracted text. mask() runs spaCy NER over
+# whatever comes out of extraction at roughly linear cost, so without a ceiling ANY
+# pathological file -- not just the sparse-sheet case fixed above -- can stall a
+# full ingest with no indication of which file or why. Truncation is logged.
+MAX_DOC_CHARS = 4_000_000
+
 
 def _extract_xlsx(path: Path) -> str:
     """Extract a workbook as one TSV line per row, sheet by sheet.
@@ -692,18 +712,85 @@ def _extract_xlsx(path: Path) -> str:
     try:
         for sheet in wb.worksheets:
             rows = []
-            for row in sheet.iter_rows(values_only=True):
-                cells = ["" if c is None
-                         else str(c).replace("\t", " ").replace("\n", " ").strip()
-                         for c in row]
-                while cells and not cells[-1]:
-                    cells.pop()
-                if not any(cells):
+            truncated = False
+            # max_col BOUNDS THE ROW WIDTH AT THE SOURCE, and it is not optional.
+            # A workbook's declared dimension is frequently wrong -- Excel and various
+            # exporters happily record A1:XFD1048576 for a sheet holding five columns.
+            # read_only mode trusts that declaration, so iter_rows yields 16,384-wide
+            # tuples of None. The previous extractor survived it by accident (`if c is
+            # not None` discarded them before any work), whereas keeping empty cells
+            # for their column position means touching every one -- 16k string
+            # operations per row, which turns a large sheet into an apparent hang.
+            # 512 columns is far past any real mapping spec; a wider one is reported.
+            # SPARSE PASS, then project onto the columns actually used.
+            #
+            # Padding every gap with a tab preserves alignment but inflates the text
+            # enormously on a wide sparse sheet -- measured at 12.5x for a 200-column
+            # sheet with 3 populated columns. mask() then runs spaCy NER over all of
+            # it at roughly linear cost, which is what turned one such file into an
+            # apparent hang partway through a full ingest.
+            #
+            # A column that is empty in EVERY row carries no information, so it is
+            # dropped entirely rather than padded. Alignment across rows is still
+            # exact -- every emitted row uses the same column list -- and a sparse
+            # 200-column sheet collapses to its real width. Interior gaps WITHIN the
+            # used columns are still padded, because those are the ones that mean
+            # something.
+            sparse_rows: list = []
+            used: set = set()
+            for row in sheet.iter_rows(values_only=True, max_col=MAX_TABLE_COLS):
+                cells = {}
+                for i, c in enumerate(row):
+                    if c is None:
+                        continue
+                    t = str(c).replace("\t", " ").replace("\n", " ").strip()
+                    if t:
+                        cells[i] = t
+                if not cells:
                     continue
-                rows.append("\t".join(cells))
+                sparse_rows.append(cells)
+                used.update(cells)
+                if len(sparse_rows) >= MAX_TABLE_ROWS:
+                    truncated = True
+                    break
+            cols = sorted(used)
+            # PADDING IS BOUNDED BY DENSITY, and this is the bit that matters.
+            #
+            # Emitting a tab for every gap keeps alignment exact, but on a wide sparse
+            # sheet it inflates the text enormously -- measured at 12.5x for a
+            # 200-column sheet with 3 populated columns, and mask() then runs spaCy
+            # NER over all of it at roughly linear cost. That is what turned one file
+            # into an apparent hang partway through a full ingest.
+            #
+            # Dropping all-empty columns (above) does not help when the HEADER row
+            # populates every column, which is common. So when the used range is
+            # mostly gaps, this switches that sheet to "column=value" pairs for
+            # populated cells only: no padding, no inflation, and each row becomes
+            # self-describing, which is strictly better for grounding. Dense sheets --
+            # the normal case for a mapping spec -- keep the compact TSV form.
+            filled = sum(len(c) for c in sparse_rows)
+            density = filled / float(len(sparse_rows) * len(cols)) if cols else 1.0
+            if density < TABLE_MIN_DENSITY and len(cols) > 8:
+                names = sparse_rows[0] if sparse_rows else {}
+                for cells in sparse_rows[1:] if names else sparse_rows:
+                    rows.append("\t".join(
+                        "%s=%s" % (names.get(i, "C%d" % i), v)
+                        for i, v in sorted(cells.items())))
+                if names:
+                    rows.insert(0, "\t".join(names[i] for i in sorted(names)))
+                log.info("  %s [%s]: %d cols at %.0f%% density — emitted as "
+                         "column=value pairs", path.name, sheet.title,
+                         len(cols), density * 100)
+            else:
+                for cells in sparse_rows:
+                    rows.append("\t".join(cells.get(i, "") for i in cols))
             if rows:
                 parts.append(f"{SHEET_PREFIX}{sheet.title}]")
                 parts.extend(rows)
+                if truncated:
+                    log.warning("  %s [%s]: stopped at %d rows (sheet is larger)",
+                                path.name, sheet.title, MAX_TABLE_ROWS)
+                    parts.append(f"[Truncated at {MAX_TABLE_ROWS} rows]")
     finally:
         wb.close()
     return "\n".join(parts)
@@ -784,6 +871,38 @@ def _safe_str(s: str) -> str:
     return s.encode("utf-8", "replace").decode("utf-8")
 
 
+_CHUNK_INDEX = None          # doc_id -> [existing chunk paths]; built once per run
+
+
+def _stale_chunks(doc_id: str) -> list:
+    """This document's chunk files from a PREVIOUS run, to delete before rewriting.
+
+    WHY AN INDEX RATHER THAN A GLOB
+        Chunk files are named {doc_id}_{idx}.json, so a re-ingest producing FEWER
+        chunks than last time leaves the surplus on disk -- and the embedder indexes
+        those orphans as real documents, so retrieval keeps serving text that exists
+        in no source file. The tabular chunker produces markedly fewer chunks per
+        spreadsheet, so that had to be handled.
+
+        The obvious `CHUNKS_DIR.rglob(f"{doc_id}_*.json")` is O(all chunks) per
+        DOCUMENT, i.e. ~2,700 x ~49,000 path checks over a run, and it degrades as the
+        tree fills -- turning a linear ingest quadratic. One walk up front, held in a
+        dict, is the same work once.
+
+    Entries are popped, so a document seen twice in a run cannot delete chunks its own
+    earlier pass just wrote.
+    """
+    global _CHUNK_INDEX
+    if _CHUNK_INDEX is None:
+        _CHUNK_INDEX = {}
+        if CHUNKS_DIR.exists():
+            for p in CHUNKS_DIR.rglob("*.json"):
+                _CHUNK_INDEX.setdefault(p.name.split("_", 1)[0], []).append(p)
+            log.info("Indexed %d existing chunk files for stale-chunk cleanup",
+                     sum(len(v) for v in _CHUNK_INDEX.values()))
+    return _CHUNK_INDEX.pop(doc_id, [])
+
+
 def _ingest_one_local(f) -> int:
     """Ingest a single local file into chunk JSONs. Returns the chunk count.
     Raising is fine — the caller skips the file and keeps going."""
@@ -794,6 +913,11 @@ def _ingest_one_local(f) -> int:
     # Extract + mask first, so classification can read the document content
     # (not just the filename) — many delivery docs have generic names.
     text   = extract_text(f)
+    if len(text) > MAX_DOC_CHARS:
+        log.warning("%s: extracted %d chars, truncating to %d before masking "
+                    "(NER cost is linear in length)",
+                    safe_name, len(text), MAX_DOC_CHARS)
+        text = text[:MAX_DOC_CHARS]
     text   = mask(text)
 
     bpd_scope      = detect_sap_bpd(safe_name)
@@ -807,8 +931,8 @@ def _ingest_one_local(f) -> int:
         deliverable = detect_deliverable_type(rel_path, text)
     content_type   = detect_content_type(safe_name)
 
-    log.info("Processing: %s [src=%s, phase=%s, agent=%s, deliverable=%s%s]",
-             safe_name, source_system, phase, agent_role, deliverable,
+    log.info("Processing: %s [%d chars, src=%s, phase=%s, agent=%s, deliverable=%s%s]",
+             safe_name, len(text), source_system, phase, agent_role, deliverable,
              f", scope={scope_item_id}" if scope_item_id else "")
 
     # Spreadsheets are chunked on row boundaries with the header repeated; prose is
@@ -820,16 +944,8 @@ def _ingest_one_local(f) -> int:
     # byte collapsed to '?' in the display name
     doc_id    = hashlib.md5(rel_path_raw.encode("utf-8", "surrogatepass")).hexdigest()[:8]
 
-    # Drop this document's PREVIOUS chunks before writing the new ones. Chunk files
-    # are named {doc_id}_{idx}, so a re-ingest that produces FEWER chunks than last
-    # time leaves the surplus on disk -- and the embedder indexes those orphans as
-    # real documents, so retrieval keeps serving text that no longer exists in any
-    # source file. The tabular chunker below produces markedly fewer chunks per
-    # spreadsheet, which would have triggered exactly that. Also covers a document
-    # whose phase/agent_role classification changed, since that moves its directory.
-    if CHUNKS_DIR.exists():
-        for stale in CHUNKS_DIR.rglob(f"{doc_id}_*.json"):
-            stale.unlink()
+    for stale in _stale_chunks(doc_id):
+        stale.unlink(missing_ok=True)
 
     chunk_dir = CHUNKS_DIR / phase / agent_role
     chunk_dir.mkdir(parents=True, exist_ok=True)

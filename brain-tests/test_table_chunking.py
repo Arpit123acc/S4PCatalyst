@@ -87,9 +87,13 @@ def main():
     check("'EKKO' is under the Table header", hdr[cells.index("EKKO")], "Table")
     check("trailing blanks are trimmed", shifted.endswith("8"), True)
 
+    # Assert the CELL's content, not the row's tab count: the row is padded to the
+    # sheet's used column range, so counting tabs was testing the padding rule rather
+    # than the flattening rule it was named for.
     note = next(ln for ln in lines if ln.startswith("NOTE"))
-    check("a tab inside a cell is flattened", note.count("\t"), 1)
-    check_true("a newline inside a cell is flattened", "\n" not in note)
+    fields = note.split("\t")
+    check("a tab inside a cell became a space", fields[1], "free text with breaks")
+    check_true("no newline survives into the row", "\n" not in note)
 
     print("\nchunking keeps rows intact and repeats the header")
     chunks = si.chunk_table(text)
@@ -109,6 +113,59 @@ def main():
     check("prose chunker collapses all tabs", "\t" in flat, False)
     check("prose chunker collapses all newlines", "\n" in flat, False)
     check_true("tabular chunker keeps them", "\t" in chunks[0] and "\n" in chunks[0])
+
+    print("\nsparse sheets do not inflate the text (the ingest-hang regression)")
+    # A wide sparse sheet padded with a tab per gap inflated the extracted text 12.5x,
+    # and mask() runs spaCy NER over it at ~linear cost -- which stalled a full ingest
+    # on one file with no indication of which or why. Padding must stay proportional.
+    wide_x = tmp / "sparse.xlsx"
+    wb2 = openpyxl.Workbook()
+    ws3 = wb2.active
+    ws3.append(["C%d" % i for i in range(200)])          # header populates ALL columns
+    for r in range(400):
+        row = [None] * 200
+        for i in (0, 100, 199):
+            row[i] = "V%d" % r
+        ws3.append(row)
+    wb2.save(wide_x)
+
+    def unpadded_len(path):
+        """Text length the pre-change extractor produced: populated cells only.
+
+        Includes the [Sheet: ...] marker, which the old extractor also emitted, so
+        this compares like with like rather than being 15 chars short per sheet.
+        """
+        w = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        out = []
+        for sh in w.worksheets:
+            out.append(si.SHEET_PREFIX + sh.title + "]")
+            for row in sh.iter_rows(values_only=True):
+                ln = "\t".join(str(c) for c in row if c is not None)
+                if ln.strip():
+                    out.append(ln)
+        w.close()
+        return len("\n".join(out))
+
+    grew = len(si.extract_text(wide_x)) / float(unpadded_len(wide_x))
+    check_true("3%% of a 200-col grid stays under 3x (was 12.5x), got %.2fx" % grew,
+               grew < 3.0)
+    body = [ln for ln in si.extract_text(wide_x).split("\n") if ln.startswith("C0=")]
+    check_true("sparse rows carry their own column names", len(body) > 0)
+    check("and name only the populated columns",
+          body[0].split("\t"), ["C0=V0", "C100=V0", "C199=V0"])
+
+    print("\ndense sheets are untouched by that switch")
+    dense_x = tmp / "dense.xlsx"
+    wb3 = openpyxl.Workbook()
+    ws4 = wb3.active
+    ws4.append(["C%d" % i for i in range(12)])
+    for r in range(200):
+        ws4.append(["V%d" % r] * 12)
+    wb3.save(dense_x)
+    dtext = si.extract_text(dense_x)
+    check("dense output is byte-identical in size to the old extractor",
+          len(dtext), unpadded_len(dense_x))
+    check_true("dense rows stay TSV, not pairs", "C0=V0" not in dtext)
 
     print("\nrow budget is respected without splitting a row")
     wide = si.chunk_table("\n".join(
