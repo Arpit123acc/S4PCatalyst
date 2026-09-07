@@ -871,6 +871,17 @@ def _safe_str(s: str) -> str:
     return s.encode("utf-8", "replace").decode("utf-8")
 
 
+_PROGRESS = {"done": 0, "total": 0}
+
+
+def _progress() -> str:
+    """'12/2731' when the caller knows the total, else a bare count."""
+    _PROGRESS["done"] += 1
+    if _PROGRESS["total"]:
+        return "%d/%d" % (_PROGRESS["done"], _PROGRESS["total"])
+    return str(_PROGRESS["done"])
+
+
 _CHUNK_INDEX = None          # doc_id -> [existing chunk paths]; built once per run
 
 
@@ -909,6 +920,13 @@ def _ingest_one_local(f) -> int:
     rel_path_raw   = str(f.relative_to(RAW_DIR))   # may hold surrogate bytes
     rel_path       = _safe_str(rel_path_raw)        # clean UTF-8 for logs/JSON
     safe_name      = _safe_str(f.name)
+
+    # ANNOUNCED FIRST, before any work. Extraction and spaCy NER masking both
+    # happen below and are by far the slowest part of an ingest (~29k chars/sec
+    # for en_core_web_lg on CPU), so logging only afterwards left the run silent
+    # for seconds-to-minutes per document with no indication of which file it
+    # was on. That is indistinguishable from a stall, and was read as one.
+    log.info("[%s] %s", _progress(), safe_name)
 
     # Extract + mask first, so classification can read the document content
     # (not just the filename) — many delivery docs have generic names.
@@ -984,9 +1002,11 @@ def process_local():
     total_chunks, total_files = 0, 0
 
     skipped = 0
-    for f in sorted(RAW_DIR.rglob("*")):
-        if not f.is_file() or f.suffix.lower() not in SUPPORTED_EXT:
-            continue
+    files = [f for f in sorted(RAW_DIR.rglob("*"))
+             if f.is_file() and f.suffix.lower() in SUPPORTED_EXT]
+    _PROGRESS["total"] = len(files)
+    log.info("%d supported files to ingest", len(files))
+    for f in files:
         try:
             n = _ingest_one_local(f)
         except Exception as e:                 # one bad file never kills the run
