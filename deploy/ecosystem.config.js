@@ -134,6 +134,13 @@ module.exports = {
       autorestart: false,
       env: {
         AWS_REGION: 'us-east-1',
+        // The refresh rebuilds the L2 semantic index, and engine.backend() picks the
+        // backend from THIS variable. Unset, it auto-detects: no sentence-transformers
+        // on this host means it resolves to `tfidf`, i.e. keyword overlap with no
+        // synonyms — a silent downgrade of semantic_search that build_index.py now
+        // refuses outright. Pinning it to bedrock uses Titan through the instance role,
+        // which needs no install, no key and no resident model.
+        S4PC_VECTOR_BACKEND: 'bedrock',
       },
       out_file: '/home/ec2-user/.pm2/logs/brain-refresh-out.log',
       error_file: '/home/ec2-user/.pm2/logs/brain-refresh-err.log',

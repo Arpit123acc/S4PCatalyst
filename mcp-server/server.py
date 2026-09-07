@@ -1043,11 +1043,16 @@ def _vector_provenance(eng):
         meta = eng.index_meta()
     except Exception:
         return None, "unknown (index header unreadable)"
-    engine = meta.get("engine")
+    # engine_effective mirrors what search() dispatches on; meta["engine"] is the raw
+    # header value and is None when the index never declared one. Say so when it does
+    # not, rather than presenting an assumption as a fact.
+    engine = meta.get("engine_effective")
     label  = _VEC_ENGINE_LABELS.get(engine, "unknown backend (%s)" % engine)
     model = meta.get("model")
     if model and engine != "tfidf" and model not in label:
         label += " [model: %s]" % model
+    if meta.get("present") and not meta.get("engine"):
+        label += " [ASSUMED — the index header declares no backend]"
     return meta, label
 
 def tool_semantic_search(args):

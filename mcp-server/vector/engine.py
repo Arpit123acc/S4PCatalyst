@@ -248,7 +248,7 @@ def _tokenize(text):
 def _build_tfidf(documents):
     N = len(documents)
     if not N:
-        _write_json(INDEX_PATH, {"engine": "tfidf", "idf": {}, "docs": []})
+        _publish_header_only({"engine": "tfidf", "idf": {}, "docs": []})
         return 0
     tokenized = [_tokenize(d["text"]) for d in documents]
     df = Counter()
@@ -268,7 +268,7 @@ def _build_tfidf(documents):
             "tfidf":    vec,
             "metadata": doc.get("metadata", {}),
         })
-    _write_json(INDEX_PATH, {"engine": "tfidf", "idf": idf, "docs": index_docs})
+    _publish_header_only({"engine": "tfidf", "idf": idf, "docs": index_docs})
     return N
 
 
@@ -314,6 +314,33 @@ def _write_json(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(obj, fh, ensure_ascii=False, separators=(",", ":"))
+
+
+def _publish_header_only(header):
+    """Atomic publish for a backend with no matrix (tfidf), keeping a .prev.
+
+    _build_tfidf used to call _write_json straight onto the live path, so the ONE
+    build that can replace a dense index with keyword overlap was also the only one
+    with no rollback copy. That is backwards: the weakest publisher needs the safety
+    net most. Now it swaps atomically and leaves index.json.prev behind.
+
+    index.npy is deliberately NOT deleted. search() dispatches on the header's engine,
+    so a leftover matrix is inert -- and it is what makes a mistaken tfidf build
+    recoverable without re-embedding.
+    """
+    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
+    tmp = INDEX_PATH + ".tmp"
+    _write_json(tmp, header)
+    prev = INDEX_PATH + ".prev"
+    had_prev = os.path.exists(INDEX_PATH)
+    if had_prev:
+        os.replace(INDEX_PATH, prev)
+    try:
+        os.replace(tmp, INDEX_PATH)
+    except Exception:
+        if had_prev:
+            os.replace(prev, INDEX_PATH)
+        raise
 
 
 def _publish(matrix, header):
@@ -387,15 +414,26 @@ def index_meta():
     backend()). Callers that describe their own provenance must use THIS, or they end
     up telling the reader the scores mean something they don't -- which for a
     governance tool is the same class of error as a release verdict without evidence.
+
+    `engine` is the RAW header value and is None when the key is absent or the file is
+    unreadable. `engine_effective` applies the same "assume tfidf" default that
+    search() dispatches on. The two are separate because a SAFETY check must not
+    inherit a permissive default: build_index's downgrade guard compares against the
+    live engine, and defaulting an unknown header to "tfidf" made it conclude "already
+    the weakest, nothing to protect" and wave a downgrade straight through.
     """
     try:
         with open(INDEX_PATH, encoding="utf-8") as fh:
             header = json.load(fh)
     except Exception:
-        return {"engine": None, "model": None, "docs": 0}
-    return {"engine": header.get("engine", "tfidf"),
+        return {"engine": None, "engine_effective": None, "model": None, "docs": 0,
+                "present": False}
+    raw = header.get("engine")
+    return {"engine": raw,
+            "engine_effective": raw or "tfidf",
             "model":  header.get("model"),
-            "docs":   len(header.get("docs") or [])}
+            "docs":   len(header.get("docs") or []),
+            "present": True}
 
 
 def search(query, top_k=5, filter_type=None, min_score=None):

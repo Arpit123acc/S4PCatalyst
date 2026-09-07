@@ -221,18 +221,32 @@ def _guard_downgrade(new_backend, allow):
     a derived index may only be replaced by something at least as good, unless a
     human says otherwise.
     """
-    live = engine.index_meta().get("engine")
-    if not live or allow:
+    if allow:
         return
+    meta = engine.index_meta()
+    if not meta.get("present"):
+        return                      # no live index — a first build cannot downgrade
+    live = meta.get("engine")       # RAW: None means the header never declared one
+    hint = ("  Fix the host and re-run: on a Bedrock host set S4PC_VECTOR_BACKEND=bedrock "
+            "(no install needed); otherwise pip install sentence-transformers.\n"
+            "  Pass --allow-downgrade only if a weaker index is genuinely intended.\n"
+            "  Nothing was written.")
+    # An UNDECLARED engine is not evidence of a weak index — it is an old header, and
+    # index_meta's display default would read it as 'tfidf' and conclude there is
+    # nothing to protect. Refuse instead of guessing: this guard exists precisely for
+    # the case where we cannot see what we are about to overwrite.
+    if live is None:
+        sys.exit(
+            "REFUSING to rebuild: the live index (%d docs) does not declare which "
+            "backend built it, so a downgrade cannot be ruled out.\n"
+            "  This host is configured for '%s'.\n%s"
+            % (meta.get("docs", 0), new_backend, hint))
     if _BACKEND_RANK.get(new_backend, -1) < _BACKEND_RANK.get(live, -1):
         sys.exit(
             "REFUSING to rebuild: the live index was built with '%s' but this host is "
             "configured for '%s', which is weaker.\n"
             "  Publishing it would silently downgrade semantic_search to keyword "
-            "overlap — no error, just worse answers.\n"
-            "  Fix the host (install the missing deps, or set S4PC_VECTOR_BACKEND), "
-            "or pass --allow-downgrade if that is genuinely intended.\n"
-            "  Nothing was written." % (live, new_backend))
+            "overlap — no error, just worse answers.\n%s" % (live, new_backend, hint))
 
 
 if __name__ == "__main__":
