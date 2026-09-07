@@ -192,6 +192,18 @@ fi
 #    failures: a stale L2 answers every query successfully and merely omits what it
 #    has not indexed, which is indistinguishable from a correct empty result. This is
 #    the check that would have caught L2 sitting 3 lessons behind L3.
+say "── spreadsheet extraction + tabular chunking"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_table_chunking.py"
+elif $PY brain-tests/test_table_chunking.py > /dev/null 2>&1; then
+  say "   ok: sheet rows keep their columns, headers repeat per chunk"
+else
+  say "   FAILED: spreadsheet content is being mangled at ingest — mapping"
+  say "   specs are the bulk of this corpus and would become ungroundable. Detail:"
+  say "     $PY brain-tests/test_table_chunking.py"
+  fail_steps="$fail_steps table-chunking"
+fi
+
 say "── document-lifecycle round-trip"
 if [ -n "$DRY" ]; then
   say "   DRY RUN, would run brain-tests/test_doc_version.py"

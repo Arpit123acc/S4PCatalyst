@@ -655,19 +655,59 @@ def extract_text(path: Path) -> str:
                         parts.append(shape.text)
             return "\n".join(parts)
         if ext == ".xlsx":
-            import openpyxl
-            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-            parts = []
-            for sheet in wb.worksheets:
-                parts.append(f"[Sheet: {sheet.title}]")
-                for row in sheet.iter_rows(values_only=True):
-                    line = "\t".join(str(c) for c in row if c is not None)
-                    if line.strip():
-                        parts.append(line)
-            return "\n".join(parts)
+            return _extract_xlsx(path)
     except Exception as e:
         log.warning("Extraction failed [%s]: %s", path.name, e)
     return ""
+
+SHEET_PREFIX = "[Sheet: "
+_SHEET_RE = re.compile(r"^\[Sheet: ")
+
+# Rows are far denser than prose, and each chunk re-emits the header line, so the
+# budget is smaller than CHUNK_WORDS to keep chunks comparable in real content.
+TABLE_CHUNK_WORDS = 400
+
+
+def _extract_xlsx(path: Path) -> str:
+    """Extract a workbook as one TSV line per row, sheet by sheet.
+
+    TWO BUGS THIS FIXES, both silent and both worst for the mapping spreadsheets this
+    corpus is largely made of:
+
+    * EMPTY CELLS NOW KEEP THEIR COLUMN. The previous version did
+      `str(c) for c in row if c is not None`, which DROPS blank cells and shifts every
+      later value left: a row ("BEG03", None, "EKKO", None, "10") was emitted as
+      "BEG03<TAB>EKKO<TAB>10", so EKKO appeared under the second column's header. A
+      field mapping read that way is not merely vague, it is wrong.
+    * Cell contents can themselves hold tabs and newlines, which would forge row and
+      column boundaries downstream. They are flattened to spaces here, so the only
+      tabs and newlines in the output are the ones that mean something.
+
+    Trailing blank cells are trimmed (spreadsheets are full of ragged right edges)
+    but INTERIOR blanks are kept, because those are the ones carrying position.
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    parts: list = []
+    try:
+        for sheet in wb.worksheets:
+            rows = []
+            for row in sheet.iter_rows(values_only=True):
+                cells = ["" if c is None
+                         else str(c).replace("\t", " ").replace("\n", " ").strip()
+                         for c in row]
+                while cells and not cells[-1]:
+                    cells.pop()
+                if not any(cells):
+                    continue
+                rows.append("\t".join(cells))
+            if rows:
+                parts.append(f"{SHEET_PREFIX}{sheet.title}]")
+                parts.extend(rows)
+    finally:
+        wb.close()
+    return "\n".join(parts)
+
 
 # ── CHUNKING ──────────────────────────────────────────────────────────────────
 def chunk(text: str) -> list:
@@ -677,6 +717,63 @@ def chunk(text: str) -> list:
         if c.strip():
             chunks.append(c)
         i += CHUNK_WORDS - CHUNK_OVERLAP
+    return chunks
+
+
+def chunk_table(text: str) -> list:
+    """Chunk tabular text on ROW boundaries, repeating each sheet's header.
+
+    WHY THE PROSE CHUNKER CANNOT BE USED ON A SPREADSHEET
+        chunk() does text.split() and rejoins on single spaces, which collapses every
+        tab and newline. A mapping sheet became an undifferentiated run of words --
+        "[Sheet: PO Mapping] EDI Field SAP Field Table Req Len BEG03 EBELN EKKO Y 10
+        BEG05 ..." -- with no way to tell where a row ends or which value sits under
+        which column. An agent cannot ground a field mapping on that, and mapping
+        sheets are exactly what the SharePoint corpus is mostly made of.
+
+    WHY THE HEADER IS REPEATED
+        A chunk taken from the middle of a 5,000-row sheet is useless without its
+        column names. Re-emitting one header line per chunk is far cheaper than the
+        alternative of expanding every cell into "column: value", which would roughly
+        triple the token count of the largest part of the corpus.
+
+    Rows are never split, so a chunk may exceed the budget slightly rather than
+    truncate a row mid-way.
+    """
+    lines = [ln for ln in (text or "").split("\n") if ln.strip()]
+    if not lines:
+        return []
+
+    chunks: list = []
+    cur: list = []
+    cur_words = 0
+    sheet = None
+    header = None
+
+    def flush():
+        nonlocal cur, cur_words
+        if not cur:
+            return
+        prefix = [p for p in (sheet, header) if p]
+        chunks.append("\n".join(prefix + cur))
+        cur, cur_words = [], 0
+
+    for line in lines:
+        if _SHEET_RE.match(line):
+            flush()
+            sheet, header = line, None
+            continue
+        if header is None:
+            # First row of a sheet is its header: it lives in the prefix so every
+            # chunk carries it, and is therefore not repeated in the body.
+            header = line
+            continue
+        n = len(line.split())
+        if cur and cur_words + n > TABLE_CHUNK_WORDS:
+            flush()
+        cur.append(line)
+        cur_words += n
+    flush()
     return chunks
 
 def _safe_str(s: str) -> str:
@@ -714,11 +811,26 @@ def _ingest_one_local(f) -> int:
              safe_name, source_system, phase, agent_role, deliverable,
              f", scope={scope_item_id}" if scope_item_id else "")
 
-    chunks = chunk(text)
+    # Spreadsheets are chunked on row boundaries with the header repeated; prose is
+    # chunked on a word window. Routed on the extension because that is what actually
+    # determines whether the extracted text is tabular.
+    chunks = chunk_table(text) if f.suffix.lower() == ".xlsx" else chunk(text)
 
     # hash the raw path (surrogatepass) so IDs stay unique even when a bad
     # byte collapsed to '?' in the display name
     doc_id    = hashlib.md5(rel_path_raw.encode("utf-8", "surrogatepass")).hexdigest()[:8]
+
+    # Drop this document's PREVIOUS chunks before writing the new ones. Chunk files
+    # are named {doc_id}_{idx}, so a re-ingest that produces FEWER chunks than last
+    # time leaves the surplus on disk -- and the embedder indexes those orphans as
+    # real documents, so retrieval keeps serving text that no longer exists in any
+    # source file. The tabular chunker below produces markedly fewer chunks per
+    # spreadsheet, which would have triggered exactly that. Also covers a document
+    # whose phase/agent_role classification changed, since that moves its directory.
+    if CHUNKS_DIR.exists():
+        for stale in CHUNKS_DIR.rglob(f"{doc_id}_*.json"):
+            stale.unlink()
+
     chunk_dir = CHUNKS_DIR / phase / agent_role
     chunk_dir.mkdir(parents=True, exist_ok=True)
 
