@@ -59,6 +59,20 @@ _DUPLICATE_RE = re.compile(r"\s*\((\d{1,2})\)$")
 _COPY_PREFIX_RE   = re.compile(r"^copy\s+of\s+", re.IGNORECASE)
 _BACKUP_SUFFIX_RE = re.compile(r"[-_(\s]+backup\b[\s\-_./\d]*\)?$", re.IGNORECASE)
 
+# Windows Explorer's own duplicate suffix: "Foo - Copy.xlsx", "Foo - Copy - Copy.xlsx",
+# "Foo (Copy).xlsx". Measured on the rebuilt corpus this is the MOST common copy
+# convention in the SAP BPD set -- ~28 files -- and it was the one convention not
+# handled, so each copy sat in its own family: never collapsed for counting, never
+# demoted, competing with its original for top-k.
+#
+# A dash or open-paren is REQUIRED before "copy". A bare trailing " Copy" is ordinary
+# vocabulary ("Invoice Master Copy") and stripping it would merge distinct documents.
+# Anything AFTER the word is likewise disqualifying: "54U_..._BPD_EN_US - Copy - SCM"
+# and "... - Copy SCM" are copies somebody then annotated for a team, i.e. working
+# documents in their own right, not Explorer duplicates.
+_COPY_SUFFIX_RE = re.compile(
+    r"[\s_]*[-(][\s_]*copy(?:[\s_]*-[\s_]*copy)*[\s_]*\)?$", re.IGNORECASE)
+
 # MEASURED AND DELIBERATELY NOT IMPLEMENTED (2026-09-07, over 2,731 distinct sources).
 # 135 names carry a word that LOOKS like a revision marker. Counting them before
 # writing a parser is what stopped a bad one shipping:
@@ -99,6 +113,13 @@ def _strip_ext(name):
     return _EXT_RE.sub("", name or "")
 
 
+def _ext(name):
+    """The recognised extension, lowercased, or "" -- used to keep a successor
+    pointer inside the format the reader was already looking at."""
+    m = _EXT_RE.search(name or "")
+    return m.group(0).lower() if m else ""
+
+
 def parse(source):
     """Decompose a document name into {family, version, version_key, duplicate, obsolete}.
 
@@ -118,6 +139,10 @@ def parse(source):
         duplicate = 1
         stem = _COPY_PREFIX_RE.sub("", stem)
     m = _BACKUP_SUFFIX_RE.search(stem)
+    if m:
+        duplicate = duplicate or 1
+        stem = stem[:m.start()]
+    m = _COPY_SUFFIX_RE.search(stem)
     if m:
         duplicate = duplicate or 1
         stem = stem[:m.start()]
@@ -204,7 +229,38 @@ def resolve_families(sources):
             # leaves BOTH members current; collapse() still picks one representative,
             # because choosing a representative and asserting death are different
             # claims and only the second needs proof.
-            outranked = _rank(p) < win_rank
+            # WHICH DOCUMENT TO READ INSTEAD -- resolved within the same FORMAT.
+            # The family deliberately ignores the extension so that one artifact
+            # exported twice counts once. That makes the family-wide winner a poor
+            # successor pointer, and measurably so: "54U_S4CLD2402_BPD_EN_US (1).docx"
+            # was told to go read "54U_S4CLD2402_BPD_EN_US.xlsx", but for an SAP BPD
+            # the .docx is the process narrative and the .xlsx is the step table --
+            # different content, not a newer copy. CLAUDE.md instructs agents to read
+            # superseded_by INSTEAD of the hit they found, so a wrong pointer sends
+            # them to the wrong document.
+            #
+            # And when nothing in this member's own format outranks it, it is not
+            # superseded at all: "1P7_S4CLD2402_BPD_EN_US (1).docx" and
+            # "3F0_..._BPD_EN_US (1).docx" are the ONLY Word narrative for those scope
+            # items -- no plain .docx exists -- so demoting them in favour of a
+            # spreadsheet would hide the sole source, which this module's header calls
+            # the worst outcome. collapse() is unaffected and still folds every format
+            # into one artifact, because counting and declaring death are separate
+            # claims.
+            successor = None
+            if _rank(p) < win_rank:
+                same = [m for m in members if _ext(m) == _ext(src)]
+                best = pick_current(same)
+                if best != src and _rank(parsed[best]) > _rank(p):
+                    successor = best
+                elif len(same) == 1:
+                    # Sole member of its format: the copy marker says it duplicates a
+                    # same-named file, and that file is not in the corpus in this
+                    # format. Keep it.
+                    successor = None
+                else:
+                    successor = current
+            outranked = successor is not None
             # An explicit "do not use" marker means NOT current, whatever else is true.
             # Without this an obsolete document that happens to be the only member of
             # its family came back is_current=True AND obsolete_marker=True -- a
@@ -216,10 +272,11 @@ def resolve_families(sources):
                 "family": family,
                 "version": p["version"],
                 "is_current": is_current,
-                # Only set when a member was genuinely OUTRANKED. An obsolete
-                # single-member family is not superseded by anything -- it is just
-                # dead, and saying "superseded by itself" would be nonsense.
-                "superseded_by": current if outranked else None,
+                # Only set when a member was genuinely OUTRANKED, and pointing at the
+                # same format where one exists. An obsolete single-member family is
+                # not superseded by anything -- it is just dead, and saying
+                # "superseded by itself" would be nonsense.
+                "superseded_by": successor,
                 "duplicate": p["duplicate"],
                 "obsolete_marker": p["obsolete_marker"],
                 "family_size": len(members),

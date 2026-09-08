@@ -220,6 +220,79 @@ def test_ties_are_not_supersession():
           sum(1 for m in r5.values() if m["is_current"]), 1)
 
 
+def test_windows_copy_suffix():
+    """Explorer's own duplicate suffix -- the commonest copy convention in the corpus.
+
+    Measured 2026-09-08: ~28 files in the SAP BPD set carry " - Copy", and it was the
+    one copy convention doc_version did not know, so each sat in a family of its own --
+    never collapsed for counting, never demoted, competing with its own original for
+    top-k. The counter-cases matter as much: a copy somebody then annotated for a team
+    is a working document, and "Master Copy" is ordinary vocabulary.
+    """
+    print("\nWindows ' - Copy' suffix")
+    orig = "18J_S4CLD2402_BPD_EN_US.xlsx"
+    for name in ("18J_S4CLD2402_BPD_EN_US - Copy.xlsx",          # the plain case
+                 "3BU_S4CLD2402_BPD_EN_US- Copy.xlsx",           # no space before dash
+                 "BMY_S4CLD2402_BPD_EN_US - Copy - Copy.xlsx",   # a copy of a copy
+                 "Cutover Plan (Copy).xlsx"):                    # parenthesised
+        check("'%s' is a duplicate" % name[-22:], dv.parse(name)["duplicate"], 1)
+    check("and it rejoins the original's family",
+          dv.parse("18J_S4CLD2402_BPD_EN_US - Copy.xlsx")["family"],
+          dv.parse(orig)["family"])
+    check("the original wins over its copy",
+          dv.pick_current([orig, "18J_S4CLD2402_BPD_EN_US - Copy.xlsx"]), orig)
+    lone = "SL4_S4CLD2402_BPD_EN_US - Copy.xlsx"
+    check("a lone copy remains current",
+          dv.resolve_families([lone])[lone]["is_current"], True)
+
+    # Anything AFTER the word means it was renamed with intent, not duplicated.
+    for name in ("54U_S4CLD2402_BPD_EN_US - Copy - SCM.xlsx",
+                 "54V_S4CLD2402_BPD_EN_US - Copy SCM.xlsx"):
+        check("'%s' is annotated, not a copy" % name[-20:],
+              dv.parse(name)["duplicate"], None)
+    # A bare trailing " Copy" with no dash is vocabulary.
+    check("'Invoice Master Copy' is not a copy",
+          dv.parse("Invoice Master Copy.xlsx")["duplicate"], None)
+    check("a copy marker does not eat the version",
+          dv.parse("Spec_v2.0 - Copy.xlsx")["version_key"], (2, 0))
+
+
+def test_successor_keeps_the_format():
+    """superseded_by must point inside the format the reader was already in.
+
+    The family ignores the extension so one artifact exported twice counts once. That
+    is right for counting and wrong for a successor pointer: measured 2026-09-08,
+    "54U_S4CLD2402_BPD_EN_US (1).docx" was told to go read "..._BPD_EN_US.xlsx", and
+    for an SAP BPD the .docx is the process narrative while the .xlsx is the step
+    table. CLAUDE.md tells agents to read superseded_by INSTEAD of their hit, so the
+    pointer has to land on the right document.
+    """
+    print("\na successor stays in the same format")
+    fam = ["54U_S4CLD2402_BPD_EN_US (1).docx", "54U_S4CLD2402_BPD_EN_US (2).xlsx",
+           "54U_S4CLD2402_BPD_EN_US.docx", "54U_S4CLD2402_BPD_EN_US.xlsx"]
+    res = dv.resolve_families(fam)
+    check("the docx copy is sent to the docx",
+          res[fam[0]]["superseded_by"], "54U_S4CLD2402_BPD_EN_US.docx")
+    check("the xlsx copy is sent to the xlsx",
+          res[fam[1]]["superseded_by"], "54U_S4CLD2402_BPD_EN_US.xlsx")
+    check("both originals stay current",
+          [res[fam[2]]["is_current"], res[fam[3]]["is_current"]], [True, True])
+    check("and all four are one artifact",
+          len(dv.collapse([{"source": s} for s in fam])), 1)
+
+    # The dangerous case: no plain .docx exists, so the copy is the ONLY narrative.
+    sole = ["1P7_S4CLD2402_BPD_EN_US (1).docx", "1P7_S4CLD2402_BPD_EN_US.xlsx",
+            "1P7_S4CLD2402_BPD_EN_US - Copy.xlsx"]
+    r = dv.resolve_families(sole)
+    check("the only docx is NOT demoted to a spreadsheet",
+          r[sole[0]]["is_current"], True)
+    check("and claims no successor", r[sole[0]]["superseded_by"], None)
+    check("while the xlsx copy is still superseded by the xlsx",
+          r[sole[2]]["superseded_by"], "1P7_S4CLD2402_BPD_EN_US.xlsx")
+    check("still one artifact for counting",
+          len(dv.collapse([{"source": s} for s in sole])), 1)
+
+
 def test_index_roundtrip():
     print("\nend-to-end through keyword.db")
     rows = []
@@ -280,6 +353,8 @@ def main():
     test_ordering()
     test_obsolete()
     test_ties_are_not_supersession()
+    test_windows_copy_suffix()
+    test_successor_keeps_the_format()
     test_index_roundtrip()
     test_legacy_db()
     print()
