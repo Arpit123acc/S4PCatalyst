@@ -56,19 +56,14 @@ sys.path.insert(0, os.path.join(BASE_DIR, "scripts"))
 
 CHUNKS_DIR = os.path.join(BASE_DIR, "brain", "sharepoint", "chunks")
 
-# The placeholders whose rules are safe to re-apply. Everything absent from this set
-# is a heuristic (see the module docstring) and is checked only by its placeholder
-# COUNT, not by re-matching.
-STRUCTURAL = {
-    "[CREDENTIAL]", "[EMAIL]", "[INTERNAL_URL]", "[SAP_TENANT_URL]",
-    "[IP_ADDRESS]", "[LOGICAL_SYSTEM]", "[EMP_ID]", "[PHONE]",
-}
-
-# Every placeholder, for the positive check.
-ALL_PLACEHOLDERS = STRUCTURAL | {
+# The structural set is IMPORTED, not restated. mask() re-applies exactly these rules
+# to a fixed point after its NER pass, so an audit keeping its own copy would drift
+# from the thing it audits the moment either changed — and the drift would show up as
+# a clean report rather than as an error.
+_HEURISTIC_PLACEHOLDERS = frozenset({
     "[TRANSPORT]", "[TICKET]", "[CONTRACT_REF]", "[CLIENT_OBJECT]", "[CLIENT]",
     "[RATE]", "[AMOUNT]", "[PROJECT]", "[PERSON]",
-}
+})
 
 
 def shape(text):
@@ -89,11 +84,13 @@ def main():
     args = ap.parse_args()
 
     import sharepoint_ingest as si                            # noqa: PLC0415
-    rules = [(rx, label) for rx, label in si._MASK_RULES if label in STRUCTURAL]
+    structural = si._STRUCTURAL_LABELS
+    all_placeholders = set(structural) | _HEURISTIC_PLACEHOLDERS
+    rules = [(rx, label) for rx, label in si._MASK_RULES if label in structural]
     if not rules:
-        print("FATAL: no structural rules matched %s — the placeholder labels in "
-              "sharepoint_ingest have changed and STRUCTURAL needs updating."
-              % sorted(STRUCTURAL))
+        print("FATAL: none of sharepoint_ingest._STRUCTURAL_LABELS (%s) appears in "
+              "_MASK_RULES. The two have diverged — masking is re-applying nothing."
+              % sorted(structural))
         return 2
     print("re-applying %d structural rule(s): %s"
           % (len(rules), ", ".join(sorted({l for _, l in rules}))))
@@ -122,7 +119,7 @@ def main():
             text = rec.get("text") or ""
             scanned += 1
             chars += len(text)
-            for ph in ALL_PLACEHOLDERS:
+            for ph in all_placeholders:
                 n = text.count(ph)
                 if n:
                     placeholders[ph] += n

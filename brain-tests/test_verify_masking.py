@@ -123,6 +123,30 @@ def main():
     rc, out = _run(prose)
     check("ordinary SAP prose is not a finding", rc, 0)
 
+    print("\nmask() reaches a fixed point: NER cannot re-expose a structural rule")
+    # THE MECHANISM behind the single real leak found on the corpus. The regex rules
+    # run, then NER rewrites the text, and a substitution can turn something no rule
+    # matched into something an earlier rule WOULD have matched. Before the fix,
+    # mask() never looked again.
+    #
+    # Simulated deterministically rather than with spaCy: the fallback name rule is
+    # itself a substitution that runs after the structural rules, which is the same
+    # ordering. Whatever it replaces, the structural rules must get another look.
+    sys.path.insert(0, str(REPO / "scripts"))
+    import sharepoint_ingest as si                            # noqa: PLC0415
+    check("structural labels are shared, not duplicated",
+          "[PHONE]" in si._STRUCTURAL_LABELS and "[EMAIL]" in si._STRUCTURAL_LABELS,
+          True)
+    check("heuristic labels are NOT in the re-applied set",
+          any(l in si._STRUCTURAL_LABELS for l in ("[PERSON]", "[CLIENT]", "[AMOUNT]")),
+          False)
+    # A second pass must be idempotent on already-masked text: masking twice must not
+    # differ from masking once, or every re-ingest would churn the corpus.
+    once = si.mask("Reach [PERSON] on +86 138 0013 8000 or a.b@example.com today.")
+    check("masking is idempotent", si.mask(once), once)
+    check("and the structural PII is gone",
+          "@example.com" not in once and "0013" not in once, True)
+
     print("\ndegradation")
     rc, out = _run(Path(tempfile.mkdtemp()) / "nope")
     check("absent chunk tree exits 2, not 0", rc, 2)

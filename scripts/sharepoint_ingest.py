@@ -618,8 +618,44 @@ def _ner_mask_segment(text: str, nlp) -> str:
         text = text[:start] + repl + text[end:]
     return text
 
+# Placeholders whose rules match a STRUCTURE rather than exercising judgement, so
+# they are safe to re-apply to already-masked text. The name/org/client rules are
+# excluded: they are heuristics guarded by a vocabulary list, and re-running them over
+# text that already contains placeholders is how "[PERSON] [PERSON]" turns into a
+# fresh false match. scripts/verify_masking.py imports this rather than keeping its
+# own copy, so the audit cannot drift from what is actually re-applied.
+_STRUCTURAL_LABELS = frozenset({
+    "[CREDENTIAL]", "[EMAIL]", "[INTERNAL_URL]", "[SAP_TENANT_URL]",
+    "[IP_ADDRESS]", "[LOGICAL_SYSTEM]", "[EMP_ID]", "[PHONE]",
+})
+
+# How many times to re-run the structural rules after NER. A pass that changes
+# nothing ends the loop, so this is only a ceiling against a pathological
+# rule interaction, never the normal path (one extra pass is typical).
+_MASK_MAX_PASSES = 3
+
+
 def mask(text: str) -> str:
-    """Hybrid masking: regex for structured PII, spaCy NER for names/orgs."""
+    """Hybrid masking: regex for structured PII, spaCy NER for names/orgs.
+
+    WHY THE STRUCTURAL RULES RUN AGAIN AFTER NER
+        The regex rules used to run once, then NER, then nothing. But NER REWRITES the
+        text after every regex rule has already been applied, and a substitution can
+        turn something no rule matched into something an earlier rule would have
+        matched -- most simply by replacing the character that a rule's lookbehind
+        rejected.
+
+        Found 2026-09-08 by scripts/verify_masking.py on the real corpus: exactly one
+        phone number survived 107.8 MB of masked text, and the very rule that should
+        have caught it matched when re-applied to the FINAL text. That is only
+        possible if the text changed after the rule ran, and the only thing that
+        changes it at that point is the NER pass.
+
+        So the structural rules repeat until a pass changes nothing. One occurrence in
+        107.8 MB is a small leak; a masker that cannot be re-run to a fixed point is a
+        systematic one, because the same ordering defeats any rule sensitive to a
+        neighbouring character -- e-mail and credentials included.
+    """
     # 1. structured + known-entity regex rules
     for pattern, replacement in _MASK_RULES:
         text = pattern.sub(replacement, text)
@@ -629,6 +665,14 @@ def mask(text: str) -> str:
         text = _ner_mask(text, nlp)
     else:
         text = _STANDALONE_NAME_RE.sub(_mask_standalone_name, text)
+    # 3. re-apply the structural rules to a fixed point — see above.
+    for _ in range(_MASK_MAX_PASSES):
+        before = text
+        for pattern, replacement in _MASK_RULES:
+            if replacement in _STRUCTURAL_LABELS:
+                text = pattern.sub(replacement, text)
+        if text == before:
+            break
     return text
 
 # ── TEXT EXTRACTION ───────────────────────────────────────────────────────────
