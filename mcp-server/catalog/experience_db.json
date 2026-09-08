@@ -471,6 +471,57 @@
       ],
       "added": "2026-09-03",
       "source": "pipeline run d4279543"
+    },
+    {
+      "id": "EXP-033",
+      "category": "developer",
+      "topic": "Build the release-verdict inventory from the code, not from the design",
+      "lesson": "Gate 3 found two ABAP classes (CL_HTTP_DESTINATION_PROVIDER, CL_WEB_HTTP_CLIENT_MANAGER) used inside ZCL_SS_ASSIGN_TO_ME.post_assignment that were never gated. Gate 1 checked the design's object list; Gate 2 checked the same list again. Neither re-derived the list from the code that was actually written, so helper classes called only inside a method body were invisible to both. Fix: at every gate after the build, extract object names by reading the code line by line, then diff that set against 03-release-verdicts.md. Any name in the code but not in the inventory is a Critical gate defect. For ABAP classes the offline catalog holds no registry, so the verdict is always NOT_VERIFIED — that is silence, not a refusal, and only ADT Released Objects settles it.",
+      "impact": "Prevents unchecked SAP objects reaching transport through two release gates.",
+      "tags": [
+        "gate",
+        "release-check",
+        "abap-cloud",
+        "rap",
+        "clean-core"
+      ],
+      "added": "2026-09-08",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-034",
+      "category": "developer",
+      "topic": "A CP1 naming contract must fix names, not object types, for a RAP custom query",
+      "lesson": "CP1 locked ZC_SS_WORKPACKAGE_SEARCH as a \"CDS projection view\". The build had to make it a CDS custom entity, because only a custom entity can carry @ObjectModel.query.implementedBy. RAP then forced three more objects the contract never listed: the behavior pool ZBP_C_SS_WORKPACKAGE_SEARCH (one per root entity), the ADT-generated service consumption proxy ZCL_SS_PROJASSIGN_CLIENT, and a message class for any raised exception. Result: a Major scope finding that only the human could close, discovered after the build. Fix: at proposal time, list the RAP-mandatory satellites alongside the entity and lock TYPE only where the platform leaves a choice. For an unmanaged custom query, write \"custom entity\" from the start.",
+      "impact": "Stops the locked naming contract breaking at build, which reopens a human checkpoint.",
+      "tags": [
+        "rap",
+        "naming-contract",
+        "custom-entity",
+        "checkpoint",
+        "developer"
+      ],
+      "added": "2026-09-08",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-035",
+      "category": "key_user",
+      "topic": "In KU_DEV, release the custom CDS view with C2 before publishing the Custom Logic that reads it",
+      "lesson": "A key-user Custom Logic implementation cannot see a developer-extensibility CDS view unless that view is released with contract C2 \"Use in Key User Apps\". Here YY1_SS_TS_JOBGRADE_CHK reads ZI_SS_ROLE_MAP, so the activation order must be: create the table, create the view, release the view with C2, then publish the Custom Logic last. Get the order wrong and the implementation will not publish. The two layers also travel in different queues — developer objects through Manage Software Components, the Custom Logic implementation through Export/Import Software Collection — so a single transport does not carry both. Plan one cutover covering both queues. Also: put the mapping in a configuration table read at runtime, never as literals inside the restricted-ABAP logic.",
+      "impact": "A wrong activation order blocks the key-user layer from publishing at all.",
+      "tags": [
+        "key-user",
+        "custom-logic",
+        "c2-release",
+        "transport",
+        "ku-dev"
+      ],
+      "added": "2026-09-08",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
     }
   ]
 }
