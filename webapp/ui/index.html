@@ -1498,12 +1498,27 @@ function selectRun(id){
   if(cpActive&&cp&&Array.isArray(cp.naming_contract)&&cp.naming_contract.length)updateNaming();
   if(cpActive&&cp&&Array.isArray(cp.code_files)&&cp.code_files.length)updateCodeComments();
   if(cpActive&&cp&&Array.isArray(cp.findings_review)&&cp.findings_review.length)updateFindingsReview();
-  const open=(r.findings||[]).map(normalizeFinding).filter(f=>f.status==="Open").length;
+  // Findings carry a THREE-valued status — Open, Pending Fix, Resolved — and this used
+  // to count resolved as (total - Open), so every "Pending Fix" was reported as
+  // resolved. On SMART-SEARCH-FD-R2 that turned 5 resolved into "17 resolved" and hid
+  // 2 Critical and 7 Major still awaiting work behind a reassuring number. Count
+  // Resolved explicitly; anything else is outstanding.
+  const _f=(r.findings||[]).map(normalizeFinding);
+  const _resolved=_f.filter(f=>f.status==="Resolved").length;
+  const _outstanding=_f.length-_resolved;
+  const _sev=s=>_f.filter(f=>f.status!=="Resolved"&&(f.severity||"")===s).length;
+  const _blocking=_sev("Critical")+_sev("Major");
+  // Outstanding Critical/Major is the number that decides whether this run is shippable,
+  // so it leads and it is red — a count of what was fixed is not a safety signal.
+  const _fLabel=_outstanding
+    ? _outstanding+" open of "+_f.length
+      +(_blocking?" · "+_sev("Critical")+" Critical, "+_sev("Major")+" Major":"")
+    : _f.length+" (all resolved)";
   $("#ex-stats").innerHTML=[
     ["Quality Score",(r.quality_score!=null?r.quality_score+"/100":"—"),r.quality_score>=90?"var(--green)":r.quality_score>=75?"var(--amber)":"var(--red)"],
     ["Gates Passed",r.gates_passed||"—","var(--purple-dark)"],
     ["Auto-Corrections",r.auto_corrections!=null?r.auto_corrections:"—","var(--purple-dark)"],
-    ["Findings",(r.findings||[]).length+" ("+((r.findings||[]).length-open)+" resolved)","var(--purple-dark)"]]
+    ["Findings",_fLabel,_blocking?"var(--red)":_outstanding?"var(--amber)":"var(--green)"]]
     .map(([l,v,c])=>"<div class='card stat'><span class='num' style='color:"+c+"'>"+esc(String(v))+"</span><span class='lbl'>"+l+"</span></div>").join("");
   const curIdx=currentStepIndex(r);
   $("#ex-steps").innerHTML=(r.steps||[]).map((s,i)=>{
