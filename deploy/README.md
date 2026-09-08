@@ -41,9 +41,51 @@ would have put two supervisors on one box. `pm2 list` is the single source of tr
 
 | Service | Port | Supervisor | Notes |
 |---|---|---|---|
-| `digital-brain` (DigitalBrainS3) | 3001 | PM2 (pre-existing) | Node; slated for retirement |
 | `s4pc-mcp` | 3002 | PM2 | 25 tools; Claude Code connects as `context7` |
 | `s4pc-webapp` | 8321 | PM2 | Pipeline UI + engine |
+| `brain-ui` | 8400 | PM2 | Read-only corpus viewer, **no auth** — loopback only |
+| `brain-backup` | — | PM2 `cron_restart` | 02:15 UTC daily; `stopped` between runs is correct |
+| `brain-refresh` | — | PM2 `cron_restart` | 03:30 UTC on the 3rd; same |
+
+### `digital-brain` (DigitalBrainS3) — RETIRED 2026-09-08
+
+Node service on port 3001, predating this config and never in
+`ecosystem.config.js`. Retired after establishing that nothing used it:
+
+* **no consumer.** No `.mcp.json`, `.claude.json`, or webapp code referenced 3001,
+  and `ss -tnp` showed no connections. Two apparent grep hits in
+  `webapp/logs/pipeline-*.log` were a `3001` substring inside a **UUID** — a
+  reminder that grepping for a bare port number finds hex, not configuration.
+* **it was doing no work.** 19 restarts with `unstable_restarts: 0`,
+  `exit_code: 0`, and no `max_memory_restart`: the process terminated cleanly when
+  its session ended and PM2's `autorestart` relaunched it. Not a crash loop — a
+  count of session lifecycles. It also had none of the `max_restarts` /
+  `min_uptime` guards the services above carry, so a genuine crash loop would have
+  spun unbounded.
+* **its configuration existed only in PM2's saved state**, so `bootstrap.sh` could
+  never have reproduced it. Keeping it meant an unreproducible service; the choice
+  was adopt-into-git or retire, and nothing depended on it.
+
+**Its S3 data was NOT deleted, and retiring a service is not deleting its data.**
+Parked at `s3://digitalbrain-knowledge-us-east-1/brain/` — 16 objects, 367 KB,
+last written 2026-09-01:
+
+```
+brain/embeddings/playbook-overview
+brain/embeddings/playbook-defect2-pbd-tm … defect12-leavers-joiners-mismatch
+brain/embeddings/sap-tickets-metadata
+```
+
+Payroll/tax defect playbooks — a different domain from the S/4HANA delivery
+corpus in `brain/index/`, and not referenced by it. `~/DigitalBrainS3/` also
+remains on disk, so the decision is reversible. Recorded precisely here so that a
+future reader can tell whether that prefix is safe to delete, rather than finding
+"some data exists" and having to guess.
+
+Phases 2 and 4 of the productionization plan (proxy the six `brain_*` storage
+tools through `s4pc-mcp`, then retire) collapse to nothing: with no caller, there
+was nothing to proxy. If those tools are ever wanted, five are plain S3
+Get/Put/Delete/List and only `brain_store_knowledge` needs Bedrock embedding.
 
 ## Rebuild
 
