@@ -257,6 +257,48 @@ else
   fail_steps="$fail_steps graph-briefs"
 fi
 
+say "── orphan-chunk pruning"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_orphan_prune.py"
+elif $PY brain-tests/test_orphan_prune.py > /dev/null 2>&1; then
+  say "   ok: a removed source loses its chunks, a failed parse keeps them"
+else
+  say "   FAILED: orphan pruning is broken. Both directions are dangerous — leaving"
+  say "   orphans means indexing text that exists in no source file, and pruning too"
+  say "   eagerly deletes the chunks of a document that merely failed to parse."
+  say "     $PY brain-tests/test_orphan_prune.py"
+  fail_steps="$fail_steps orphan-prune"
+fi
+
+say "── reader picks up a rebuilt index"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_index_reload.py"
+elif $PY brain-tests/test_index_reload.py > /dev/null 2>&1; then
+  say "   ok: the dense cache invalidates when the index changes on disk"
+else
+  say "   FAILED: a long-running reader will serve the PREVIOUS corpus after this"
+  say "   refresh, and its hits will carry chunk ids that no longer exist — which"
+  say "   renders as a corpus with no lifecycle data rather than as a stale process."
+  say "     $PY brain-tests/test_index_reload.py"
+  fail_steps="$fail_steps index-reload"
+fi
+
+# Masking is a SAFETY property and this is the only thing that checks the result
+# rather than that the masker was called. Reported, never fatal: a residual match may
+# be a rule that post-dates the ingest, which a re-ingest fixes, and that decision
+# belongs to a human rather than to a refresh script.
+say "── PII masking held on the corpus"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run scripts/verify_masking.py"
+elif $PY scripts/verify_masking.py > "$LOG_DIR/verify_masking.log" 2>&1; then
+  say "   ok: no residual structural PII, and placeholders confirm masking ran"
+else
+  say "   ATTENTION: residual structural PII found, or masking never ran. The corpus"
+  say "   is mirrored to S3 and is intended to face a client — read the summary at"
+  say "   $LOG_DIR/verify_masking.log (values are redacted there by design)."
+  fail_steps="$fail_steps pii-masking"
+fi
+
 say "── lesson provenance (L3 → run)"
 if [ -n "$DRY" ]; then
   say "   DRY RUN, would run brain-tests/test_run_evidence.py"
