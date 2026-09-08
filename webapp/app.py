@@ -224,25 +224,76 @@ def _normalize_btp_steps(steps):
 _SAP_OBJ_RE = re.compile(          # what counts as "verified" when read from the verdicts table
     r'\b(?:I_[A-Za-z][A-Za-z0-9_]{2,}|C_[A-Za-z][A-Za-z0-9_]{2,}|A_[A-Za-z][A-Za-z0-9_]{2,}'
     r'|E_[A-Za-z][A-Za-z0-9_]{2,}|R_[A-Za-z][A-Za-z0-9_]{2,}|P_[A-Za-z][A-Za-z0-9_]{2,}'
-    r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}|[A-Z][A-Z0-9_]{5,}_SRV)\b')
+    r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}'
+    # Classes/interfaces must be recognised HERE as well as in the code pattern below.
+    # Adding detection without recognition would make the gate unblockable: it would flag
+    # cl_abap_context_info, you would add its verdict, and it would flag it again forever.
+    # A gate you cannot satisfy gets worked around, which is worse than one that never
+    # fired.
+    r'|[Cc][Ll]_[A-Za-z0-9_]{3,}|[Ii][Ff]_[A-Za-z0-9_]{3,}'
+    r'|[A-Z][A-Z0-9_]{5,}_SRV)\b')
 # What we FLAG from code. Deliberately excludes A_* OData entity sets: an entity is reached through a
 # service, so the unit of release governance is the SERVICE (API_*/*_SRV) — and if that service is
 # unverified the gate still catches it. Measured on the bundled runs: every A_* flag was an entity of
 # an ALREADY-verified service (A_PurchaseRequisitionHeader under API_PURCHASEREQUISITION_2,
 # A_EnterpriseProjectTeamMember under API_ENTERPRISE_PROJECT_SRV) — 0 true positives, 2 false ones.
+# CL_* and IF_* added 2026-09-08. The pattern covered CDS views, API services and CE_
+# functions but had NO pattern for ABAP classes or interfaces, so a released-class
+# reference in the built code could not be seen — and what cannot be extracted cannot be
+# compared against the verdict table.
+#
+# SMART-SEARCH-FD-R2 is the case: Gate 3 raised F-19, Critical — "two ABAP classes on the
+# outbound write path are used by the built code but are absent from the release-verdict
+# inventory, so they passed through Gate 1 and Gate 2". CP2's release check ran and
+# returned nothing, because the extractor is blind to CL_*/IF_*, and the run was approved.
+#
+# The measurement above ("1 true positive, 0 false positives across the bundled example
+# runs") was real but its corpus contained no standard-class reference, so the gap could
+# not show. A gate validated against inputs that omit the case it misses reports clean.
+#
+# ZCL_/ZIF_ custom objects are NOT caught by these: \b requires a word boundary before
+# C/I, and in ZCL_FOO the preceding Z is a word character. Custom objects stay governed by
+# the naming contract, as the header says.
 _SAP_OBJ_CODE_RE = re.compile(
     r'\b(?:I_[A-Za-z][A-Za-z0-9_]{2,}|C_[A-Za-z][A-Za-z0-9_]{2,}'
     r'|E_[A-Za-z][A-Za-z0-9_]{2,}|R_[A-Za-z][A-Za-z0-9_]{2,}|P_[A-Za-z][A-Za-z0-9_]{2,}'
-    r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}|[A-Z][A-Z0-9_]{5,}_SRV)\b')
+    r'|API_[A-Z0-9_]{3,}|CE_[A-Z0-9_]{3,}'
+    # Classes and interfaces are matched CASE-INSENSITIVELY, unlike everything above.
+    # ABAP source is conventionally lowercase — cl_abap_context_info=>get_user( ) — so a
+    # case-sensitive CL_ would still have missed F-19 even after adding the pattern.
+    # Only these two are relaxed: a blanket re.I would make C_/E_/R_/P_ match ordinary
+    # ABAP locals (c_max, e_result, r_value, p_param) and flood the gate with false
+    # positives. cl_/if_ are unambiguous class and interface prefixes.
+    r'|[Cc][Ll]_[A-Za-z0-9_]{3,}|[Ii][Ff]_[A-Za-z0-9_]{3,}'
+    r'|[A-Z][A-Z0-9_]{5,}_SRV)\b')
 _FENCED_RE = re.compile(r'```[^\n]*\n(.*?)```', re.S)
 
 def _unverified_objects_in_code(run_dir):
     """Return SAP objects referenced in the built CODE that carry no verdict in 03-release-verdicts.md.
-    Empty list when either file is absent (nothing to compare) — the gate never blocks on missing data."""
-    code_file = next((f for f in ("06-build-corrected.md", "06-build.md", "06-code.md")
-                      if os.path.isfile(os.path.join(run_dir, f))), None)
-    verdict_file = next((f for f in ("03-release-verdicts.md", "03-object-inventory.md")
-                         if os.path.isfile(os.path.join(run_dir, f))), None)
+
+    Empty list when either file is absent — but the filenames are resolved by PATTERN
+    first. Hardcoding a fixed tuple is how the sibling gate below was silently disabled
+    once already (see _find_gate2_review: "a run was approved with 6 open Majors"), and the
+    engine has written the build step as 06-build.md, 06-code.md and 06-build-corrected.md
+    at different times. A gate that returns "nothing to compare" because it looked for the
+    wrong filename reports identically to a gate that found nothing wrong.
+    """
+    def _pick(exact, pattern):
+        for f in exact:
+            if os.path.isfile(os.path.join(run_dir, f)):
+                return f
+        try:                                   # any file the engine may have named differently
+            for f in sorted(os.listdir(run_dir)):
+                if re.match(pattern, f, re.I):
+                    return f
+        except OSError:
+            pass
+        return None
+
+    code_file = _pick(("06-build-corrected.md", "06-build.md", "06-code.md"),
+                      r"^0?6[-_].*\.md$")
+    verdict_file = _pick(("03-release-verdicts.md", "03-object-inventory.md"),
+                         r"^0?3[-_].*\.md$")
     if not code_file or not verdict_file:
         return []
     try:
@@ -252,9 +303,16 @@ def _unverified_objects_in_code(run_dir):
             verdicts = fh.read()
     except OSError:
         return []
-    in_code = set(_SAP_OBJ_CODE_RE.findall("\n".join(_FENCED_RE.findall(code_md))))
-    verified = set(_SAP_OBJ_RE.findall(verdicts))
-    return sorted(in_code - verified)
+    # Compared CASE-INSENSITIVELY, keeping the code's own spelling for the message. The
+    # verdict table writes CL_ABAP_CONTEXT_INFO while ABAP source writes
+    # cl_abap_context_info, and a plain set difference calls that a missing verdict — a
+    # false positive that trains people to click past this gate. Same for a CDS view
+    # tabled as I_MATERIALSTOCK and used as I_MaterialStock.
+    found = {}
+    for _m in _SAP_OBJ_CODE_RE.finditer("\n".join(_FENCED_RE.findall(code_md))):
+        found.setdefault(_m.group(0).upper(), _m.group(0))
+    verified = {v.upper() for v in _SAP_OBJ_RE.findall(verdicts)}
+    return sorted(orig for key, orig in found.items() if key not in verified)
 
 def _find_gate2_review(run_dir):
     """Locate the Gate 2 (code review) deliverable regardless of the exact name the engine used.
