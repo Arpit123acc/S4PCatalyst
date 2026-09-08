@@ -205,6 +205,46 @@ def main():
     check("and it is STILL not closed after approval",
           _rj["findings"][0]["status"], "Pending Fix")
 
+    print("\nCP3 routing: fix takes a correction lap, accept goes straight to Package")
+    app.ROOT_DIR = str(TMP)
+
+    def _mk(rid, findings):
+        p = TMP / "output" / rid
+        p.mkdir(parents=True, exist_ok=True)
+        (p / "run.json").write_text(json.dumps({"id": rid, "findings": findings}),
+                                    encoding="utf-8")
+        return rid
+
+    # accept closes the finding, so no lap — the run packages.
+    r = _mk("T-acc", [dict(F("F-02", "Critical", "Accepted"), action="accept")])
+    check("accepted finding is not pending", app._cp3_pending_fixes(r), [])
+    out = app._phase_d_prompt(r, "input/x.md", "approved", "", "cp3")
+    check("routes to Package", "CORRECTION LAP" not in out, True)
+
+    # fix leaves work outstanding, so the lap runs.
+    r = _mk("T-fx", [dict(F("F-02", "Critical", "Pending Fix"), action="fix"),
+                     dict(F("F-09", "Critical", "Resolved"), action="fix"),
+                     dict(F("F-01", "Major", "Accepted"), action="accept")])
+    pend = app._cp3_pending_fixes(r)
+    check("only the unfinished fix is pending", [f["id"] for f in pend], ["F-02"])
+    out = app._phase_d_prompt(r, "input/x.md", "approved", "", "cp3")
+    check("routes to the correction lap", "CORRECTION LAP" in out, True)
+    check("names the finding", "F-02" in out, True)
+    check("re-enters at 7B", "STEP 7B" in out, True)
+    check("does not package", "Do not proceed to step 12" in out, True)
+
+    # The requirement: every downstream deliverable must be rewritten, not left stale.
+    for _needle, _label in (("lint report", "lint"), ("unit-test design", "unit tests"),
+                            ("technical design", "TD"), ("Gate 3 peer review", "gate 3")):
+        check("rewrites the %s" % _label, _needle in out, True)
+    check("forbids appending to a stale file", "call it updated" in out, True)
+    check("republishes findings_review", "findings_review" in out, True)
+
+    # adjust/reject must not trigger a lap — they already send the run back.
+    check("adjust does not lap",
+          "CORRECTION LAP" not in app._phase_d_prompt(r, "input/x.md", "adjusted", "", "cp3"),
+          True)
+
     print()
     if FAILS:
         print("== %d FAILED" % len(FAILS))

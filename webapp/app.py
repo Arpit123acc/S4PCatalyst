@@ -1681,8 +1681,103 @@ def _phase_c_prompt(rid, fd_path, decision, notes, fc_txt, cp2_slug, is_sbpa=Fal
          "plain_english": _PLAIN_ENGLISH_RULE + _FINDINGS_SCHEMA}
 
 
+def _cp3_pending_fixes(rid):
+    """Findings the developer chose to FIX at CP3 and which are still open.
+
+    Accept and fix are different outcomes. An accepted finding is closed — the risk is
+    consciously carried and the score counts it — so it must not drag the run through a
+    correction lap. A finding marked 'fix' is outstanding work, and Package must not
+    happen until it is done.
+    """
+    data = read_json(os.path.join(ROOT_DIR, "output", rid, "run.json")) or {}
+    out = []
+    for f in (data.get("findings") or []):
+        if (f.get("action") or "").strip().lower() != "fix":
+            continue
+        if (f.get("status") or "").strip().lower() in ("resolved", "accepted", "closed"):
+            continue
+        out.append(f)
+    return out
+
+
+def _phase_d_correction_prompt(rid, fd_path, notes, cp3_slug, pending):
+    """CP3 chose 'fix' — go back through the correction loop instead of forward to Package.
+
+    WHY NOT AN 11B STEP
+        Applying a code change after Gate 3 and then packaging would ship code no gate has
+        reviewed, with a lint report, a unit-test design and a TD that all describe the
+        PREVIOUS build. CLAUDE.md calls the TD "documentation of the built + tested
+        solution", and a run advertising 3/3 gates must not contain code the third gate
+        never saw. So the correction re-enters at 7B and every downstream step re-runs.
+
+        Re-entry is at 7B rather than Build: a Gate 3 finding is a code correction, not a
+        redesign, and 7B is already "apply corrections to the build". Steps 8-11 are the
+        cheap end of the pipeline, so the lap costs little.
+    """
+    _items = "\n".join(
+        "  • %s (%s) — %s" % (f.get("id") or "?", f.get("severity") or "?",
+                              (f.get("what_is_wrong") or f.get("description")
+                               or f.get("title") or "")[:160])
+        for f in pending)
+    return (
+        "HEADLESS PIPELINE — Phase D (CORRECTION LAP) for run %(rid)s.\n\n"
+        "At CP3 the developer chose FIX on %(n)d finding(s). Do NOT package this run.\n"
+        "Developer notes: %(notes)s\n\n"
+        "Do NOT read SKILL.md — this prompt replaces it.\n"
+        "CLAUDE.md platform rules apply in full.\n\n"
+        "FINDINGS TO FIX:\n%(items)s\n\n"
+        "FILES TO READ (nothing else):\n"
+        "  output/%(rid)s/run.json\n"
+        "  output/%(rid)s/decisions/%(cp3_slug)s.json\n"
+        "  the run's existing build, lint, unit-test, technical-design and Gate 3\n"
+        "  deliverables — list output/%(rid)s/ and read the files that are actually\n"
+        "  there. Do NOT assume a numbering: this pipeline has written the lint report\n"
+        "  as both 07-lint-report.md and 08-lint.md, and the Gate 3 review as both\n"
+        "  09-review.md and 11-gate3-review.md.\n"
+        "  %(fd)s\n\n"
+        "%(plain_english)s\n\n"
+        "Start by appending the CP3 decision to run.json.human_approvals and clearing\n"
+        "checkpoint_request.\n\n"
+        "── STEP 7B · APPLY THE CP3 CORRECTIONS (Developer) ─────────────────────────\n"
+        "Fix each finding above in the build. Every object you touch must already carry a\n"
+        "release verdict — if one does not, call check_object_release_state and add it to\n"
+        "the release-verdict deliverable. Set each corrected finding to\n"
+        '"status":"Resolved" in run.json.findings and keep its "action":"fix" so the\n'
+        "record shows the decision and the outcome. A finding you could NOT fix stays\n"
+        '"Pending Fix" and you say why in the Gate 3 review — do not silently resolve it.\n\n'
+        "── REWRITE EVERY DOWNSTREAM DELIVERABLE ────────────────────────────────────\n"
+        "This is the whole point of the lap: the code changed, so everything written\n"
+        "about the previous build is now WRONG. Rewrite each of these IN PLACE, keeping\n"
+        "its existing filename, so no stale document survives:\n"
+        "  1. the build deliverable — the corrected code, in full\n"
+        "  2. the lint report — re-lint the corrected code with abap_cloud_lint\n"
+        "  3. the unit-test design — re-derive it against the corrected code\n"
+        "  4. the technical design — it documents the built and tested solution, so it\n"
+        "     must describe what now exists, not what was there before the fix\n"
+        "  5. the Gate 3 peer review — re-run it over the corrected build\n"
+        "Do NOT append a changelog to a stale file and call it updated. Do NOT leave a\n"
+        "deliverable describing the pre-fix code.\n\n"
+        "── RE-RUN GATE 3 AND STOP ──────────────────────────────────────────────────\n"
+        "Recompute findings[] and quality_score over the corrected build, set steps 7B,\n"
+        "8, 9 and 10 to PASS and step 11 to AWAITING_APPROVAL, and write a fresh CP3\n"
+        "checkpoint_request exactly as the Gate 3 instructions specify — including\n"
+        "findings_review with EVERY open Critical and Major finding, each with\n"
+        '"action": null. Omitting that array leaves the developer with an empty panel\n'
+        "and no way to decide.\n"
+        "Set run.json.status to awaiting_approval. THEN EXIT. Do not proceed to step 12.\n"
+    ) % {"rid": rid, "fd": fd_path, "notes": notes or "—", "cp3_slug": cp3_slug,
+         "n": len(pending), "items": _items, "plain_english": _PLAIN_ENGLISH_RULE}
+
+
 def _phase_d_prompt(rid, fd_path, decision, notes, cp3_slug, selected_is_btp=False, selected_is_sbpa=False):
-    """Step 12 + optional step 13 (BTP prereq check). Starts from accepted peer review."""
+    """Step 12 + optional step 13 (BTP prereq check). Starts from accepted peer review.
+
+    Unless CP3 chose FIX on something still open — then this is a correction lap back
+    through 7B instead, and Package waits. See _phase_d_correction_prompt.
+    """
+    _pending = _cp3_pending_fixes(rid)
+    if _pending and (decision or "").strip().lower() == "approved":
+        return _phase_d_correction_prompt(rid, fd_path, notes, cp3_slug, _pending)
     _sbpa_branch = (_SBPA_PHASE_D_INSTRUCTIONS % {"rid": rid}) if selected_is_sbpa else None
     if selected_is_sbpa:
         return (
