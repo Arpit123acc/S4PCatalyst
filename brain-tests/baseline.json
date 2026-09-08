@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-09-04T12:50:27.405281+00:00",
+  "recorded_utc": "2026-09-08T06:47:45.807199+00:00",
   "top_k": 10,
   "cases": [
     {
@@ -45,18 +45,18 @@
           "score": 0.3635
         },
         {
-          "id": "461a2349faa5_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
-          "source_system": "developer_docs",
-          "score": 0.3206
-        },
-        {
           "id": "1ac00c537e22_0000",
           "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
           "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
           "source_system": "developer_docs",
           "score": 0.3954
+        },
+        {
+          "id": "461a2349faa5_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.3206
         },
         {
           "id": "62b27a213ba2_0000",
@@ -124,13 +124,6 @@
           "score": 0.3193
         },
         {
-          "id": "413d4b57347a_0002",
-          "chunk_file": "webdocs/chunks/ui5_docs/413d4b57347a_0002.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — consuming-odata-v2-services-with-the-odata-v4-model-deprecated-365bdbd",
-          "source_system": "developer_docs",
-          "score": 0.3056
-        },
-        {
           "id": "608ecbffbb01_0001",
           "chunk_file": "webdocs/chunks/ui5_docs/608ecbffbb01_0001.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — upgrading-your-odata-model-cda632b",
@@ -157,6 +150,13 @@
           "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — enabling-the-odata-select-parameter-be12099",
           "source_system": "developer_docs",
           "score": 0.338
+        },
+        {
+          "id": "e3160d803d39_0001",
+          "chunk_file": "webdocs/chunks/ui5_docs/e3160d803d39_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — expression-binding-daf6852",
+          "source_system": "developer_docs",
+          "score": 0.3149
         }
       ]
     },
@@ -203,18 +203,18 @@
           "score": 0.5322
         },
         {
-          "id": "eaff08a0dd6d_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/eaff08a0dd6d_0000.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-messages-81c735e",
-          "source_system": "developer_docs",
-          "score": 0.54
-        },
-        {
           "id": "0268c877fa1d_0000",
           "chunk_file": "webdocs/chunks/ui5_docs/0268c877fa1d_0000.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — models-e1b6259",
           "source_system": "developer_docs",
           "score": 0.5201
+        },
+        {
+          "id": "eaff08a0dd6d_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/eaff08a0dd6d_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-messages-81c735e",
+          "source_system": "developer_docs",
+          "score": 0.54
         },
         {
           "id": "6ff7c38294a1_0000",
@@ -261,18 +261,18 @@
           "score": 0.6294
         },
         {
-          "id": "d9138737931b_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/d9138737931b_0000.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-modes-e37a0c3",
-          "source_system": "developer_docs",
-          "score": 0.62
-        },
-        {
           "id": "461a2349faa5_0001",
           "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0001.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
           "source_system": "developer_docs",
           "score": 0.5187
+        },
+        {
+          "id": "d9138737931b_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/d9138737931b_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-modes-e37a0c3",
+          "source_system": "developer_docs",
+          "score": 0.62
         },
         {
           "id": "ff1c15ea43e4_0000",
@@ -282,11 +282,25 @@
           "score": 0.4167
         },
         {
+          "id": "461a2349faa5_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.3414
+        },
+        {
           "id": "8d73808be43b_0002",
           "chunk_file": "webdocs/chunks/ui5_docs/8d73808be43b_0002.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — property-binding-91f0652",
           "source_system": "developer_docs",
           "score": 0.2251
+        },
+        {
+          "id": "9129ea25c802_0001",
+          "chunk_file": "webdocs/chunks/ui5_docs/9129ea25c802_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-events-1a010d3",
+          "source_system": "developer_docs",
+          "score": 0.2844
         },
         {
           "id": "000b65cb0552_0000",
@@ -296,25 +310,11 @@
           "score": 0.3854
         },
         {
-          "id": "461a2349faa5_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
-          "source_system": "developer_docs",
-          "score": 0.3414
-        },
-        {
           "id": "e4f4c40c7082_0000",
           "chunk_file": "webdocs/chunks/ui5_docs/e4f4c40c7082_0000.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — creating-bindings-95cf4b1",
           "source_system": "developer_docs",
           "score": 0.3834
-        },
-        {
-          "id": "9129ea25c802_0001",
-          "chunk_file": "webdocs/chunks/ui5_docs/9129ea25c802_0001.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — binding-events-1a010d3",
-          "source_system": "developer_docs",
-          "score": 0.2844
         }
       ]
     },
@@ -526,18 +526,18 @@
           "score": 0.5726
         },
         {
-          "id": "22049b57e80f_0001",
-          "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0001.json",
-          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
-          "source_system": "developer_docs",
-          "score": 0.5476
-        },
-        {
           "id": "22049b57e80f_0002",
           "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0002.json",
           "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
           "source_system": "developer_docs",
           "score": 0.5696
+        },
+        {
+          "id": "22049b57e80f_0001",
+          "chunk_file": "webdocs/chunks/ui5_docs/22049b57e80f_0001.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — hiding-features-using-the-ui-hidden-annotation-5f12ebd",
+          "source_system": "developer_docs",
+          "score": 0.5476
         },
         {
           "id": "22049b57e80f_0003",
@@ -670,13 +670,6 @@
           "score": 0.5389
         },
         {
-          "id": "6710e5631dfa_0006",
-          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0006.json",
-          "source": "CAP — authorization and access control",
-          "source_system": "developer_docs",
-          "score": 0.4507
-        },
-        {
           "id": "6710e5631dfa_0003",
           "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0003.json",
           "source": "CAP — authorization and access control",
@@ -684,11 +677,18 @@
           "score": 0.4866
         },
         {
-          "id": "6710e5631dfa_0012",
-          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0012.json",
+          "id": "6710e5631dfa_0006",
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0006.json",
           "source": "CAP — authorization and access control",
           "source_system": "developer_docs",
-          "score": 0.424
+          "score": 0.4507
+        },
+        {
+          "id": "6710e5631dfa_0014",
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0014.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4745
         },
         {
           "id": "6710e5631dfa_0011",
@@ -698,11 +698,11 @@
           "score": 0.4429
         },
         {
-          "id": "6710e5631dfa_0014",
-          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0014.json",
+          "id": "6710e5631dfa_0012",
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0012.json",
           "source": "CAP — authorization and access control",
           "source_system": "developer_docs",
-          "score": 0.4745
+          "score": 0.424
         },
         {
           "id": "6710e5631dfa_0001",
@@ -784,11 +784,11 @@
           "score": 0.3379
         },
         {
-          "id": "66a0debddc46_0017",
-          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0017.json",
+          "id": "66a0debddc46_0005",
+          "chunk_file": "webdocs/chunks/nodejs_docs/66a0debddc46_0005.json",
           "source": "Node.js — URL and query string encoding",
           "source_system": "developer_docs",
-          "score": 0.3295
+          "score": 0.305
         }
       ]
     },
@@ -807,6 +807,13 @@
           "score": 0.6047
         },
         {
+          "id": "redacted:b4ae54a3122f",
+          "chunk_file": "redacted:10ae2dfd1b80",
+          "source": "redacted:ff967a13aa7a",
+          "source_system": "sharepoint",
+          "score": 0.6039
+        },
+        {
           "id": "redacted:d3645af52432",
           "chunk_file": "redacted:32694d6a6118",
           "source": "redacted:80f2cb02b62d",
@@ -814,18 +821,46 @@
           "score": 0.5693
         },
         {
-          "id": "redacted:aa5c1877731b",
-          "chunk_file": "redacted:05a26c64ba3a",
-          "source": "redacted:5e1c4e5161b2",
+          "id": "redacted:94157c7bd698",
+          "chunk_file": "redacted:8ef361378a7b",
+          "source": "redacted:ff967a13aa7a",
           "source_system": "sharepoint",
-          "score": 0.5663
+          "score": 0.5835
         },
         {
-          "id": "redacted:e1656db92711",
-          "chunk_file": "redacted:478f46e048a2",
-          "source": "redacted:d399f7a2ffe6",
+          "id": "redacted:8c5eb34856eb",
+          "chunk_file": "redacted:e09c2c56530a",
+          "source": "redacted:5627f608e32d",
+          "source_system": "sap_bpd",
+          "score": 0.5801
+        },
+        {
+          "id": "redacted:98258df4e131",
+          "chunk_file": "redacted:3e62bbe98351",
+          "source": "redacted:b93a639f9244",
           "source_system": "sharepoint",
-          "score": 0.5215
+          "score": 0.5744
+        },
+        {
+          "id": "redacted:560b9884d247",
+          "chunk_file": "redacted:497c6b38c8bf",
+          "source": "redacted:ff967a13aa7a",
+          "source_system": "sharepoint",
+          "score": 0.5652
+        },
+        {
+          "id": "redacted:78adabc998fd",
+          "chunk_file": "redacted:a9de28cebb21",
+          "source": "redacted:5d63dd5ea6c2",
+          "source_system": "sharepoint",
+          "score": 0.5363
+        },
+        {
+          "id": "redacted:34a3acad7d85",
+          "chunk_file": "redacted:bdde9652bb28",
+          "source": "redacted:5d63dd5ea6c2",
+          "source_system": "sharepoint",
+          "score": 0.5363
         },
         {
           "id": "scope_4N6",
@@ -833,41 +868,6 @@
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.5555
-        },
-        {
-          "id": "redacted:7ed97ad11385",
-          "chunk_file": "redacted:3de5a2366fd5",
-          "source": "redacted:b93a639f9244",
-          "source_system": "sharepoint",
-          "score": 0.5514
-        },
-        {
-          "id": "scope_2LH",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5467
-        },
-        {
-          "id": "redacted:78adabc998fd",
-          "chunk_file": "redacted:a9de28cebb21",
-          "source": "redacted:5d63dd5ea6c2",
-          "source_system": "sharepoint",
-          "score": 0.5237
-        },
-        {
-          "id": "redacted:34a3acad7d85",
-          "chunk_file": "redacted:bdde9652bb28",
-          "source": "redacted:5d63dd5ea6c2",
-          "source_system": "sharepoint",
-          "score": 0.5237
-        },
-        {
-          "id": "scope_2LG",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5456
         }
       ]
     },
@@ -893,18 +893,18 @@
           "score": 0.5957
         },
         {
-          "id": "redacted:0d596d200313",
-          "chunk_file": "redacted:2500894d079e",
-          "source": "redacted:4ba07ee0ec68",
-          "source_system": "sharepoint",
-          "score": 0.5514
+          "id": "redacted:347042e8d023",
+          "chunk_file": "redacted:bc2de846d35d",
+          "source": "redacted:2f790a2be4c3",
+          "source_system": "sap_bpd",
+          "score": 0.5411
         },
         {
-          "id": "redacted:4fb50a39ae78",
-          "chunk_file": "redacted:7af4cad036c8",
-          "source": "redacted:845a4128da9d",
+          "id": "redacted:98258df4e131",
+          "chunk_file": "redacted:3e62bbe98351",
+          "source": "redacted:b93a639f9244",
           "source_system": "sharepoint",
-          "score": 0.5988
+          "score": 0.5537
         },
         {
           "id": "scope_2TX",
@@ -921,20 +921,6 @@
           "score": 0.5824
         },
         {
-          "id": "redacted:79fcea6fecb7",
-          "chunk_file": "redacted:0b2d5a512823",
-          "source": "redacted:769c5492475d",
-          "source_system": "sharepoint",
-          "score": 0.493
-        },
-        {
-          "id": "redacted:6f21edf370bb",
-          "chunk_file": "redacted:820a12efee57",
-          "source": "redacted:769c5492475d",
-          "source_system": "sharepoint",
-          "score": 0.493
-        },
-        {
           "id": "redacted:e333e249a91b",
           "chunk_file": "redacted:1f35a683da2c",
           "source": "redacted:d5b95978ef5b",
@@ -942,11 +928,25 @@
           "score": 0.5666
         },
         {
+          "id": "redacted:3116835f05da",
+          "chunk_file": "redacted:31ed9edf68ab",
+          "source": "redacted:220d4543758c",
+          "source_system": "sap_bpd",
+          "score": 0.5678
+        },
+        {
           "id": "scope_J44",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.5623
+        },
+        {
+          "id": "redacted:79fcea6fecb7",
+          "chunk_file": "redacted:0b2d5a512823",
+          "source": "redacted:769c5492475d",
+          "source_system": "sharepoint",
+          "score": 0.493
         }
       ]
     },
@@ -965,11 +965,11 @@
           "score": 0.6366
         },
         {
-          "id": "redacted:b5f7156efae8",
-          "chunk_file": "redacted:ba87d0372769",
-          "source": "redacted:c402f592cfae",
-          "source_system": "sap_bpd",
-          "score": 0.547
+          "id": "scope_61W",
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5884
         },
         {
           "id": "scope_J59",
@@ -979,18 +979,18 @@
           "score": 0.588
         },
         {
-          "id": "scope_61W",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5884
-        },
-        {
           "id": "redacted:125d9dd239fd",
           "chunk_file": "redacted:b402dc5117e8",
           "source": "redacted:e148a5b4c328",
           "source_system": "sharepoint",
           "score": 0.5681
+        },
+        {
+          "id": "redacted:6d91fd830377",
+          "chunk_file": "redacted:5e96b9dc21ce",
+          "source": "redacted:5f5c16c80c23",
+          "source_system": "sharepoint",
+          "score": 0.5436
         },
         {
           "id": "redacted:1dfadfae3bee",
@@ -1021,11 +1021,11 @@
           "score": 0.5421
         },
         {
-          "id": "scope_33F",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5355
+          "id": "redacted:46dedfeec5d5",
+          "chunk_file": "redacted:0c67ab9e32c7",
+          "source": "redacted:f19014fee621",
+          "source_system": "sharepoint",
+          "score": 0.5386
         }
       ]
     },
@@ -1037,74 +1037,74 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:63711bd56919",
-          "chunk_file": "redacted:e4f6cdd45ae3",
+          "id": "redacted:1fc3121aaa9a",
+          "chunk_file": "redacted:cf18e3a3030e",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.7397
+        },
+        {
+          "id": "redacted:7a1f9dc4bc89",
+          "chunk_file": "redacted:844dca396ea9",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.7245
+        },
+        {
+          "id": "redacted:88050063fc73",
+          "chunk_file": "redacted:29cd5acb9a34",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.7257
+        },
+        {
+          "id": "redacted:f41227051307",
+          "chunk_file": "redacted:a2dbc9d56c67",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.6817
+        },
+        {
+          "id": "redacted:9c18b7e282ea",
+          "chunk_file": "redacted:2923b773ab0e",
           "source": "redacted:e3cff14fab69",
           "source_system": "sharepoint",
-          "score": 0.6609
+          "score": 0.7614
         },
         {
-          "id": "redacted:c0a47d5aa7be",
-          "chunk_file": "redacted:92fc5c94ccd0",
-          "source": "redacted:dbba8260e288",
-          "source_system": "sharepoint",
-          "score": 0.6065
-        },
-        {
-          "id": "redacted:b957eb7e3f01",
-          "chunk_file": "redacted:7bf07ea20468",
-          "source": "redacted:dbba8260e288",
-          "source_system": "sharepoint",
-          "score": 0.6065
-        },
-        {
-          "id": "redacted:424035d59008",
-          "chunk_file": "redacted:212a809b74e1",
-          "source": "redacted:e3cff14fab69",
-          "source_system": "sharepoint",
-          "score": 0.6357
-        },
-        {
-          "id": "redacted:58aeecfc16d3",
-          "chunk_file": "redacted:6883a2a9fc26",
-          "source": "redacted:3bbee755fce2",
-          "source_system": "sharepoint",
-          "score": 0.5596
-        },
-        {
-          "id": "redacted:21a8df944333",
-          "chunk_file": "redacted:700159a78c90",
+          "id": "redacted:d4907e6e532b",
+          "chunk_file": "redacted:436ef044a9a9",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5552
+          "score": 0.6667
         },
         {
-          "id": "redacted:afe7f742432b",
-          "chunk_file": "redacted:8d6629106614",
+          "id": "redacted:ad5eda054221",
+          "chunk_file": "redacted:4c8b733dfbac",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.526
+          "score": 0.687
         },
         {
-          "id": "redacted:921261c135b6",
-          "chunk_file": "redacted:8059af9c424d",
+          "id": "redacted:14c4a12a11a5",
+          "chunk_file": "redacted:e2ed87dab0aa",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5264
+          "score": 0.6565
         },
         {
-          "id": "redacted:d8c8c9d19ab3",
-          "chunk_file": "redacted:b23e8bb15d9b",
-          "source": "redacted:e5b00a825b67",
+          "id": "redacted:0ae73e81d266",
+          "chunk_file": "redacted:3b6ee47bd5e4",
+          "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5186
+          "score": 0.6761
         },
         {
-          "id": "redacted:89f032a83330",
-          "chunk_file": "redacted:4af11a49608a",
-          "source": "redacted:e5b00a825b67",
+          "id": "redacted:d8974d639134",
+          "chunk_file": "redacted:ad428bc30375",
+          "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5186
+          "score": 0.6636
         }
       ]
     },
@@ -1116,74 +1116,74 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:6dbc6214969c",
-          "chunk_file": "redacted:9f10dd5021ea",
-          "source": "redacted:0a14cbf573c1",
+          "id": "redacted:419a774abdb1",
+          "chunk_file": "redacted:087722ee06c0",
+          "source": "redacted:6756a1683af5",
           "source_system": "sharepoint",
-          "score": 0.6969
+          "score": 0.6923
         },
         {
-          "id": "redacted:073d954c9871",
-          "chunk_file": "redacted:05b55384c414",
-          "source": "redacted:0a14cbf573c1",
-          "source_system": "sharepoint",
-          "score": 0.6969
-        },
-        {
-          "id": "redacted:2a240cff75db",
-          "chunk_file": "redacted:339cab78e6df",
+          "id": "redacted:353ca31caf90",
+          "chunk_file": "redacted:9203730c06f1",
           "source": "redacted:3b4f7a21241e",
           "source_system": "sharepoint",
-          "score": 0.3988
+          "score": 0.5829
         },
         {
-          "id": "redacted:df2c0944ebac",
-          "chunk_file": "redacted:78c3f61bda4d",
-          "source": "redacted:6756a1683af5",
-          "source_system": "sharepoint",
-          "score": 0.6161
-        },
-        {
-          "id": "redacted:3670eb5125ee",
-          "chunk_file": "redacted:08fa0ec8ef1d",
-          "source": "redacted:6756a1683af5",
-          "source_system": "sharepoint",
-          "score": 0.6268
-        },
-        {
-          "id": "redacted:21f879f5b600",
-          "chunk_file": "redacted:dd7537dff9bf",
-          "source": "redacted:883fb4cb2ecc",
-          "source_system": "sharepoint",
-          "score": 0.5079
-        },
-        {
-          "id": "redacted:b520b3664fd8",
-          "chunk_file": "redacted:d7114cd20d7d",
-          "source": "redacted:883fb4cb2ecc",
-          "source_system": "sharepoint",
-          "score": 0.5079
-        },
-        {
-          "id": "redacted:bf493c9bd9ac",
-          "chunk_file": "redacted:32e069e7690c",
+          "id": "redacted:0513afd78484",
+          "chunk_file": "redacted:f84982072c45",
           "source": "redacted:0a14cbf573c1",
           "source_system": "sharepoint",
-          "score": 0.5386
+          "score": 0.4526
         },
         {
-          "id": "redacted:68345b42f416",
-          "chunk_file": "redacted:fc6da05108f2",
+          "id": "redacted:799352b9676b",
+          "chunk_file": "redacted:c690adbc0170",
+          "source": "redacted:3b4f7a21241e",
+          "source_system": "sharepoint",
+          "score": 0.5829
+        },
+        {
+          "id": "redacted:96aeecc6cb3f",
+          "chunk_file": "redacted:9f134312b62c",
           "source": "redacted:0a14cbf573c1",
           "source_system": "sharepoint",
-          "score": 0.5386
+          "score": 0.5926
+        },
+        {
+          "id": "redacted:ea7ffd2621d4",
+          "chunk_file": "redacted:0c87b20a7a61",
+          "source": "redacted:0a14cbf573c1",
+          "source_system": "sharepoint",
+          "score": 0.5926
         },
         {
           "id": "redacted:973cbfa12109",
           "chunk_file": "redacted:c78c008922fe",
           "source": "redacted:883fb4cb2ecc",
           "source_system": "sharepoint",
-          "score": 0.5075
+          "score": 0.5024
+        },
+        {
+          "id": "redacted:7ad0b512ca73",
+          "chunk_file": "redacted:9576c96345cb",
+          "source": "redacted:883fb4cb2ecc",
+          "source_system": "sharepoint",
+          "score": 0.5024
+        },
+        {
+          "id": "redacted:a3e8b23555d3",
+          "chunk_file": "redacted:b3b78241792a",
+          "source": "redacted:3b4f7a21241e",
+          "source_system": "sharepoint",
+          "score": 0.4825
+        },
+        {
+          "id": "redacted:9770cf8b850c",
+          "chunk_file": "redacted:d1e4f20408b5",
+          "source": "redacted:3b4f7a21241e",
+          "source_system": "sharepoint",
+          "score": 0.4825
         }
       ]
     },
@@ -1199,70 +1199,70 @@
           "chunk_file": "redacted:e10c43c67920",
           "source": "redacted:970b0c3a2193",
           "source_system": "sharepoint",
-          "score": 0.7153
-        },
-        {
-          "id": "redacted:0e5977fb9a32",
-          "chunk_file": "redacted:eb282b1a202e",
-          "source": "redacted:75301fff95ad",
-          "source_system": "sharepoint",
-          "score": 0.6849
+          "score": 0.722
         },
         {
           "id": "redacted:85ffa89313c5",
           "chunk_file": "redacted:f85130020bc0",
           "source": "redacted:156b145f24db",
           "source_system": "sharepoint",
-          "score": 0.68
+          "score": 0.6625
         },
         {
           "id": "redacted:21f0b21e71a0",
           "chunk_file": "redacted:16af3b228be3",
           "source": "redacted:c0f8b854429d",
           "source_system": "sharepoint",
-          "score": 0.6775
+          "score": 0.6465
+        },
+        {
+          "id": "redacted:0e5977fb9a32",
+          "chunk_file": "redacted:eb282b1a202e",
+          "source": "redacted:75301fff95ad",
+          "source_system": "sharepoint",
+          "score": 0.6455
+        },
+        {
+          "id": "redacted:3bf4ae4aebc9",
+          "chunk_file": "redacted:26126e4344fe",
+          "source": "redacted:f4cd96f49e26",
+          "source_system": "sharepoint",
+          "score": 0.5807
+        },
+        {
+          "id": "redacted:3f20293ed171",
+          "chunk_file": "redacted:a6753db922d9",
+          "source": "redacted:7f365999c65c",
+          "source_system": "sharepoint",
+          "score": 0.6115
+        },
+        {
+          "id": "redacted:ef3183d43470",
+          "chunk_file": "redacted:43b85042d963",
+          "source": "redacted:a90632d05b23",
+          "source_system": "sharepoint",
+          "score": 0.6073
         },
         {
           "id": "redacted:c478a7be8231",
           "chunk_file": "redacted:4f117ac3e033",
           "source": "redacted:a8efbd5e9e83",
           "source_system": "sharepoint",
-          "score": 0.6726
+          "score": 0.6048
         },
         {
           "id": "redacted:69fdaaf6cd67",
           "chunk_file": "redacted:8a9af74e53dc",
           "source": "redacted:db4410a2a904",
           "source_system": "sharepoint",
-          "score": 0.6697
+          "score": 0.6022
         },
         {
-          "id": "redacted:bbaa71fe6513",
-          "chunk_file": "redacted:bc624075ac3c",
-          "source": "redacted:4de4d99342ab",
+          "id": "redacted:32c56393658b",
+          "chunk_file": "redacted:45a68e43fef9",
+          "source": "redacted:b49b98aa225d",
           "source_system": "sharepoint",
-          "score": 0.662
-        },
-        {
-          "id": "redacted:0ac4c2635e61",
-          "chunk_file": "redacted:be6f15bcf343",
-          "source": "redacted:61418a1c5b39",
-          "source_system": "sharepoint",
-          "score": 0.5886
-        },
-        {
-          "id": "redacted:8f1cd43be01f",
-          "chunk_file": "redacted:45bd364955d5",
-          "source": "redacted:61418a1c5b39",
-          "source_system": "sharepoint",
-          "score": 0.5886
-        },
-        {
-          "id": "redacted:d27111c9a5a2",
-          "chunk_file": "redacted:0b62f2c34d2c",
-          "source": "redacted:407b9e94f161",
-          "source_system": "sharepoint",
-          "score": 0.6575
+          "score": 0.5594
         }
       ]
     },
@@ -1295,6 +1295,20 @@
           "score": 0.3152
         },
         {
+          "id": "redacted:a7cff5555e4e",
+          "chunk_file": "redacted:319560f2b523",
+          "source": "redacted:cad0012aae5a",
+          "source_system": "sharepoint",
+          "score": 0.3491
+        },
+        {
+          "id": "redacted:93ea4ad776cd",
+          "chunk_file": "redacted:30e186dee7cf",
+          "source": "redacted:cad0012aae5a",
+          "source_system": "sharepoint",
+          "score": 0.3491
+        },
+        {
           "id": "redacted:767bff0396fe",
           "chunk_file": "redacted:26e912ebd57e",
           "source": "redacted:0c04b35c068c",
@@ -1302,46 +1316,32 @@
           "score": 0.308
         },
         {
-          "id": "redacted:272f50ee3ae8",
-          "chunk_file": "redacted:a6137cf19fe9",
-          "source": "redacted:df80375c70d5",
+          "id": "redacted:26e66dd69fe0",
+          "chunk_file": "redacted:25d3fde6e758",
+          "source": "redacted:9d96ea97a534",
           "source_system": "sharepoint",
-          "score": 0.3601
-        },
-        {
-          "id": "redacted:bdd5ac24c8c0",
-          "chunk_file": "redacted:e7dc18dfadba",
-          "source": "redacted:df80375c70d5",
-          "source_system": "sharepoint",
-          "score": 0.3601
-        },
-        {
-          "id": "redacted:27ea7d56e3e3",
-          "chunk_file": "redacted:cdec94c378fc",
-          "source": "redacted:df61137f6836",
-          "source_system": "sharepoint",
-          "score": 0.1712
+          "score": 0.3542
         },
         {
           "id": "redacted:e57b106f7e48",
           "chunk_file": "redacted:36ae1a3d3c1f",
           "source": "redacted:8af32c9b34e9",
           "source_system": "sharepoint",
-          "score": 0.3011
+          "score": 0.31
         },
         {
-          "id": "redacted:1eb15abf44dd",
-          "chunk_file": "redacted:3151a99fd7e4",
-          "source": "redacted:c8a98ad961bb",
-          "source_system": "sap_bpd",
-          "score": 0.3462
-        },
-        {
-          "id": "redacted:26e66dd69fe0",
-          "chunk_file": "redacted:25d3fde6e758",
-          "source": "redacted:9d96ea97a534",
+          "id": "redacted:2e1feb5c39c7",
+          "chunk_file": "redacted:780c102ef8f6",
+          "source": "redacted:df61137f6836",
           "source_system": "sharepoint",
-          "score": 0.3449
+          "score": 0.2381
+        },
+        {
+          "id": "redacted:a05dd252a750",
+          "chunk_file": "redacted:38bf3d36b6ee",
+          "source": "redacted:3403ad76eec7",
+          "source_system": "sharepoint",
+          "score": 0.344
         }
       ]
     },
@@ -1360,6 +1360,13 @@
           "score": 0.4586
         },
         {
+          "id": "redacted:123563e59cf3",
+          "chunk_file": "redacted:ed59773ebf9d",
+          "source": "redacted:ccd7304559c7",
+          "source_system": "sharepoint",
+          "score": 0.4624
+        },
+        {
           "id": "redacted:b9e16229133d",
           "chunk_file": "redacted:abfe15791b5a",
           "source": "redacted:0c04b35c068c",
@@ -1374,53 +1381,46 @@
           "score": 0.4466
         },
         {
-          "id": "redacted:47400ef9943c",
-          "chunk_file": "redacted:8d7211e6ae38",
-          "source": "redacted:b711fc1dcac8",
+          "id": "redacted:9f0d63a960cc",
+          "chunk_file": "redacted:473f354cd229",
+          "source": "redacted:76c6c2d6a6fa",
           "source_system": "sharepoint",
-          "score": 0.441
+          "score": 0.4756
         },
         {
-          "id": "redacted:a3b3966620ce",
-          "chunk_file": "redacted:ca29c63f691a",
-          "source": "redacted:f97b979e244c",
-          "source_system": "sharepoint",
-          "score": 0.4493
-        },
-        {
-          "id": "redacted:cda22a117b34",
-          "chunk_file": "redacted:5ebd666854c6",
-          "source": "redacted:6feadca38079",
+          "id": "redacted:34d728903bd0",
+          "chunk_file": "redacted:6a8cc20df470",
+          "source": "redacted:fa8963c52098",
           "source_system": "sap_bpd",
-          "score": 0.4005
+          "score": 0.4375
         },
         {
-          "id": "redacted:9e6fefeb723b",
-          "chunk_file": "redacted:7e73452eb5f7",
-          "source": "redacted:b9a04325d9c3",
+          "id": "redacted:3a5140cc9d9e",
+          "chunk_file": "redacted:79b393ed5463",
+          "source": "redacted:9069293b63e0",
           "source_system": "sharepoint",
-          "score": 0.38
+          "score": 0.4627
         },
         {
-          "id": "redacted:1355836403ab",
-          "chunk_file": "redacted:bac049710f30",
-          "source": "redacted:ccd7304559c7",
+          "id": "redacted:5061660e0012",
+          "chunk_file": "redacted:623d666babe4",
+          "source": "redacted:9069293b63e0",
           "source_system": "sharepoint",
-          "score": 0.386
+          "score": 0.4627
         },
         {
-          "id": "redacted:2e63a815d198",
-          "chunk_file": "redacted:a9a3019da58b",
-          "source": "redacted:b711fc1dcac8",
-          "source_system": "sharepoint",
-          "score": 0.3836
+          "id": "redacted:ee3cb01e122e",
+          "chunk_file": "redacted:0249b7711ce4",
+          "source": "redacted:fc3674792d69",
+          "source_system": "sap_bpd",
+          "score": 0.4132
         },
         {
-          "id": "redacted:937e2ceeaa87",
-          "chunk_file": "redacted:ab561b7713fb",
+          "id": "redacted:94c2182dd44f",
+          "chunk_file": "redacted:d29a11403d71",
           "source": "redacted:cacc86f544b0",
           "source_system": "sharepoint",
-          "score": 0.3724
+          "score": 0.3879
         }
       ]
     },
@@ -1444,13 +1444,6 @@
           "source": "redacted:9e1b6620dbff",
           "source_system": "sharepoint",
           "score": 0.5585
-        },
-        {
-          "id": "redacted:2099d273b16a",
-          "chunk_file": "redacted:a5a98bfd0632",
-          "source": "redacted:0c04b35c068c",
-          "source_system": "abap_guidance",
-          "score": 0.2851
         },
         {
           "id": "84e415eac966_0009",
@@ -1500,6 +1493,13 @@
           "source": "redacted:9e1b6620dbff",
           "source_system": "sharepoint",
           "score": 0.4114
+        },
+        {
+          "id": "6710e5631dfa_0001",
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0001.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.3796
         }
       ]
     },
@@ -1511,67 +1511,46 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:64c3c16bd435",
-          "chunk_file": "redacted:afad302412c9",
+          "id": "redacted:9dc5e89101aa",
+          "chunk_file": "redacted:138f85e542bc",
           "source": "redacted:5901383c7680",
           "source_system": "sharepoint",
-          "score": 0.4439
+          "score": 0.4452
         },
         {
-          "id": "redacted:c522d142b3e9",
-          "chunk_file": "redacted:563345a8e48b",
-          "source": "redacted:17652e194b04",
-          "source_system": "sharepoint",
-          "score": 0.4439
-        },
-        {
-          "id": "redacted:b99cd822d592",
-          "chunk_file": "redacted:af3f01b77330",
+          "id": "redacted:ddfe3c00bd5d",
+          "chunk_file": "redacted:86f4e11942dc",
           "source": "redacted:5901383c7680",
           "source_system": "sharepoint",
-          "score": 0.4439
+          "score": 0.4452
         },
         {
-          "id": "redacted:6698c70b199f",
-          "chunk_file": "redacted:6c125e4af968",
-          "source": "redacted:d70c010b63a1",
-          "source_system": "sharepoint",
-          "score": 0.4223
-        },
-        {
-          "id": "redacted:877b2dfad84e",
-          "chunk_file": "redacted:c8cc29bfa9a6",
-          "source": "redacted:99353073fcb3",
-          "source_system": "sharepoint",
-          "score": 0.4223
-        },
-        {
-          "id": "redacted:e185e53a863a",
-          "chunk_file": "redacted:a428e55c0834",
-          "source": "redacted:d70c010b63a1",
-          "source_system": "sharepoint",
-          "score": 0.4223
-        },
-        {
-          "id": "redacted:40a05ac9c295",
-          "chunk_file": "redacted:ce5e330d8090",
-          "source": "redacted:99353073fcb3",
-          "source_system": "sharepoint",
-          "score": 0.4223
-        },
-        {
-          "id": "redacted:730f5a52d5d6",
-          "chunk_file": "redacted:7ac6cf90abc8",
+          "id": "redacted:32a664c402ee",
+          "chunk_file": "redacted:978cde7e269f",
           "source": "redacted:78de15fd62f0",
           "source_system": "sharepoint",
-          "score": 0.4225
+          "score": 0.4566
         },
         {
-          "id": "redacted:08a52a308996",
-          "chunk_file": "redacted:697996333114",
+          "id": "redacted:d2babfd2ff76",
+          "chunk_file": "redacted:34fb8bd80ad6",
           "source": "redacted:78de15fd62f0",
           "source_system": "sharepoint",
-          "score": 0.4225
+          "score": 0.4566
+        },
+        {
+          "id": "redacted:1e7c6f41dc41",
+          "chunk_file": "redacted:799222cb0d79",
+          "source": "redacted:90bf5b598477",
+          "source_system": "sharepoint",
+          "score": 0.4508
+        },
+        {
+          "id": "redacted:4f8728c36c30",
+          "chunk_file": "redacted:299417881b15",
+          "source": "redacted:90bf5b598477",
+          "source_system": "sharepoint",
+          "score": 0.4508
         },
         {
           "id": "90261dd8f1fc_0000",
@@ -1579,6 +1558,27 @@
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — odata-v2-model-6c47b2b",
           "source_system": "developer_docs",
           "score": 0.4582
+        },
+        {
+          "id": "redacted:ddfe200c541b",
+          "chunk_file": "redacted:1a2bd02121fb",
+          "source": "redacted:78de15fd62f0",
+          "source_system": "sharepoint",
+          "score": 0.4198
+        },
+        {
+          "id": "redacted:49a73ed82afa",
+          "chunk_file": "redacted:50e27898d458",
+          "source": "redacted:78de15fd62f0",
+          "source_system": "sharepoint",
+          "score": 0.4198
+        },
+        {
+          "id": "608ecbffbb01_0001",
+          "chunk_file": "webdocs/chunks/ui5_docs/608ecbffbb01_0001.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — upgrading-your-odata-model-cda632b",
+          "source_system": "developer_docs",
+          "score": 0.4248
         }
       ]
     },
@@ -1716,18 +1716,18 @@
           "score": 0.3206
         },
         {
-          "id": "1ac00c537e22_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
-          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
-          "source_system": "developer_docs",
-          "score": 0.3954
-        },
-        {
           "id": "62b27a213ba2_0000",
           "chunk_file": "webdocs/chunks/ui5_docs/62b27a213ba2_0000.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — list-binding-and-tree-binding-aggregation-binding-91f0577",
           "source_system": "developer_docs",
           "score": 0.3518
+        },
+        {
+          "id": "1ac00c537e22_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
+          "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
+          "source_system": "developer_docs",
+          "score": 0.3954
         },
         {
           "id": "4308698b9b18_0000",
@@ -1755,74 +1755,74 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:b554a5ad11b0",
-          "chunk_file": "redacted:686758a44f61",
+          "id": "redacted:f41227051307",
+          "chunk_file": "redacted:a2dbc9d56c67",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5225
+          "score": 0.5377
         },
         {
-          "id": "redacted:921261c135b6",
-          "chunk_file": "redacted:8059af9c424d",
+          "id": "redacted:1fc3121aaa9a",
+          "chunk_file": "redacted:cf18e3a3030e",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4822
+          "score": 0.5294
         },
         {
-          "id": "redacted:8947b56d8384",
-          "chunk_file": "redacted:9706fad906ec",
-          "source": "redacted:53daac75e604",
-          "source_system": "sharepoint",
-          "score": 0.3863
-        },
-        {
-          "id": "redacted:afe7f742432b",
-          "chunk_file": "redacted:8d6629106614",
+          "id": "redacted:88050063fc73",
+          "chunk_file": "redacted:29cd5acb9a34",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4599
-        },
-        {
-          "id": "redacted:0dad649a4cb0",
-          "chunk_file": "redacted:34ed9c13049f",
-          "source": "redacted:e3cff14fab69",
-          "source_system": "sharepoint",
-          "score": 0.4871
-        },
-        {
-          "id": "redacted:bcf8b489d069",
-          "chunk_file": "redacted:e95be3c5218c",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.4546
-        },
-        {
-          "id": "redacted:ef9963f989d8",
-          "chunk_file": "redacted:009df4945f47",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.439
+          "score": 0.5141
         },
         {
           "id": "redacted:7a1f9dc4bc89",
           "chunk_file": "redacted:844dca396ea9",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4326
+          "score": 0.5185
         },
         {
-          "id": "redacted:2f01c8af20cc",
-          "chunk_file": "redacted:3d485dab34db",
+          "id": "redacted:036609e694f7",
+          "chunk_file": "redacted:bb59384f1be3",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4743
+          "score": 0.5146
         },
         {
-          "id": "redacted:981f1dbfb306",
-          "chunk_file": "redacted:c7eb1b130f76",
+          "id": "redacted:ad5eda054221",
+          "chunk_file": "redacted:4c8b733dfbac",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4551
+          "score": 0.5077
+        },
+        {
+          "id": "redacted:d8974d639134",
+          "chunk_file": "redacted:ad428bc30375",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4992
+        },
+        {
+          "id": "redacted:ebf584ea013c",
+          "chunk_file": "redacted:c55fba4d56b0",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.5409
+        },
+        {
+          "id": "redacted:455969da04dc",
+          "chunk_file": "redacted:909ca6309f29",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.484
+        },
+        {
+          "id": "redacted:d4907e6e532b",
+          "chunk_file": "redacted:436ef044a9a9",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.5148
         }
       ]
     },
@@ -1924,6 +1924,13 @@
           "score": 0.5555
         },
         {
+          "id": "redacted:e1656db92711",
+          "chunk_file": "redacted:478f46e048a2",
+          "source": "redacted:d399f7a2ffe6",
+          "source_system": "sharepoint",
+          "score": 0.5215
+        },
+        {
           "id": "scope_2LG",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -1931,18 +1938,18 @@
           "score": 0.5456
         },
         {
+          "id": "redacted:6ea4ff694bf2",
+          "chunk_file": "redacted:e96e6f9aa7f1",
+          "source": "redacted:18c74ba8cc53",
+          "source_system": "sharepoint",
+          "score": 0.5468
+        },
+        {
           "id": "scope_2LH",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.5467
-        },
-        {
-          "id": "redacted:78adabc998fd",
-          "chunk_file": "redacted:a9de28cebb21",
-          "source": "redacted:5d63dd5ea6c2",
-          "source_system": "sharepoint",
-          "score": 0.5237
         },
         {
           "id": "scope_4A1",
@@ -1966,13 +1973,6 @@
           "score": 0.5436
         },
         {
-          "id": "scope_7YH",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5207
-        },
-        {
           "id": "scope_2V7",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -1980,11 +1980,11 @@
           "score": 0.5298
         },
         {
-          "id": "scope_5OJ",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5282
+          "id": "redacted:fb438215d1b3",
+          "chunk_file": "redacted:98eca9279597",
+          "source": "redacted:d399f7a2ffe6",
+          "source_system": "sharepoint",
+          "score": 0.4976
         }
       ]
     },
@@ -2100,18 +2100,18 @@
           "score": 0.5403
         },
         {
-          "id": "scope_3I5",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5102
-        },
-        {
           "id": "scope_7DW",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.5106
+        },
+        {
+          "id": "scope_3I5",
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5102
         },
         {
           "id": "scope_6AA",
@@ -2160,74 +2160,74 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:b554a5ad11b0",
-          "chunk_file": "redacted:686758a44f61",
+          "id": "redacted:f41227051307",
+          "chunk_file": "redacted:a2dbc9d56c67",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5225
+          "score": 0.5377
         },
         {
-          "id": "redacted:921261c135b6",
-          "chunk_file": "redacted:8059af9c424d",
+          "id": "redacted:1fc3121aaa9a",
+          "chunk_file": "redacted:cf18e3a3030e",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4822
+          "score": 0.5294
         },
         {
-          "id": "redacted:8947b56d8384",
-          "chunk_file": "redacted:9706fad906ec",
-          "source": "redacted:53daac75e604",
-          "source_system": "sharepoint",
-          "score": 0.3863
-        },
-        {
-          "id": "redacted:afe7f742432b",
-          "chunk_file": "redacted:8d6629106614",
+          "id": "redacted:88050063fc73",
+          "chunk_file": "redacted:29cd5acb9a34",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4599
-        },
-        {
-          "id": "redacted:0dad649a4cb0",
-          "chunk_file": "redacted:34ed9c13049f",
-          "source": "redacted:e3cff14fab69",
-          "source_system": "sharepoint",
-          "score": 0.4871
-        },
-        {
-          "id": "redacted:bcf8b489d069",
-          "chunk_file": "redacted:e95be3c5218c",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.4546
-        },
-        {
-          "id": "redacted:ef9963f989d8",
-          "chunk_file": "redacted:009df4945f47",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.439
+          "score": 0.5141
         },
         {
           "id": "redacted:7a1f9dc4bc89",
           "chunk_file": "redacted:844dca396ea9",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4326
+          "score": 0.5185
         },
         {
-          "id": "redacted:2f01c8af20cc",
-          "chunk_file": "redacted:3d485dab34db",
+          "id": "redacted:036609e694f7",
+          "chunk_file": "redacted:bb59384f1be3",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4743
+          "score": 0.5146
         },
         {
-          "id": "redacted:981f1dbfb306",
-          "chunk_file": "redacted:c7eb1b130f76",
+          "id": "redacted:ad5eda054221",
+          "chunk_file": "redacted:4c8b733dfbac",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.4551
+          "score": 0.5077
+        },
+        {
+          "id": "redacted:d8974d639134",
+          "chunk_file": "redacted:ad428bc30375",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.4992
+        },
+        {
+          "id": "redacted:ebf584ea013c",
+          "chunk_file": "redacted:c55fba4d56b0",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.5409
+        },
+        {
+          "id": "redacted:455969da04dc",
+          "chunk_file": "redacted:909ca6309f29",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.484
+        },
+        {
+          "id": "redacted:d4907e6e532b",
+          "chunk_file": "redacted:436ef044a9a9",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.5148
         }
       ]
     },
@@ -2260,6 +2260,20 @@
           "score": 0.3152
         },
         {
+          "id": "redacted:a7cff5555e4e",
+          "chunk_file": "redacted:319560f2b523",
+          "source": "redacted:cad0012aae5a",
+          "source_system": "sharepoint",
+          "score": 0.3491
+        },
+        {
+          "id": "redacted:93ea4ad776cd",
+          "chunk_file": "redacted:30e186dee7cf",
+          "source": "redacted:cad0012aae5a",
+          "source_system": "sharepoint",
+          "score": 0.3491
+        },
+        {
           "id": "redacted:767bff0396fe",
           "chunk_file": "redacted:26e912ebd57e",
           "source": "redacted:0c04b35c068c",
@@ -2267,46 +2281,32 @@
           "score": 0.308
         },
         {
-          "id": "redacted:272f50ee3ae8",
-          "chunk_file": "redacted:a6137cf19fe9",
-          "source": "redacted:df80375c70d5",
+          "id": "redacted:26e66dd69fe0",
+          "chunk_file": "redacted:25d3fde6e758",
+          "source": "redacted:9d96ea97a534",
           "source_system": "sharepoint",
-          "score": 0.3601
-        },
-        {
-          "id": "redacted:bdd5ac24c8c0",
-          "chunk_file": "redacted:e7dc18dfadba",
-          "source": "redacted:df80375c70d5",
-          "source_system": "sharepoint",
-          "score": 0.3601
-        },
-        {
-          "id": "redacted:27ea7d56e3e3",
-          "chunk_file": "redacted:cdec94c378fc",
-          "source": "redacted:df61137f6836",
-          "source_system": "sharepoint",
-          "score": 0.1712
+          "score": 0.3542
         },
         {
           "id": "redacted:e57b106f7e48",
           "chunk_file": "redacted:36ae1a3d3c1f",
           "source": "redacted:8af32c9b34e9",
           "source_system": "sharepoint",
-          "score": 0.3011
+          "score": 0.31
         },
         {
-          "id": "redacted:1eb15abf44dd",
-          "chunk_file": "redacted:3151a99fd7e4",
-          "source": "redacted:c8a98ad961bb",
-          "source_system": "sap_bpd",
-          "score": 0.3462
-        },
-        {
-          "id": "redacted:26e66dd69fe0",
-          "chunk_file": "redacted:25d3fde6e758",
-          "source": "redacted:9d96ea97a534",
+          "id": "redacted:2e1feb5c39c7",
+          "chunk_file": "redacted:780c102ef8f6",
+          "source": "redacted:df61137f6836",
           "source_system": "sharepoint",
-          "score": 0.3449
+          "score": 0.2381
+        },
+        {
+          "id": "redacted:a05dd252a750",
+          "chunk_file": "redacted:38bf3d36b6ee",
+          "source": "redacted:3403ad76eec7",
+          "source_system": "sharepoint",
+          "score": 0.344
         }
       ]
     },
@@ -2325,18 +2325,18 @@
           "score": 0.7266
         },
         {
-          "id": "redacted:4bbaee11ea0e",
-          "chunk_file": "redacted:da437e1af386",
+          "id": "redacted:1485b43258fa",
+          "chunk_file": "redacted:7f5c578279b7",
           "source": "redacted:89c76afd0fd7",
           "source_system": "sharepoint",
-          "score": 0.5769
+          "score": 0.5318
         },
         {
-          "id": "redacted:9d7d1f47243f",
-          "chunk_file": "redacted:1b771864d23b",
-          "source": "redacted:ffceddea1726",
+          "id": "redacted:82688be9fcb6",
+          "chunk_file": "redacted:e1dfd27889dd",
+          "source": "redacted:ba4586af8c38",
           "source_system": "sharepoint",
-          "score": 0.5292
+          "score": 0.5362
         },
         {
           "id": "redacted:0988fe11d892",
@@ -2346,18 +2346,11 @@
           "score": 0.4809
         },
         {
-          "id": "redacted:60819f125883",
-          "chunk_file": "redacted:31924337317f",
-          "source": "redacted:3343c80c5f2b",
+          "id": "redacted:e83fe1c78969",
+          "chunk_file": "redacted:fcf67809868d",
+          "source": "redacted:0e8832289788",
           "source_system": "sharepoint",
-          "score": 0.533
-        },
-        {
-          "id": "redacted:c4098594c3ec",
-          "chunk_file": "redacted:7f69e0c26d29",
-          "source": "redacted:0c04b35c068c",
-          "source_system": "abap_guidance",
-          "score": 0.4845
+          "score": 0.4702
         },
         {
           "id": "redacted:edc21261c64b",
@@ -2367,11 +2360,18 @@
           "score": 0.4635
         },
         {
-          "id": "redacted:02cdba810991",
-          "chunk_file": "redacted:fc8f5331ab5e",
-          "source": "redacted:46c95d5e3e78",
+          "id": "redacted:9d7d1f47243f",
+          "chunk_file": "redacted:1b771864d23b",
+          "source": "redacted:ffceddea1726",
           "source_system": "sharepoint",
-          "score": 0.5136
+          "score": 0.51
+        },
+        {
+          "id": "redacted:c4098594c3ec",
+          "chunk_file": "redacted:7f69e0c26d29",
+          "source": "redacted:0c04b35c068c",
+          "source_system": "abap_guidance",
+          "score": 0.4845
         },
         {
           "id": "scope_6N4",
@@ -2397,74 +2397,74 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:bdc32014adfe",
-          "chunk_file": "redacted:3d69650ed638",
+          "id": "redacted:b7d9ae756be5",
+          "chunk_file": "redacted:22c26918ad3f",
+          "source": "redacted:29ff7dccc993",
+          "source_system": "sharepoint",
+          "score": 0.3615
+        },
+        {
+          "id": "redacted:e5fade441d08",
+          "chunk_file": "redacted:d6ed060e45e2",
           "source": "redacted:ce668b0c4ad2",
           "source_system": "sharepoint",
-          "score": 0.3381
+          "score": 0.3373
         },
         {
-          "id": "redacted:b7ec88ef782f",
-          "chunk_file": "redacted:8e8cc37e4ff7",
-          "source": "redacted:8973e26e8c7d",
-          "source_system": "sharepoint",
-          "score": 0.3321
-        },
-        {
-          "id": "redacted:2099d273b16a",
-          "chunk_file": "redacted:a5a98bfd0632",
+          "id": "redacted:0988fe11d892",
+          "chunk_file": "redacted:3d38dfa9f244",
           "source": "redacted:0c04b35c068c",
           "source_system": "abap_guidance",
-          "score": 0.0731
+          "score": 0.1762
+        },
+        {
+          "id": "redacted:a2f8b2eb29d0",
+          "chunk_file": "redacted:16f926e3750a",
+          "source": "redacted:a619fd75dd1e",
+          "source_system": "sharepoint",
+          "score": 0.3311
         },
         {
           "id": "redacted:f5c3f566b6c0",
           "chunk_file": "redacted:97867a02b9cf",
           "source": "redacted:a619fd75dd1e",
           "source_system": "sharepoint",
-          "score": 0.3245
+          "score": 0.3234
         },
         {
-          "id": "redacted:16e90c7a88b1",
-          "chunk_file": "redacted:be25d69ebd2f",
-          "source": "redacted:0a7efe1b28b9",
-          "source_system": "sap_bpd",
-          "score": 0.3172
+          "id": "redacted:2641a437a803",
+          "chunk_file": "redacted:7d34703cb49f",
+          "source": "redacted:8b1d08cb6f8a",
+          "source_system": "sharepoint",
+          "score": 0.3186
+        },
+        {
+          "id": "redacted:b7ec88ef782f",
+          "chunk_file": "redacted:8e8cc37e4ff7",
+          "source": "redacted:8973e26e8c7d",
+          "source_system": "sharepoint",
+          "score": 0.3128
+        },
+        {
+          "id": "redacted:25556f6895bf",
+          "chunk_file": "redacted:1c80d51f63ee",
+          "source": "redacted:0b3aba71ebf4",
+          "source_system": "sharepoint",
+          "score": 0.2875
         },
         {
           "id": "redacted:776343a091a7",
-          "chunk_file": "redacted:1cba0fde84a9",
+          "chunk_file": "redacted:05ab2db6c118",
           "source": "redacted:30edf964bc14",
           "source_system": "sharepoint",
-          "score": 0.2938
-        },
-        {
-          "id": "redacted:3e0c7ce12288",
-          "chunk_file": "redacted:84f96e7043be",
-          "source": "redacted:5398c4762bad",
-          "source_system": "sharepoint",
-          "score": 0.2937
-        },
-        {
-          "id": "redacted:b608f6b4f3a2",
-          "chunk_file": "redacted:60cdddf545f9",
-          "source": "redacted:0b3aba71ebf4",
-          "source_system": "sharepoint",
-          "score": 0.2773
+          "score": 0.297
         },
         {
           "id": "redacted:1a9cc317a60a",
-          "chunk_file": "redacted:d58b83059fa2",
+          "chunk_file": "redacted:17de1f40ce70",
           "source": "redacted:30e9ce00b748",
           "source_system": "sharepoint",
-          "score": 0.2863
-        },
-        {
-          "id": "redacted:7c0b4ca00683",
-          "chunk_file": "redacted:0c1f144facbe",
-          "source": "redacted:29ff7dccc993",
-          "source_system": "sharepoint",
-          "score": 0.2834
+          "score": 0.291
         }
       ]
     },
@@ -2490,11 +2490,25 @@
           "score": 0.3337
         },
         {
+          "id": "redacted:aa03a9cf74cd",
+          "chunk_file": "redacted:8936d7d03c54",
+          "source": "redacted:b93a639f9244",
+          "source_system": "sharepoint",
+          "score": 0.3288
+        },
+        {
           "id": "scope_2NX",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.3238
+        },
+        {
+          "id": "redacted:ae1cb998b22c",
+          "chunk_file": "redacted:2ce58ecb37cb",
+          "source": "redacted:ff967a13aa7a",
+          "source_system": "sharepoint",
+          "score": 0.3073
         },
         {
           "id": "redacted:79fcea6fecb7",
@@ -2511,6 +2525,13 @@
           "score": 0.3179
         },
         {
+          "id": "redacted:efbc2fdbef5e",
+          "chunk_file": "redacted:d4ec82aa143c",
+          "source": "redacted:b93a639f9244",
+          "source_system": "sharepoint",
+          "score": 0.3164
+        },
+        {
           "id": "scope_BDN",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -2523,27 +2544,6 @@
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.314
-        },
-        {
-          "id": "scope_1JI",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.3126
-        },
-        {
-          "id": "scope_1Z3",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.3081
-        },
-        {
-          "id": "scope_BJN",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.3
         }
       ]
     },
@@ -2562,20 +2562,6 @@
           "score": 0.6052
         },
         {
-          "id": "da2b749d0114_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/da2b749d0114_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignMethodsRedefinitionRule",
-          "source_system": "developer_docs",
-          "score": 0.5516
-        },
-        {
-          "id": "f64484b5f430_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/f64484b5f430_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignAssignmentsRule",
-          "source_system": "developer_docs",
-          "score": 0.5519
-        },
-        {
           "id": "467f60eee36b_0001",
           "chunk_file": "webdocs/chunks/clean_abap_docs/467f60eee36b_0001.json",
           "source": "Clean ABAP — abap-cleaner rule reference — AlignDeclarationsRule",
@@ -2583,11 +2569,25 @@
           "score": 0.5739
         },
         {
+          "id": "da2b749d0114_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/da2b749d0114_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — AlignMethodsRedefinitionRule",
+          "source_system": "developer_docs",
+          "score": 0.5516
+        },
+        {
           "id": "467f60eee36b_0000",
           "chunk_file": "webdocs/chunks/clean_abap_docs/467f60eee36b_0000.json",
           "source": "Clean ABAP — abap-cleaner rule reference — AlignDeclarationsRule",
           "source_system": "developer_docs",
           "score": 0.5588
+        },
+        {
+          "id": "f64484b5f430_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/f64484b5f430_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — AlignAssignmentsRule",
+          "source_system": "developer_docs",
+          "score": 0.5519
         },
         {
           "id": "bb5ae608bba1_0000",
@@ -2618,11 +2618,11 @@
           "score": 0.5147
         },
         {
-          "id": "b7210ce61a15_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/b7210ce61a15_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignMethodsForTestingRule",
+          "id": "a8cd52e683e9_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/a8cd52e683e9_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — DdlAlignEntityParametersRule",
           "source_system": "developer_docs",
-          "score": 0.4736
+          "score": 0.4951
         }
       ]
     },
@@ -2713,18 +2713,18 @@
       "failures": [],
       "hits": [
         {
-          "id": "467f60eee36b_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/467f60eee36b_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignDeclarationsRule",
-          "source_system": "developer_docs",
-          "score": 0.4294
-        },
-        {
           "id": "bb6975c519e7_0000",
           "chunk_file": "webdocs/chunks/clean_abap_docs/bb6975c519e7_0000.json",
           "source": "Clean ABAP — abap-cleaner rule reference — LocalDeclarationOrderRule",
           "source_system": "developer_docs",
           "score": 0.4118
+        },
+        {
+          "id": "467f60eee36b_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/467f60eee36b_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — AlignDeclarationsRule",
+          "source_system": "developer_docs",
+          "score": 0.4294
         },
         {
           "id": "d683017cf445_0000",
@@ -2741,13 +2741,6 @@
           "score": 0.3814
         },
         {
-          "id": "a8cd52e683e9_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/a8cd52e683e9_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — DdlAlignEntityParametersRule",
-          "source_system": "developer_docs",
-          "score": 0.3813
-        },
-        {
           "id": "da2b749d0114_0000",
           "chunk_file": "webdocs/chunks/clean_abap_docs/da2b749d0114_0000.json",
           "source": "Clean ABAP — abap-cleaner rule reference — AlignMethodsRedefinitionRule",
@@ -2755,11 +2748,25 @@
           "score": 0.3472
         },
         {
+          "id": "a8cd52e683e9_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/a8cd52e683e9_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — DdlAlignEntityParametersRule",
+          "source_system": "developer_docs",
+          "score": 0.3813
+        },
+        {
           "id": "af526b1db8ba_0000",
           "chunk_file": "webdocs/chunks/clean_abap_docs/af526b1db8ba_0000.json",
           "source": "Clean ABAP — abap-cleaner rule reference — ChainRule",
           "source_system": "developer_docs",
           "score": 0.2974
+        },
+        {
+          "id": "446f3ce06cf1_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/446f3ce06cf1_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — AlignFormDeclarationRule",
+          "source_system": "developer_docs",
+          "score": 0.3459
         },
         {
           "id": "0d6a77912e2c_0001",
@@ -2774,13 +2781,6 @@
           "source": "Clean ABAP — abap-cleaner rule reference — AlignDeclarationsRule",
           "source_system": "developer_docs",
           "score": 0.3636
-        },
-        {
-          "id": "446f3ce06cf1_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/446f3ce06cf1_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignFormDeclarationRule",
-          "source_system": "developer_docs",
-          "score": 0.3459
         }
       ]
     },
@@ -2920,13 +2920,6 @@
           "score": 0.2376
         },
         {
-          "id": "73a42f8a8376_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/73a42f8a8376_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignCondExpressionsRule",
-          "source_system": "developer_docs",
-          "score": 0.2328
-        },
-        {
           "id": "f60b5ce20268_0000",
           "chunk_file": "webdocs/chunks/clean_abap_docs/f60b5ce20268_0000.json",
           "source": "Clean ABAP — abap-cleaner rule reference — MoveToRule",
@@ -2934,11 +2927,18 @@
           "score": 0.2179
         },
         {
-          "id": "e3160d803d39_0001",
-          "chunk_file": "webdocs/chunks/ui5_docs/e3160d803d39_0001.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — expression-binding-daf6852",
+          "id": "73a42f8a8376_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/73a42f8a8376_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — AlignCondExpressionsRule",
           "source_system": "developer_docs",
-          "score": 0.1961
+          "score": 0.2328
+        },
+        {
+          "id": "4b826e79ff93_0002",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/4b826e79ff93_0002.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — ReadTableRule",
+          "source_system": "developer_docs",
+          "score": 0.1449
         }
       ]
     },
@@ -3075,6 +3075,13 @@
           "score": 0.4594
         },
         {
+          "id": "redacted:79f102c3f912",
+          "chunk_file": "redacted:74f0672a4a79",
+          "source": "redacted:6dbe144653a7",
+          "source_system": "sharepoint",
+          "score": 0.4121
+        },
+        {
           "id": "scope_4B0",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -3094,13 +3101,6 @@
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.3973
-        },
-        {
-          "id": "scope_43Y",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.397
         }
       ]
     },
@@ -3119,67 +3119,304 @@
           "score": 0.1855
         },
         {
-          "id": "redacted:4c9bb6be80a5",
-          "chunk_file": "redacted:91f222913fc1",
-          "source": "redacted:d36344afe565",
+          "id": "redacted:72128fe30f98",
+          "chunk_file": "redacted:d511b9c4c167",
+          "source": "redacted:afc8389c88f4",
           "source_system": "sharepoint",
-          "score": 0.1782
+          "score": 0.1556
         },
         {
-          "id": "redacted:e70355d15977",
-          "chunk_file": "redacted:ac4b02fd4d55",
-          "source": "redacted:b8d6485cc41e",
+          "id": "redacted:cb682d74f2e7",
+          "chunk_file": "redacted:9dfe49eaf5eb",
+          "source": "redacted:612ea617f652",
           "source_system": "sharepoint",
-          "score": -0.0304
+          "score": 0.155
         },
         {
-          "id": "redacted:14b6425a0993",
-          "chunk_file": "redacted:47db40fef1ba",
-          "source": "redacted:125f2b51cd66",
+          "id": "redacted:80c8dee7520c",
+          "chunk_file": "redacted:947aac1f8336",
+          "source": "redacted:3ef79c4ddaab",
           "source_system": "sharepoint",
-          "score": 0.1655
+          "score": 0.1519
         },
         {
-          "id": "redacted:c59751a6bf31",
-          "chunk_file": "redacted:0532592708ef",
-          "source": "redacted:93961c54c9e1",
+          "id": "redacted:89f6ed3af298",
+          "chunk_file": "redacted:8af5fc66bd4e",
+          "source": "redacted:ac9f8abd31d6",
           "source_system": "sharepoint",
-          "score": 0.165
+          "score": 0.1516
         },
         {
-          "id": "redacted:a3053b545722",
-          "chunk_file": "redacted:de257a412dd9",
-          "source": "redacted:f8a79e7530e5",
+          "id": "redacted:8140cbc24b05",
+          "chunk_file": "redacted:fc33bda1e922",
+          "source": "redacted:a1876157ee9b",
           "source_system": "sharepoint",
-          "score": 0.1636
+          "score": 0.1516
         },
         {
-          "id": "redacted:8c452878125e",
-          "chunk_file": "redacted:fadbca8f25f9",
-          "source": "redacted:310c1b7f4b3b",
+          "id": "redacted:ea319a217551",
+          "chunk_file": "redacted:6a8a2fd660d2",
+          "source": "redacted:d1a6149b6e69",
+          "source_system": "sharepoint",
+          "score": 0.1516
+        },
+        {
+          "id": "redacted:38b8825caf91",
+          "chunk_file": "redacted:5a9d7d1a29b7",
+          "source": "redacted:66129b8cf183",
+          "source_system": "sharepoint",
+          "score": 0.1516
+        },
+        {
+          "id": "redacted:2138a75b2d84",
+          "chunk_file": "redacted:d8fb17d733ed",
+          "source": "redacted:f250bd0d4003",
+          "source_system": "sharepoint",
+          "score": 0.1512
+        },
+        {
+          "id": "redacted:72982a681353",
+          "chunk_file": "redacted:7672ff20326a",
+          "source": "redacted:4f8aede77886",
           "source_system": "sharepoint",
           "score": 0.1632
+        }
+      ]
+    },
+    {
+      "id": "R-090",
+      "query": "EDI 850 purchase order inbound mapping field specification",
+      "filters": null,
+      "pending": null,
+      "failures": [],
+      "hits": [
+        {
+          "id": "redacted:7f09dab73f76",
+          "chunk_file": "redacted:fb5c6b008458",
+          "source": "redacted:dcc0f949b4e0",
+          "source_system": "sharepoint",
+          "score": 0.679
         },
         {
-          "id": "redacted:50589a02a041",
-          "chunk_file": "redacted:e5c87466ec6f",
-          "source": "redacted:37cc042f54a4",
+          "id": "redacted:a1607816bc97",
+          "chunk_file": "redacted:d585e739a9ac",
+          "source": "redacted:8e7726fb7db9",
           "source_system": "sharepoint",
-          "score": 0.1622
+          "score": 0.7038
         },
         {
-          "id": "redacted:6023e36ea5f6",
-          "chunk_file": "redacted:28d531cb5642",
-          "source": "redacted:b588e019642b",
+          "id": "redacted:7edcceb09635",
+          "chunk_file": "redacted:3ed6a3f9f793",
+          "source": "redacted:cbc01b1addd7",
           "source_system": "sharepoint",
-          "score": 0.1622
+          "score": 0.5785
         },
         {
-          "id": "redacted:e19b885f981c",
-          "chunk_file": "redacted:ab1877bb1ad8",
-          "source": "redacted:85bfe8beb018",
+          "id": "redacted:eb1e9f5e14db",
+          "chunk_file": "redacted:d59492c84046",
+          "source": "redacted:368305b55dfd",
           "source_system": "sharepoint",
-          "score": 0.1613
+          "score": 0.7038
+        },
+        {
+          "id": "redacted:adb966f7c413",
+          "chunk_file": "redacted:d4c36851de48",
+          "source": "redacted:b668422865ae",
+          "source_system": "sharepoint",
+          "score": 0.679
+        },
+        {
+          "id": "redacted:1c269b5613e5",
+          "chunk_file": "redacted:246e7bf8b8cd",
+          "source": "redacted:e7fdef3efe41",
+          "source_system": "sharepoint",
+          "score": 0.679
+        },
+        {
+          "id": "redacted:26b41b87e64b",
+          "chunk_file": "redacted:61c47153b103",
+          "source": "redacted:08afaf8755ce",
+          "source_system": "sharepoint",
+          "score": 0.679
+        },
+        {
+          "id": "redacted:57195d3e8ae0",
+          "chunk_file": "redacted:5d8d2f26bce5",
+          "source": "redacted:b82de32a6e4f",
+          "source_system": "sharepoint",
+          "score": 0.679
+        },
+        {
+          "id": "redacted:c96e8f1af4d1",
+          "chunk_file": "redacted:2784a39134d7",
+          "source": "redacted:43e8b25368ac",
+          "source_system": "sharepoint",
+          "score": 0.679
+        },
+        {
+          "id": "redacted:bf39727406f0",
+          "chunk_file": "redacted:43ed66c4f0bf",
+          "source": "redacted:a5b659ed3757",
+          "source_system": "sharepoint",
+          "score": 0.679
+        }
+      ]
+    },
+    {
+      "id": "R-091",
+      "query": "EDI 810 invoice mapping segment definitions",
+      "filters": null,
+      "pending": null,
+      "failures": [],
+      "hits": [
+        {
+          "id": "redacted:73d153178d05",
+          "chunk_file": "redacted:60bc63f92a7e",
+          "source": "redacted:19d85a312486",
+          "source_system": "sharepoint",
+          "score": 0.5816
+        },
+        {
+          "id": "redacted:cd813d0c756c",
+          "chunk_file": "redacted:9f7a404c4e21",
+          "source": "redacted:5286f6c46908",
+          "source_system": "sharepoint",
+          "score": 0.5367
+        },
+        {
+          "id": "redacted:9b376ed38789",
+          "chunk_file": "redacted:694edfbc95cc",
+          "source": "redacted:f7f5444deb96",
+          "source_system": "sharepoint",
+          "score": 0.1849
+        },
+        {
+          "id": "redacted:d2707d518235",
+          "chunk_file": "redacted:5c34e3dc7d08",
+          "source": "redacted:19d85a312486",
+          "source_system": "sharepoint",
+          "score": 0.5323
+        },
+        {
+          "id": "redacted:559c4ff393c4",
+          "chunk_file": "redacted:f1510f767792",
+          "source": "redacted:c65552e59abb",
+          "source_system": "sharepoint",
+          "score": 0.5431
+        },
+        {
+          "id": "redacted:445018194b28",
+          "chunk_file": "redacted:2c4f0d86c1c4",
+          "source": "redacted:eb4f2bb04084",
+          "source_system": "sharepoint",
+          "score": 0.5272
+        },
+        {
+          "id": "redacted:79a8e248bf97",
+          "chunk_file": "redacted:6aeb9a7cf657",
+          "source": "redacted:d43a1b04b2a0",
+          "source_system": "sharepoint",
+          "score": 0.5337
+        },
+        {
+          "id": "redacted:64306f56a9c3",
+          "chunk_file": "redacted:3f4ecd1de380",
+          "source": "redacted:056f46ec3314",
+          "source_system": "sharepoint",
+          "score": 0.5323
+        },
+        {
+          "id": "redacted:fe8e5e1cfe7f",
+          "chunk_file": "redacted:e85ad5dde68b",
+          "source": "redacted:67a3eaa70a5a",
+          "source_system": "sharepoint",
+          "score": 0.539
+        },
+        {
+          "id": "redacted:fc15c3b150cf",
+          "chunk_file": "redacted:15021ff407aa",
+          "source": "redacted:056f46ec3314",
+          "source_system": "sharepoint",
+          "score": 0.539
+        }
+      ]
+    },
+    {
+      "id": "R-092",
+      "query": "purchase order acknowledgement 855 EDI mapping",
+      "filters": null,
+      "pending": null,
+      "failures": [],
+      "hits": [
+        {
+          "id": "redacted:f1ad8f5716a4",
+          "chunk_file": "redacted:d08ca930ceb5",
+          "source": "redacted:06538feb293d",
+          "source_system": "sharepoint",
+          "score": 0.6983
+        },
+        {
+          "id": "redacted:0fcde95e52d1",
+          "chunk_file": "redacted:fff80cb87acb",
+          "source": "redacted:e1dd249ac002",
+          "source_system": "sharepoint",
+          "score": 0.6914
+        },
+        {
+          "id": "redacted:6c586b4ca930",
+          "chunk_file": "redacted:8783c610dc27",
+          "source": "redacted:e6e7f5968fe7",
+          "source_system": "sharepoint",
+          "score": 0.6022
+        },
+        {
+          "id": "redacted:d5df8ad0e18c",
+          "chunk_file": "redacted:39fc6f5a2764",
+          "source": "redacted:e6e7f5968fe7",
+          "source_system": "sharepoint",
+          "score": 0.5992
+        },
+        {
+          "id": "redacted:85f76d2abbe1",
+          "chunk_file": "redacted:66ce6555d9cd",
+          "source": "redacted:d07d633097f1",
+          "source_system": "sharepoint",
+          "score": 0.6096
+        },
+        {
+          "id": "redacted:ceff443a0f07",
+          "chunk_file": "redacted:8f439c3a559f",
+          "source": "redacted:5accb9005b88",
+          "source_system": "sharepoint",
+          "score": 0.6022
+        },
+        {
+          "id": "redacted:0b1c138fbf2c",
+          "chunk_file": "redacted:73095ee3a230",
+          "source": "redacted:06538feb293d",
+          "source_system": "sharepoint",
+          "score": 0.5287
+        },
+        {
+          "id": "redacted:7edcceb09635",
+          "chunk_file": "redacted:3ed6a3f9f793",
+          "source": "redacted:cbc01b1addd7",
+          "source_system": "sharepoint",
+          "score": 0.5696
+        },
+        {
+          "id": "redacted:6c43d43888ba",
+          "chunk_file": "redacted:9695bc8da5a4",
+          "source": "redacted:b8367237a391",
+          "source_system": "sharepoint",
+          "score": 0.5652
+        },
+        {
+          "id": "redacted:4159afa359d5",
+          "chunk_file": "redacted:4ffda7d0e21b",
+          "source": "redacted:5accb9005b88",
+          "source_system": "sharepoint",
+          "score": 0.5713
         }
       ]
     }
