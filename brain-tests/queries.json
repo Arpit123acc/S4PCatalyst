@@ -19,7 +19,8 @@
       "expect_promoted": "true/false — whether brain_search._promote() guaranteed a slot to the lexical retriever's top hit. Pins the quota's confidence gate from both sides; keyed on the `promoted` flag, not a score threshold, so it survives a re-embed."
     },
     "retrieval_is_hybrid": "Since 2026-09-04 search fuses a dense vector ranking (Bedrock Titan cosine) with BM25 (SQLite FTS5, keyword_index.py) by weighted sum of within-list min-max normalised scores, plus a guaranteed slot for a decisively-confident lexical hit. Config and the evidence for each constant are in brain_search.py; BRAIN_FUSION=rrf and BRAIN_SEARCH_MODE=vector|keyword allow A/B comparison. Every constant here was chosen by sweeping THIS set, not by taste — kw weight 0.25 is the midpoint of the passing window [0.15,0.35], and the quota exists because no weight made R-062 and R-020 safe simultaneously.",
-    "red_tests": "Cases carrying \"pending\" are red BY DESIGN until the named blocker clears, and are counted separately so they cannot mask a real regression. The marker must be REMOVED once the case passes: a passing case that still says pending would report PENDING (soft) instead of FAIL (hard) if it later broke, which is the same way R-041 was originally wrong. No case is currently pending — R-062's blocker (hybrid_search) was cleared on 2026-09-04 and its marker removed in the same change."
+    "red_tests": "Cases carrying \"pending\" are red BY DESIGN until the named blocker clears, and are counted separately so they cannot mask a real regression. The marker must be REMOVED once the case passes: a passing case that still says pending would report PENDING (soft) instead of FAIL (hard) if it later broke, which is the same way R-041 was originally wrong. R-062's blocker (hybrid_search) was cleared on 2026-09-04 and its marker removed in the same change. R-091 is pending as of 2026-09-08, blocked on a swept BRAIN_SUPERSEDED_PENALTY.",
+    "lifecycle_coverage": "R-090 / R-091 / R-092 exist because this set was measured BLIND to document supersession on 2026-09-08: only 3 of the then-40 cases retrieved any superseded chunk, 5 hits across 400 slots. Sweeping BRAIN_SUPERSEDED_PENALTY over its full range therefore passed 40/40 at every value and moved 1% of results — a flat sweep that reads as 'safe at any setting' and in fact measured nothing. Meanwhile a single untested query returned 8 superseded revisions in 10 hits with the current one ranked fourth. Multi-revision mapping specs are the bulk of this corpus (one EDI spec exists as v2.0 through v11.0), so the three cases span the range deliberately: R-090 severe-but-reachable, R-091 severe-and-absent, R-092 mild control that a too-strong penalty would disturb. Never conclude a ranking constant is safe from a flat sweep without first checking the set exercises what the constant acts on."
   },
   "cases": [
     {
@@ -283,6 +284,37 @@
       "id": "R-050",
       "query": "zzzz qqqq xxxx nonsense token that matches nothing meaningful",
       "why": "Sanity floor. Vector search always returns its top-k, so this documents that low-relevance queries still return hits — a reminder that score, not presence, is the quality signal.",
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-090",
+      "query": "EDI 850 purchase order inbound mapping field specification",
+      "why": "COVERAGE for document lifecycle, added 2026-09-08 because this set had almost none. Measured: only 3 of the other 40 cases retrieve ANY superseded chunk, 5 hits out of 400 slots — so sweeping BRAIN_SUPERSEDED_PENALTY across its whole range moved 1% of results and passed every assertion at every value, which reads like a green light and is actually an absence of measurement. This query is the opposite: 8 of its 10 hits are superseded revisions of one EDI spec, and the current v11.0 ranks FOURTH, behind v3.0 and v4.0. Multi-revision mapping specs are the bulk of this corpus, so that is the real retrieval-quality question the set was not asking.",
+      "expect_source_contains": "850",
+      "expect_field": {
+        "doc_version": "11.0"
+      },
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-091",
+      "query": "EDI 810 invoice mapping segment definitions",
+      "why": "The severe form of R-090, and the reason the penalty is worth enabling rather than merely measuring: EVERY 810 hit in the top ten is a superseded revision (v0.2–v0.7) and the current v1.2 does not appear at all. An agent asking about this interface is served only obsolete material, rescued solely by the superseded_by pointer. Marked pending because it asserts the FIXED state, not today's.",
+      "pending": "BRAIN_SUPERSEDED_PENALTY is 0, so superseded revisions are not demoted and the current v1.2 cannot reach the top ten. Remove this marker once a swept penalty ships — a passing case that still says pending would report PENDING (soft) instead of FAIL (hard) if it later broke.",
+      "expect_source_contains": "810",
+      "expect_field": {
+        "doc_version": "1.2"
+      },
+      "expect_min_hits": 1
+    },
+    {
+      "id": "R-092",
+      "query": "purchase order acknowledgement 855 EDI mapping",
+      "why": "The mild form, and the control for R-090/R-091: a family with only two superseded revisions, where the current V2.1 already reaches the top ten. A penalty strong enough to help the 850 and 810 cases must not disturb this one, so it pins the other end of the window — the same role R-045 plays for the phase-filter exemption.",
+      "expect_source_contains": "855",
+      "expect_field": {
+        "doc_version": "2.1"
+      },
       "expect_min_hits": 1
     }
   ]

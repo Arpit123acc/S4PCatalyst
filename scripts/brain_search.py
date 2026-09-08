@@ -243,11 +243,23 @@ def _demote_superseded(fused):
         for p in 0 0.1 0.2 0.35 0.5; do
           BRAIN_SUPERSEDED_PENALTY=$p python3.11 scripts/brain_regression.py
         done
-    Watch BOTH the assertions and mean overlap. R-030 ("cutover plan and go-live
-    checklist") is the case to watch: its current top hit is a document with "NO USE
-    THIS" in the filename, so a working penalty SHOULD move it -- that is a real
-    improvement showing up as baseline drift, and the baseline should then be
-    re-recorded rather than the penalty backed out.
+    Watch BOTH the assertions and mean overlap, and watch R-090 / R-091 / R-092 --
+    the lifecycle cases. They exist because the FIRST sweep of this variable, on
+    2026-09-08, was meaningless and looked reassuring: only 3 of the then-40 cases
+    retrieved any superseded chunk at all (5 hits across 400 slots), so every penalty
+    value from inert to annihilating passed 40/40 and moved ~1% of results. A flat
+    sweep is not evidence of safety when the set does not exercise what the constant
+    acts on. R-090 answers with 8 superseded revisions in 10 hits and the current
+    v11.0 ranked fourth; R-091 cannot surface its current revision at all until this
+    penalty is live, and is marked pending for exactly that reason; R-092 is the mild
+    control a too-strong penalty would disturb. A working penalty SHOULD move them --
+    that is a real improvement showing up as baseline drift, and the baseline should
+    then be re-recorded rather than the penalty backed out.
+
+    (The case named here before was R-030, whose top hit carried "NO USE THIS" in the
+    filename. Better tabular chunking dropped that file out of its top ten on the
+    2026-09-08 corpus rebuild, so the signal it described no longer existed -- a
+    reminder that a watch instruction naming one document goes stale silently.)
 
     Multiplicative, not a fixed subtraction: fused scores are min-max normalised into
     [0,1], so a flat subtraction would annihilate mid-ranked hits and barely touch the
