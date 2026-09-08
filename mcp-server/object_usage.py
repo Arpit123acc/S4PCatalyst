@@ -144,6 +144,81 @@ def find_usage(object_name, entries=None, limit=10, source_system=None):
     }
 
 
+def usage_counts(object_names, source_system=None):
+    """Batched counts for annotating a page of hits: {OBJECT_NAME: {...}}.
+
+    usage_brief is the single-object form and runs a full find_usage -- two SQL
+    queries plus a scan of every recorded lesson -- to produce a handful of fields.
+    Attaching that to each hit of a search would be a dozen round-trips for a count,
+    which is precisely why semantic_search carried no prior-usage signal at all. This
+    is one query for the whole page, counts only; a caller wanting the document list
+    or the matching lessons has get_object_usage.
+
+    Keys are UPPERCASED, matching the mention index. Look up by name.upper().
+    """
+    names = [n for n in (object_names or []) if n]
+    if not names:
+        return {}
+    try:
+        ks = _keyword_search()
+        if not ks.available():
+            return {}
+        return ks.usage_counts_for_objects(names, source_system=source_system)
+    except Exception:
+        return {}                                    # additive; never fatal
+
+
+def evidence_for_lesson(object_names, limit=3, source_system=None):
+    """L3 -> L4: the corpus documents a lesson's own objects also appear in.
+
+    THE EDGE THAT DID NOT EXIST
+        Every other pairing had a path: a document hit names objects and gets their
+        verdicts, an object finds the documents and lessons that name it, a lesson
+        gets its objects' verdicts. But a lesson had no route back into the corpus, so
+        "why did we learn this" ended at the lesson text. An agent could read
+        "always set the currency on the item, not the header" and had no way to reach
+        the FD it came out of.
+
+    GROUNDED, NOT SIMILAR
+        The link is shared OBJECT REFERENCES, not embedding similarity. That is a
+        deliberate trade: it is deterministic, it is explainable (the payload names
+        which objects are shared, so a reader can judge the link rather than trust a
+        score), and it costs one indexed SQL query instead of an embedding call. The
+        price is real and worth stating: a lesson that names NO recognised object gets
+        no evidence at all. entity_link is conservative by design, so that is not a
+        rare case, and an empty list here means "no shared object names" -- never
+        "this lesson came from nowhere".
+    """
+    names = [n for n in (object_names or []) if n]
+    if not names:
+        return {"linked_by": "shared object references", "documents": [],
+                "note": "this lesson names no recognised SAP object, so it has no "
+                        "object-grounded link into the corpus — which is not evidence "
+                        "that no related document exists"}
+    try:
+        ks = _keyword_search()
+        if not ks.available():
+            return None
+        docs = ks.documents_for_objects(names, limit=limit,
+                                        source_system=source_system)
+    except Exception:
+        return None
+    if not docs:
+        return {"linked_by": "shared object references", "documents": [],
+                "note": "no indexed document mentions any of this lesson's objects "
+                        "(%s) — check layer_health if that seems wrong, since an "
+                        "unbuilt mention index looks identical to a real absence"
+                        % ", ".join(names[:5])}
+    return {
+        "linked_by": "shared object references",
+        "shared_from": names[:8],
+        "documents": docs,
+        "note": "Ranked by how many of the lesson's objects each document shares. "
+                "A shared object name is a lead to the right document, not proof the "
+                "lesson was written from it.",
+    }
+
+
 def usage_brief(object_name, entries=None):
     """A compact form for embedding in another tool's payload.
 

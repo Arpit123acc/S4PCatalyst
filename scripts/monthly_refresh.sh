@@ -228,6 +228,19 @@ else
   fail_steps="$fail_steps object-mentions"
 fi
 
+say "── object graph briefs (L4/L3 → L1 edge)"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_graph_briefs.py"
+elif $PY brain-tests/test_graph_briefs.py > /dev/null 2>&1; then
+  say "   ok: mentions resolve to graph nodes, and unknown names stay unresolved"
+else
+  say "   FAILED: the document→graph edge is broken. The dangerous direction is a"
+  say "   name resolving to the WRONG node — a fabricated business area reads"
+  say "   exactly like a correct one. Detail:"
+  say "     $PY brain-tests/test_graph_briefs.py"
+  fail_steps="$fail_steps graph-briefs"
+fi
+
 say "── cross-layer freshness"
 if [ -n "$DRY" ]; then
   say "   DRY RUN, would run freshness.report() across L1-L4"

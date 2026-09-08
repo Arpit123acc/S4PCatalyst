@@ -798,6 +798,46 @@ def tool_query_experience(args):
                 "the object it cites has been deprecated — re-verify before reusing a name.")
     except Exception:
         pass                                                 # additive; never fatal
+
+    # L3 -> L4: the one pairing with no path. A document hit reaches its objects'
+    # verdicts, an object reaches the documents AND lessons that name it, a lesson
+    # reaches its objects' verdicts — but a lesson had no route back into the corpus,
+    # so "why did we learn this" ended at the lesson text. An agent could read
+    # "always set the currency on the item, not the header" and have no way to reach
+    # the FD it came out of.
+    #
+    # Grounded on SHARED OBJECT NAMES, not similarity: deterministic, explainable
+    # (the payload says which objects are shared, so the reader judges the link
+    # instead of trusting a score), and one indexed query per lesson rather than an
+    # embedding call. Capped, because this is a per-lesson query and query_experience
+    # with no filter returns the whole store.
+    try:
+        import object_usage                                  # noqa: PLC0415
+        linked = 0
+        for h in hits[:10]:
+            names = [m.get("name") for m in (h.get("objects_mentioned") or [])
+                     if isinstance(m, dict) and m.get("name")]
+            if not names:
+                continue
+            ev = object_usage.evidence_for_lesson(names, limit=3)
+            if ev and ev.get("documents"):
+                h["related_documents"] = ev
+                linked += 1
+        if linked:
+            result["evidence_note"] = (
+                "related_documents links each lesson to delivery documents that name the "
+                "SAME SAP objects, ranked by how many they share. It is a lead to the "
+                "context a lesson came out of, not proof that it was written from that "
+                "document. Lessons naming no recognised object carry no link — "
+                "entity_link is conservative by design, so an absent link is not "
+                "evidence that no related document exists.")
+        if len(hits) > 10:
+            result["evidence_truncated"] = (
+                "related_documents was resolved for the first 10 of %d lesson(s) — it "
+                "costs one query each. Narrow with `query` or `category`, or call "
+                "get_object_usage on a specific object." % len(hits))
+    except Exception:
+        pass                                                 # additive; never fatal
     if stale:
         result["index_staleness_warning"] = stale
     return result
@@ -1070,7 +1110,8 @@ def tool_semantic_search(args):
                 "hint": "Run: python mcp-server/vector/build_index.py to build the index."}
     meta, label = _vector_provenance(eng)
     _attach_graph_context(results)
-    return {
+    had_usage = _attach_prior_usage(results)
+    payload = {
         "verified": False,
         "source":   "S4PC semantic index over the released-object catalog (%d docs), built with %s. "
                     "Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
@@ -1084,6 +1125,15 @@ def tool_semantic_search(args):
                     "NOT comparable across backends, so treat the ordering rather than the "
                     "absolute value as the signal. Re-verify objects before use in designs.",
     }
+    if had_usage:
+        payload["prior_usage_note"] = (
+            "prior_usage counts DISTINCT ARTIFACTS in the delivery corpus that name the "
+            "object (revisions and duplicate copies collapsed), and is a lead to prior "
+            "context — NOT a release contract. An object can appear in ten past "
+            "deliveries and be unreleased or since deprecated; the verdict comes from "
+            "check_object_release_state. Call get_object_usage for the documents and the "
+            "recorded lessons behind these counts.")
+    return payload
 
 def tool_find_similar_delivery(args):
     description = (args.get("description") or "").strip()
@@ -1191,6 +1241,43 @@ def _attach_graph_context(hits):
             continue
         h["graph"] = {"area": node.get("area") or None,
                       "connections": len(edges.get(h["id"]) or [])}
+
+
+def _attach_prior_usage(hits):
+    """L2 -> L4: has this team already used the object this search just surfaced?
+
+    check_object_release_state and get_object_graph both attach prior usage, but the
+    one tool an agent uses to DISCOVER an object name did not -- so discovery was the
+    only step in the chain with no memory. An agent could semantic_search its way to
+    API_X, take the name into a design, and never learn that three of its own FDs
+    already use it and one recorded lesson says why not to.
+
+    Counts only, and batched into a single query. usage_brief would be a full
+    find_usage per hit -- two SQL queries plus a scan of every lesson -- which is the
+    cost that kept this edge unbuilt. The document list and the matching lessons stay
+    behind get_object_usage, which is named in the note so the next call is obvious.
+
+    Returns True if anything was attached, so the caller can add the caveat once at
+    payload level rather than repeating it on every hit.
+    """
+    catalog = [h for h in (hits or []) if isinstance(h, dict) and h.get("id")
+               and h.get("type") in ("api", "cds_view", "badi")]
+    if not catalog:
+        return False
+    try:
+        import object_usage                                  # noqa: PLC0415
+        counts = object_usage.usage_counts([h["id"] for h in catalog])
+    except Exception:
+        return False                                 # additive context; never fatal
+    attached = False
+    for h in catalog:
+        rec = counts.get(str(h["id"]).upper())
+        if not rec or not rec.get("mentions"):
+            continue
+        h["prior_usage"] = {"documents": rec["documents"],
+                            "mentions": rec["mentions"]}
+        attached = True
+    return attached
 
 
 def tool_get_object_graph(args):
@@ -1386,7 +1473,10 @@ TOOLS = {
     "query_experience": {
         "description": ("Search the team's S/4HANA Public Cloud experience database (delivery lessons, gotchas, "
                         "cost heuristics per RICEFW type and extensibility mode). Consult at intake and solution-"
-                        "proposal time; cite applied EXP-ids in deliverables."),
+                        "proposal time; cite applied EXP-ids in deliverables. Each lesson carries "
+                        "'objects_mentioned' with a CURRENT release verdict per name, and 'related_documents' — "
+                        "delivery documents naming the same objects, which is the closest thing to the lesson's "
+                        "evidence. Read those before applying a lesson you did not write."),
         "schema": {"type": "object", "properties": {
             "query": {"type": "string", "description": "Keywords, e.g. 'badi validation' or 'btp cost'"},
             "category": {"type": "string", "description": "Optional: general | enhancement | report | interface | conversion | form | workflow | developer | key_user | side_by_side"}},
@@ -1431,7 +1521,11 @@ TOOLS = {
                         "catalog (APIs, CDS views, BAdIs) and past experience entries. Use when keyword search "
                         "misses or the requirement is vague — e.g. 'goods movement validation' finds the right "
                         "BAdI even if the exact name is unknown. Scores are cosine-similarity; always re-verify "
-                        "hits on authoritative sources (api.sap.com, Custom Logic app, ADT)."),
+                        "hits on authoritative sources (api.sap.com, Custom Logic app, ADT). Each catalog hit "
+                        "also carries 'graph' (its business area and connection count, so you can tell a central "
+                        "object from an isolated one) and, where the delivery corpus names it, 'prior_usage' "
+                        "(how many past artifacts mention it). prior_usage is a lead to precedent, NOT a release "
+                        "contract — call get_object_usage for the documents and lessons behind the count."),
         "schema": {"type": "object", "properties": {
             "query":       {"type": "string",
                             "description": "Natural-language query, e.g. 'supplier invoice posting validation'"},
@@ -2270,6 +2364,7 @@ try:
                     memo[name] = tool_check_object_release_state({"object_name": name})
                 return memo[name]
             flagged, annotated = 0, 0
+            all_names = []
             for hit in payload["results"]:
                 names = [m.get("name") for m in (hit.get("objects_mentioned") or [])
                          if isinstance(m, dict) and m.get("name")]
@@ -2279,9 +2374,33 @@ try:
                 if found:
                     annotated += 1
                     hit["objects_mentioned"] = found
+                    all_names.extend(f.get("name") for f in found if f.get("name"))
                     flagged += sum(1 for f in found
                                    if f.get("verdict") == "NOT_AVAILABLE"
                                    or f.get("evidence") == "naming_heuristic_only")
+            # L4 -> L1: the verdict says whether a mentioned object is LEGAL; the graph
+            # says where it sits. Without this an agent reading an FD learns that
+            # I_MaterialStock is released but not that it is an Inventory object with
+            # 14 neighbours -- so it cannot tell a central object from an isolated one,
+            # and in practice does not make the second call to find out.
+            #
+            # _attach_graph_context does this for semantic_search, but that keys on an
+            # L2 hit's own id and type; these are names extracted from document text,
+            # so they need name resolution. Absent names are left unannotated: the
+            # corpus mentions plenty of objects the catalog does not carry (classical
+            # tables above all), and that silence is itself the clean-core signal.
+            try:
+                ge, _gerr = _load_graph_engine()
+                briefs = ge.briefs_for_names(all_names) if ge else {}
+            except Exception:
+                briefs = {}
+            if briefs:
+                for hit in payload["results"]:
+                    for m in (hit.get("objects_mentioned") or []):
+                        b = briefs.get(m.get("name")) if isinstance(m, dict) else None
+                        if b:
+                            m["area"] = b["area"]
+                            m["graph_connections"] = b["connections"]
             payload["objects_note"] = (
                 "objects_mentioned lists SAP object names found IN the retrieved text, each "
                 "with its verdict from the live catalog as of now — not as of when the "

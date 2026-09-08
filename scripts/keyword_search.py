@@ -203,6 +203,115 @@ def mentions_for_chunks(chunk_ids):
     return out
 
 
+def usage_counts_for_objects(names, source_system=None):
+    """REVERSE edge, BATCHED: {OBJECT_NAME: {mentions, documents, filenames}}.
+
+    documents_for_object answers the same question in full for ONE object, which is
+    the right shape for get_object_usage and the wrong shape for annotating a page of
+    hits: N objects would mean N round-trips for a count the caller only wants as a
+    signal. This is one query for all of them, and deliberately returns counts only --
+    a caller that wants the document list has get_object_usage.
+
+    `documents` is distinct ARTIFACTS (families), matching documents_for_object's
+    total_artifacts, so the two can never disagree about how much precedent exists.
+    Returns {} when the mention table is absent, so annotation degrades to "no
+    annotation" rather than to the false claim "no prior usage".
+    """
+    wanted, seen = [], set()
+    for n in (names or []):
+        s = str(n or "").strip().upper()
+        if s and s not in seen:
+            seen.add(s)
+            wanted.append(s)
+    if not wanted or not has_mentions():
+        return {}
+    fam_expr = ("coalesce(m.doc_family, m.source)" if _lifecycle_cols()
+                else "m.source")
+    out = {}
+    for start in range(0, len(wanted), 400):     # SQLITE_MAX_VARIABLE_NUMBER
+        batch = wanted[start:start + 400]
+        marks = ",".join("?" * len(batch))
+        sql = ("SELECT om.object_name, count(*), count(DISTINCT %s), "
+               "count(DISTINCT m.source) "
+               "FROM object_mentions om JOIN meta m ON m.rowid = om.chunk_rowid "
+               "WHERE om.object_name IN (%s)" % (fam_expr, marks))
+        params = list(batch)
+        if source_system:
+            sql += " AND lower(coalesce(m.source_system,'')) = ?"
+            params.append(str(source_system).lower())
+        sql += " GROUP BY om.object_name"
+        try:
+            rows = _con().execute(sql, params).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        for nm, mentions, artifacts, filenames in rows:
+            out[nm] = {"mentions": mentions, "documents": artifacts,
+                       "filenames": filenames}
+    return out
+
+
+def documents_for_objects(names, limit=5, source_system=None,
+                          collapse_versions=True):
+    """Which corpus documents mention the MOST of these objects, ranked by overlap.
+
+    The join a recorded lesson needs. A lesson names a handful of SAP objects; the
+    delivery documents naming the same ones are the closest thing to its evidence,
+    and until now there was no edge from L3 back into L4 at all.
+
+    Ranked by how many DISTINCT requested objects each document shares, before raw
+    mention count -- sharing three of a lesson's objects is a stronger link than
+    naming one of them thirty times, and ordering by mentions alone would surface the
+    corpus's largest spreadsheets for every lesson.
+
+    Note on collapsing: `shared` and `mentions` are the SURVIVING revision's own
+    figures, not the family's. doc_version.collapse sums `mentions` across a family by
+    design, which is right for "how much precedent exists" and wrong here -- the
+    question is which single document to go read.
+    """
+    wanted, seen = [], set()
+    for n in (names or []):
+        s = str(n or "").strip().upper()
+        if s and s not in seen:
+            seen.add(s)
+            wanted.append(s)
+    if not wanted or not has_mentions():
+        return []
+    marks = ",".join("?" * len(wanted[:400]))
+    params = list(wanted[:400])
+    where = "om.object_name IN (%s)" % marks
+    if source_system:
+        where += " AND lower(coalesce(m.source_system,'')) = ?"
+        params.append(str(source_system).lower())
+    lifecycle = bool(_lifecycle_cols())
+    # Over-fetch before collapsing, for the same reason documents_for_object does: a
+    # versioned family can hold a dozen members and would otherwise fill the page.
+    fetch = int(limit) * 12 if collapse_versions and lifecycle else int(limit)
+    sql = ("SELECT m.source, m.source_system, m.deliverable_type, m.phase, "
+           "count(DISTINCT om.object_name) AS shared, count(*) AS hits, "
+           "group_concat(DISTINCT om.display_name), min(m.chunk_id) "
+           "FROM object_mentions om JOIN meta m ON m.rowid = om.chunk_rowid "
+           "WHERE " + where +
+           " GROUP BY m.source, m.source_system "
+           "ORDER BY shared DESC, hits DESC, m.source LIMIT ?")
+    try:
+        rows = _con().execute(sql, params + [fetch]).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    docs = [{"source": r[0], "source_system": r[1], "deliverable_type": r[2],
+             "phase": r[3], "shared_objects": r[4], "mentions": r[5],
+             "objects": sorted((r[6] or "").split(",")) if r[6] else [],
+             "sample_chunk_id": r[7]} for r in rows]
+    if collapse_versions:
+        try:
+            import doc_version                            # noqa: PLC0415
+            docs = doc_version.collapse(docs)
+            docs.sort(key=lambda d: (-(d.get("shared_objects") or 0),
+                                     -(d.get("mentions") or 0), d.get("source") or ""))
+        except Exception:
+            pass                                          # collapsing is a nicety
+    return docs[:int(limit)]
+
+
 def documents_for_object(object_name, limit=10, source_system=None,
                          collapse_versions=True):
     """REVERSE edge: which corpus documents mention this SAP object.

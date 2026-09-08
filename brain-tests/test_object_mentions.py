@@ -120,6 +120,45 @@ def main():
     check("true negative is indexed with zero docs",
           (unseen["indexed"], unseen["total_documents"]), (True, 0))
 
+    print("\nBATCHED reverse edge - one query for a page of hits")
+    # usage_counts_for_objects backs the L2 -> L4 edge on semantic_search. The reason
+    # it exists is cost, so the contract that matters is that it AGREES with
+    # documents_for_object -- two paths reporting different amounts of precedent for
+    # the same object would be worse than having only the slow one.
+    counts = keyword_search.usage_counts_for_objects(
+        ["EKKO", "API_CLFN_PRODUCT_SRV", "api_never_seen"])
+    check("keys come back uppercased", sorted(counts), ["API_CLFN_PRODUCT_SRV", "EKKO"])
+    check("agrees with documents_for_object on artifacts",
+          counts["EKKO"]["documents"],
+          keyword_search.documents_for_object("EKKO")["total_artifacts"])
+    check("and on raw mention count", counts["EKKO"]["mentions"],
+          keyword_search.documents_for_object("EKKO")["total_mentions"])
+    # Absent rather than zero: the caller skips names with no entry, so a zero row
+    # would make it attach an empty prior_usage block to every unused object.
+    check("never-seen object is omitted, not zeroed", "API_NEVER_SEEN" in counts, False)
+    check("empty input is cheap and empty",
+          keyword_search.usage_counts_for_objects([]), {})
+
+    print("\nlesson -> corpus edge (shared object references)")
+    # evidence_for_lesson's ranking claim: sharing MORE of the lesson's objects beats
+    # mentioning one of them more often. c1 shares both, c3 shares only EKKO.
+    docs = keyword_search.documents_for_objects(["EKKO", "I_PurchaseOrder"], limit=5)
+    check("document sharing both objects ranks first",
+          docs and docs[0]["source"], "PO Interface TD.docx")
+    check("and reports HOW MANY it shares", docs and docs[0]["shared_objects"], 2)
+    check("the single-object document is still returned",
+          sorted(d["source"] for d in docs),
+          ["Legacy Report Notes.docx", "PO Interface TD.docx"])
+    check("it shares only one",
+          next(d["shared_objects"] for d in docs
+               if d["source"] == "Legacy Report Notes.docx"), 1)
+    # The link has to be explainable, or a reader cannot judge it.
+    check("names the shared objects",
+          sorted(docs[0]["objects"]) == ["EKKO", "I_PurchaseOrder"], True)
+    check("no names -> no documents", keyword_search.documents_for_objects([]), [])
+    check("unmatched names -> empty, not everything",
+          keyword_search.documents_for_objects(["API_NEVER_SEEN"]), [])
+
     print("\nBM25 unaffected by the extra table")
     hits = keyword_search.search("EKKO classical table", k=5)
     check("hits returned with scores",
@@ -137,6 +176,12 @@ def main():
     check("forward edge returns {}", keyword_search.mentions_for_chunks(["c1"]), {})
     check("reverse edge says indexed=False",
           keyword_search.documents_for_object("EKKO")["indexed"], False)
+    # The two new edges must degrade the same way: {} and [] mean "no annotation",
+    # which the callers treat as "attach nothing" rather than "no prior usage".
+    check("batched counts return {}",
+          keyword_search.usage_counts_for_objects(["EKKO"]), {})
+    check("lesson evidence returns []",
+          keyword_search.documents_for_objects(["EKKO"]), [])
 
     print()
     if FAILS:

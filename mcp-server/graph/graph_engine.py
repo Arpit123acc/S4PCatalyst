@@ -227,7 +227,7 @@ def save_graph(graph_data: dict) -> dict:
 # are picked up automatically: a plain lru_cache here would serve the pre-rebuild graph
 # until the process restarted, which is precisely the class of silent staleness
 # freshness.py exists to catch.
-_CACHE: dict = {"mtime": None, "graph": None}
+_CACHE: dict = {"mtime": None, "graph": None, "lower": None}
 
 
 def _load() -> tuple:
@@ -244,8 +244,58 @@ def _load() -> tuple:
         return None, "Graph not built — run: python mcp-server/graph/build_graph.py"
     except Exception as exc:
         return None, "Graph load error: %s" % exc
-    _CACHE.update(mtime=mtime, graph=graph)
+    # `lower` is dropped with the graph it indexed: a rebuilt graph renames nodes, and
+    # a stale lowercase map would resolve a name to a node that no longer exists.
+    _CACHE.update(mtime=mtime, graph=graph, lower=None)
     return graph, None
+
+
+def briefs_for_names(names) -> dict:
+    """L4/L3 -> L1, batched: {name as given: {resolved, area, connections}}.
+
+    WHY THIS EXISTS SEPARATELY FROM get_object_graph
+        get_object_graph answers deeply about ONE object -- BFS over neighbours, area
+        mates, a full payload. Annotating the objects mentioned across a page of
+        delivery-document hits needs the opposite shape: one shallow fact per name,
+        for tens of names, cheaply. Calling get_object_graph per mention would run a
+        BFS per name and, worse, its miss path scans every node twice.
+
+    EXACT AND CASE-INSENSITIVE ONLY -- no prefix matching. get_object_graph resolves
+    "I_PurchaseOrder" to "I_PurchaseOrderAPI01" because a human typed a partial name
+    and wants the nearest node. These names were EXTRACTED from a document, so they
+    are already whole: prefix-resolving one would silently label a mention with a
+    different object's business area, which is worse than saying nothing.
+
+    Names absent from the graph are simply omitted -- the corpus mentions plenty of
+    objects the catalog does not carry (classical tables especially), and that absence
+    is itself information the caller can read.
+    """
+    wanted = [str(n).strip() for n in (names or []) if str(n or "").strip()]
+    if not wanted:
+        return {}
+    graph, _err = _load()
+    if not graph:
+        return {}
+    nodes = graph.get("nodes") or {}
+    edges = graph.get("edges") or {}
+    lower = _CACHE.get("lower")
+    if lower is None:
+        # Built once per graph load, not once per call: the miss path in
+        # get_object_graph is an O(nodes) scan, and 10.7k nodes x 30 mentions a page
+        # is the kind of cost that only shows up under load.
+        lower = {k.lower(): k for k in nodes}
+        _CACHE["lower"] = lower
+    out = {}
+    for name in wanted:
+        node_id = name if name in nodes else lower.get(name.lower())
+        if not node_id:
+            continue
+        node = nodes.get(node_id) or {}
+        out[name] = {"resolved": node_id,
+                     "area": node.get("area") or None,
+                     "type": node.get("type") or None,
+                     "connections": len(edges.get(node_id) or [])}
+    return out
 
 
 # ── query API ────────────────────────────────────────────────────────────────────
