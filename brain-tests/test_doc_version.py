@@ -168,6 +168,58 @@ def test_obsolete():
           dv.parse("Old Cutover Plan.xlsx")["obsolete_marker"], False)
 
 
+def test_ties_are_not_supersession():
+    """A tie broken by filename ordering must NOT be reported as a supersession.
+
+    All three names below are verbatim from the corpus, and all three were being
+    marked superseded on 2026-09-08 purely because pick_current's deterministic
+    tie-break compares filenames: "pptx" > "pdf", "_" > ".", "c" > " ". None of them
+    carries a version, a copy marker or an obsolescence marker, so there is no
+    evidence of ordering -- and telling a reader to ignore a document on the strength
+    of ASCII order is what this module's header exists to forbid.
+
+    Choosing a representative and asserting death are different claims: collapse()
+    still needs the first, and only the second needs proof.
+    """
+    print("\na tie is not evidence of supersession")
+    twins = ["Treasury - Process Review.pdf", "Treasury - Process Review.pptx"]
+    res = dv.resolve_families(twins)
+    check("format twins share a family", res[twins[0]]["family"], res[twins[1]]["family"])
+    check("both formats stay current",
+          [res[s]["is_current"] for s in twins], [True, True])
+    check("and neither claims a successor",
+          [res[s]["superseded_by"] for s in twins], [None, None])
+    # collapse() must still reduce them to ONE artifact -- the count question is
+    # unaffected by refusing to declare a death.
+    check("but they still collapse to one artifact",
+          len(dv.collapse([{"source": s, "mentions": 2} for s in twins])), 1)
+    check("summing the mentions across the pair",
+          dv.collapse([{"source": s, "mentions": 2} for s in twins])[0]["mentions"], 4)
+
+    stray = ["SD - Sales order (only open SO).xlsx", "SD - Sales order (only open SO)_.xlsx"]
+    r2 = dv.resolve_families(stray)
+    check("a stray underscore is not a revision",
+          [r2[s]["is_current"] for s in stray], [True, True])
+    case = ["OTC- Condition Record for Pricing.xlsx", "OTC-condition record for pricing.xlsx"]
+    r3 = dv.resolve_families(case)
+    check("case and spacing are not a revision",
+          [r3[s]["is_current"] for s in case], [True, True])
+
+    # The other half of the contract: real evidence must STILL supersede. A tie
+    # rule that also silenced version ordering would be a worse bug than the one
+    # it replaced.
+    ev = ["Spec_v1.0.xlsx", "Spec_v2.0.xlsx"]
+    r4 = dv.resolve_families(ev)
+    check("a version token still supersedes", r4["Spec_v1.0.xlsx"]["is_current"], False)
+    check("naming its successor", r4["Spec_v1.0.xlsx"]["superseded_by"], "Spec_v2.0.xlsx")
+    dup = ["Rep.xlsx", "Rep (1).xlsx"]
+    r5 = dv.resolve_families(dup)
+    check("a copy marker still loses to the original",
+          r5["Rep (1).xlsx"]["is_current"], False)
+    check("exactly one current in an evidenced pair",
+          sum(1 for m in r5.values() if m["is_current"]), 1)
+
+
 def test_index_roundtrip():
     print("\nend-to-end through keyword.db")
     rows = []
@@ -227,6 +279,7 @@ def main():
     test_measured_non_markers()
     test_ordering()
     test_obsolete()
+    test_ties_are_not_supersession()
     test_index_roundtrip()
     test_legacy_db()
     print()

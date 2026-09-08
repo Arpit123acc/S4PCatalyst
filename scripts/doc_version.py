@@ -186,23 +186,40 @@ def resolve_families(sources):
     out = {}
     for family, members in families.items():
         current = pick_current(members)
+        win_rank = _rank(parsed[current])
         for src in members:
             p = parsed[src]
+            # A SUPERSESSION CLAIM NEEDS EVIDENCE -- a version token, a copy marker or
+            # an obsolescence marker. When two names tie on all three, pick_current
+            # falls back to the filename for determinism, and that tie-break is a coin
+            # flip: measured on the real corpus it declared "Treasury - Process
+            # Review.pdf" superseded by the identically-named .pptx (one artifact in
+            # two formats, "pptx" > "pdf"), "SD - Sales order (only open SO).xlsx"
+            # superseded by "... (only open SO)_.xlsx" (a stray underscore, "_" > "."),
+            # and "OTC- Condition Record for Pricing.xlsx" superseded by
+            # "OTC-condition record for pricing.xlsx" (case and a space).
+            #
+            # Deciding which document a reader should ignore on the strength of ASCII
+            # ordering is precisely what this module's header forbids. A tie therefore
+            # leaves BOTH members current; collapse() still picks one representative,
+            # because choosing a representative and asserting death are different
+            # claims and only the second needs proof.
+            outranked = _rank(p) < win_rank
             # An explicit "do not use" marker means NOT current, whatever else is true.
             # Without this an obsolete document that happens to be the only member of
             # its family came back is_current=True AND obsolete_marker=True -- a
             # contradiction, and the dangerous way round: a caller checking is_current
             # would treat a file someone labelled "DO NOT USE" as authoritative.
             # An all-obsolete family therefore has no current member, which is correct.
-            is_current = (src == current) and not p["obsolete_marker"]
+            is_current = not outranked and not p["obsolete_marker"]
             out[src] = {
                 "family": family,
                 "version": p["version"],
                 "is_current": is_current,
-                # Only set when a DIFFERENT member won. An obsolete single-member
-                # family is not superseded by anything -- it is just dead, and saying
-                # "superseded by itself" would be nonsense.
-                "superseded_by": None if src == current else current,
+                # Only set when a member was genuinely OUTRANKED. An obsolete
+                # single-member family is not superseded by anything -- it is just
+                # dead, and saying "superseded by itself" would be nonsense.
+                "superseded_by": current if outranked else None,
                 "duplicate": p["duplicate"],
                 "obsolete_marker": p["obsolete_marker"],
                 "family_size": len(members),
