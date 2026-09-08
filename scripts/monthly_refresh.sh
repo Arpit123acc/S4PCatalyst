@@ -156,13 +156,29 @@ else
   fail_steps="$fail_steps keyword-index-skipped"
 fi
 
-# 4. The MCP server caches both the catalog and the index at import. Without this
-#    restart the refresh is invisible to every running agent -- which has bitten
-#    this project before.
+# 4. Both READERS cache the index in memory at import, so a refresh is invisible to
+#    a running process until it restarts -- which has bitten this project before.
+#
+#    brain-ui was missing from this list, and its failure is worse than the MCP's
+#    rather than milder. brain_search._load_dense() is @lru_cache(maxsize=1) with no
+#    mtime check, so a long-running brain-ui serves the PREVIOUS corpus indefinitely
+#    (measured 2026-09-08: 3 days of uptime across a full re-ingest). Its hits then
+#    carry chunk ids that no longer exist on disk, so the lifecycle and mention joins
+#    against the freshly built keyword.db match nothing -- and the viewer silently
+#    renders no version tags and no object names, which looks like a corpus that has
+#    neither rather than a stale process. It also ranks with whatever
+#    BRAIN_SUPERSEDED_PENALTY was in force when it started.
 if [ -z "$DRY" ]; then
   run "restart s4pc-mcp" pm2 restart s4pc-mcp || true
+  # `|| true` and a presence check: brain-ui is optional on a host that only serves
+  # the MCP, and its absence must not fail a refresh that otherwise worked.
+  if pm2 describe brain-ui > /dev/null 2>&1; then
+    run "restart brain-ui" pm2 restart brain-ui || true
+  else
+    say "── brain-ui not running on this host, nothing to restart"
+  fi
 else
-  say "── DRY RUN, would restart s4pc-mcp"
+  say "── DRY RUN, would restart s4pc-mcp and brain-ui"
 fi
 
 # 5. The gate. Assertions failing means retrieval regressed; drift is reported for
