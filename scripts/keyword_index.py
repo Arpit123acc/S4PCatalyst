@@ -92,8 +92,18 @@ VERSION_COLS = ["doc_family", "doc_version", "is_current", "superseded_by"]
 # Metadata carried into the keyword index. Deliberately the FILTERABLE fields plus
 # the identity fields -- everything brain_search needs to fuse and to apply the same
 # filters as the vector path, and nothing else.
+#
+# relative_path was added 2026-09-08 because `source` is a FILENAME, not an identity.
+# The brain UI reports 2,734 distinct sources for 2,861 ingested files: roughly 127
+# files share a name with a file in another folder, and the reverse edge grouped them
+# into one row with their mentions summed. For identical copies filed twice that is
+# the right answer; for two genuinely different documents that happen to share a name
+# it is a conflation, and without the path there was no way to tell which case you
+# were looking at. sharepoint_ingest has always written it into the chunk JSON; it
+# simply never reached the index.
 META_COLS = ["chunk_id", "source", "source_system", "phase", "agent_role",
-             "deliverable_type", "chunk_file", "scope_item_id"] + VERSION_COLS
+             "deliverable_type", "chunk_file", "scope_item_id",
+             "relative_path"] + VERSION_COLS
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
@@ -112,6 +122,7 @@ def _schema(cur):
             deliverable_type TEXT,
             chunk_file       TEXT,
             scope_item_id    TEXT,
+            relative_path    TEXT,
             doc_family       TEXT,
             doc_version      TEXT,
             is_current       INTEGER,

@@ -128,6 +128,67 @@ def _lifecycle_cols():
     return tuple(c for c in LIFECYCLE_COLS if c in have)
 
 
+def _folder(doc):
+    """The folder a document row lives in, "" when the index carries no path.
+
+    Normalised across separators because relative_path is produced by pathlib on the
+    ingest host: Linux writes "MM/Spec.docx", a Windows ingest writes "MM\\Spec.docx",
+    and the same corpus must bucket identically either way.
+    """
+    p = (doc.get("relative_path") or "").replace("\\", "/")
+    return p.rsplit("/", 1)[0] if "/" in p else ""
+
+
+def _collapse_by_folder(docs):
+    """doc_version.collapse, applied WITHIN each folder rather than across the corpus.
+
+    Collapsing globally merges any rows sharing a filename, which undoes the whole
+    point of carrying relative_path: "Interface Spec.docx" in MM/ and in SD/ went back
+    to being one row with its mentions summed.
+
+    Within a folder is the right scope because revisions of one artifact are filed
+    together -- so 850_Purchase Order_v2.0 .. _v11.0 still collapse to one entry --
+    while two documents that merely share a name do not merge. When they genuinely are
+    the same artifact filed twice, the cost is one extra row; when they are different
+    documents, merging them would attribute one's content to the other. A false merge
+    is worse than a missed one, the same doctrine resolve_families follows.
+
+    Note this is only about COUNTING and DISPLAY. is_current / superseded_by are still
+    resolved corpus-globally at index time, so a revision filed in the wrong folder is
+    still correctly marked superseded.
+    """
+    try:
+        import doc_version                                # noqa: PLC0415
+    except Exception:
+        return docs                                       # collapsing is a nicety
+    if not has_path():
+        return doc_version.collapse(docs)
+    buckets = {}
+    for d in docs:
+        buckets.setdefault(_folder(d), []).append(d)
+    out = []
+    for group in buckets.values():
+        out.extend(doc_version.collapse(group))
+    return out
+
+
+@lru_cache(maxsize=1)
+def has_path():
+    """Whether this keyword.db carries relative_path (added 2026-09-08).
+
+    `source` is a filename, so two documents with the same name in different folders
+    were indistinguishable and got grouped into one row. An index built before the
+    column exists must degrade to "no path information" rather than raise -- and, more
+    importantly, must keep grouping the old way, because splitting on a column that is
+    NULL for every row would report every document as having one unknown location.
+    """
+    try:
+        have = {r[1] for r in _con().execute("PRAGMA table_info(meta)").fetchall()}
+    except Exception:
+        return False
+    return "relative_path" in have
+
+
 def lifecycle_for_chunks(chunk_ids):
     """{chunk_id: {doc_family, doc_version, is_current, superseded_by}} for these chunks.
 
@@ -286,13 +347,16 @@ def documents_for_objects(names, limit=5, source_system=None,
     # Over-fetch before collapsing, for the same reason documents_for_object does: a
     # versioned family can hold a dozen members and would otherwise fill the page.
     fetch = int(limit) * 12 if collapse_versions and lifecycle else int(limit)
+    path_expr = "m.relative_path" if has_path() else "NULL"
+    group_by = ("m.source, m.source_system, m.relative_path" if has_path()
+                else "m.source, m.source_system")
     sql = ("SELECT m.source, m.source_system, m.deliverable_type, m.phase, "
            "count(DISTINCT om.object_name) AS shared, count(*) AS hits, "
-           "group_concat(DISTINCT om.display_name), min(m.chunk_id) "
+           "group_concat(DISTINCT om.display_name), min(m.chunk_id), %s " % path_expr +
            "FROM object_mentions om JOIN meta m ON m.rowid = om.chunk_rowid "
            "WHERE " + where +
-           " GROUP BY m.source, m.source_system "
-           "ORDER BY shared DESC, hits DESC, m.source LIMIT ?")
+           " GROUP BY " + group_by +
+           " ORDER BY shared DESC, hits DESC, m.source LIMIT ?")
     try:
         rows = _con().execute(sql, params + [fetch]).fetchall()
     except sqlite3.OperationalError:
@@ -300,15 +364,11 @@ def documents_for_objects(names, limit=5, source_system=None,
     docs = [{"source": r[0], "source_system": r[1], "deliverable_type": r[2],
              "phase": r[3], "shared_objects": r[4], "mentions": r[5],
              "objects": sorted((r[6] or "").split(",")) if r[6] else [],
-             "sample_chunk_id": r[7]} for r in rows]
+             "sample_chunk_id": r[7], "relative_path": r[8]} for r in rows]
     if collapse_versions:
-        try:
-            import doc_version                            # noqa: PLC0415
-            docs = doc_version.collapse(docs)
-            docs.sort(key=lambda d: (-(d.get("shared_objects") or 0),
-                                     -(d.get("mentions") or 0), d.get("source") or ""))
-        except Exception:
-            pass                                          # collapsing is a nicety
+        docs = _collapse_by_folder(docs)
+        docs.sort(key=lambda d: (-(d.get("shared_objects") or 0),
+                                 -(d.get("mentions") or 0), d.get("source") or ""))
     return docs[:int(limit)]
 
 
@@ -343,34 +403,58 @@ def documents_for_object(object_name, limit=10, source_system=None,
     # were versions of one EDI spec. Falls back to source on a pre-lifecycle index.
     lifecycle = bool(_lifecycle_cols())
     fam_expr = "coalesce(m.doc_family, m.source)" if lifecycle else "m.source"
+    # Two documents can share a FILENAME while living in different folders, and
+    # grouping on the name alone merged them into one row with their mentions summed.
+    # Split on the path where the index has one; a pre-path index keeps the old
+    # grouping, because splitting on a column that is NULL everywhere would report
+    # every document as having a single unknown location.
+    path_expr = "m.relative_path" if has_path() else "NULL"
+    group_by = ("m.source, m.source_system, m.relative_path" if has_path()
+                else "m.source, m.source_system")
+    # coalesce to the filename, because count(DISTINCT) skips NULL: webdocs and
+    # scope-catalog rows carry no path, and counting them as zero locations would make
+    # total_locations read lower than total_documents for no reason.
+    loc_expr = ("coalesce(m.relative_path, m.source)" if has_path() else "m.source")
     try:
-        total_mentions, total_docs, total_artifacts = _con().execute(
-            "SELECT count(*), count(DISTINCT m.source), count(DISTINCT %s) %s"
-            % (fam_expr, base), params).fetchone()
+        total_mentions, total_docs, total_artifacts, total_locations = _con().execute(
+            "SELECT count(*), count(DISTINCT m.source), count(DISTINCT %s), "
+            "count(DISTINCT %s) %s" % (fam_expr, loc_expr, base),
+            params).fetchone()
         # Over-fetch before collapsing: a versioned family can hold a dozen members,
         # so applying LIMIT first would fill the page with one artifact's revisions
         # and drop genuinely different documents off the end.
         fetch = int(limit) * 12 if collapse_versions and lifecycle else int(limit)
         rows = _con().execute(
             "SELECT m.source, m.source_system, m.deliverable_type, m.phase, "
-            "count(*) AS hits, min(m.chunk_id) " + base +
-            " GROUP BY m.source, m.source_system ORDER BY hits DESC, m.source LIMIT ?",
+            "count(*) AS hits, min(m.chunk_id), %s " % path_expr + base +
+            " GROUP BY " + group_by + " ORDER BY hits DESC, m.source LIMIT ?",
             params + [fetch]).fetchall()
     except sqlite3.OperationalError:
         return {"indexed": False, "documents": [], "total_mentions": 0,
                 "total_documents": 0, "total_artifacts": 0}
     docs = [{"source": r[0], "source_system": r[1], "deliverable_type": r[2],
-             "phase": r[3], "mentions": r[4], "sample_chunk_id": r[5]} for r in rows]
+             "phase": r[3], "mentions": r[4], "sample_chunk_id": r[5],
+             "relative_path": r[6]} for r in rows]
     if collapse_versions:
-        try:
-            import doc_version                            # noqa: PLC0415
-            docs = doc_version.collapse(docs)
-        except Exception:
-            pass                                          # collapsing is a nicety
+        docs = _collapse_by_folder(docs)
+        docs.sort(key=lambda d: (-(d.get("mentions") or 0), d.get("source") or ""))
     docs = docs[:int(limit)]
-    return {"indexed": True, "documents": docs,
-            "total_mentions": total_mentions, "total_documents": total_docs,
-            "total_artifacts": total_artifacts, "collapsed": bool(collapse_versions)}
+    out = {"indexed": True, "documents": docs,
+           "total_mentions": total_mentions, "total_documents": total_docs,
+           "total_artifacts": total_artifacts, "collapsed": bool(collapse_versions)}
+    # Reported only when it ADDS something. total_locations > total_documents means
+    # the same filename exists in more than one folder, which is the case a reader
+    # needs told: it is either the same artifact filed twice, or two different
+    # documents sharing a name, and nothing here can tell those apart.
+    if has_path():
+        out["total_locations"] = total_locations
+        if total_locations > total_docs:
+            out["path_note"] = (
+                "%d file location(s) for %d distinct filename(s) — at least one name "
+                "exists in more than one folder. Compare relative_path before treating "
+                "two hits as the same document."
+                % (total_locations, total_docs))
+    return out
 
 
 def search(query, k=10, filters=None):
@@ -383,7 +467,11 @@ def search(query, k=10, filters=None):
     if not match:
         return []
     where_sql, params = _where(filters)
-    cols = ", ".join("m.%s" % c for c in SELECT_COLS)
+    # relative_path is appended CONDITIONALLY rather than living in SELECT_COLS: a
+    # keyword.db built before the column exists would fail this SELECT outright
+    # instead of degrading, which is the same reason LIFECYCLE_COLS is kept separate.
+    select = list(SELECT_COLS) + (["relative_path"] if has_path() else [])
+    cols = ", ".join("m.%s" % c for c in select)
     sql = ("SELECT %s, bm25(fts) AS bm FROM fts JOIN meta m ON m.rowid = fts.rowid "
            "WHERE fts MATCH ?%s ORDER BY bm LIMIT ?" % (cols, where_sql))
     try:
@@ -396,7 +484,7 @@ def search(query, k=10, filters=None):
         raise
     out = []
     for r in rows:
-        h = dict(zip(SELECT_COLS, r))
+        h = dict(zip(select, r))
         h["id"] = h.pop("chunk_id")
         h["keyword_score"] = round(-float(r[-1]), 4)
         out.append(h)

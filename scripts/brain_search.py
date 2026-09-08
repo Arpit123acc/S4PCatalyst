@@ -514,9 +514,14 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
     _attach_mentions(raw)
     _attach_lifecycle(raw)
 
+    # relative_path is kept because `source` is only a FILENAME: 127 files in this
+    # corpus share a name with a file in another folder, so two hits reading
+    # "Learning Needs Analysis.xlsx" may be one document or two. The vector sidecar
+    # has always carried it (embed_chunks._META_FIELDS) and the keyword half now does
+    # too, so both halves of a fused hit agree.
     keep = ("score", "keyword_score", "rrf", "retrievers", "promoted", "id",
             "source", "source_system", "phase", "agent_role", "deliverable_type",
-            "scope_item_id", "chunk_file", "objects_mentioned",
+            "scope_item_id", "chunk_file", "relative_path", "objects_mentioned",
             "doc_version", "is_current", "superseded_by", "demoted")
     return [{k2: h.get(k2) for k2 in keep} for h in raw]
 

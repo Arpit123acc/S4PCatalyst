@@ -65,6 +65,22 @@ ROWS = [
               "source_system": "developer_docs", "phase": "Realize",
               "agent_role": "build_agent", "deliverable_type": "ui5_docs",
               "chunk_file": "webdocs/chunks/c4.json", "scope_item_id": None}},
+    # SAME FILENAME, DIFFERENT FOLDER. Verbatim shape of the real collision: the brain
+    # UI reports 2,734 distinct sources for 2,861 ingested files, so ~127 names exist
+    # in two places. Before relative_path reached the index these two were one row
+    # with their mentions summed, and nothing said so.
+    {"text": "Interface uses API_CLFN_PRODUCT_SRV for classification.",
+     "meta": {"id": "c5", "chunk_id": "c5", "source": "Interface Spec.docx",
+              "source_system": "sharepoint", "phase": "Realize",
+              "agent_role": "build_agent", "deliverable_type": "technical_design",
+              "chunk_file": "sharepoint/chunks/c5.json", "scope_item_id": None,
+              "relative_path": "MM/Interface Spec.docx"}},
+    {"text": "Interface uses API_CLFN_PRODUCT_SRV and I_ClfnCharacteristic too.",
+     "meta": {"id": "c6", "chunk_id": "c6", "source": "Interface Spec.docx",
+              "source_system": "sharepoint", "phase": "Realize",
+              "agent_role": "build_agent", "deliverable_type": "technical_design",
+              "chunk_file": "sharepoint/chunks/c6.json", "scope_item_id": None,
+              "relative_path": "SD/Interface Spec.docx"}},
 ]
 
 FAILS = []
@@ -79,6 +95,8 @@ def check(label, got, want):
 
 def _reset():
     keyword_search.has_mentions.cache_clear()
+    keyword_search.has_path.cache_clear()
+    keyword_search._lifecycle_cols.cache_clear()
     keyword_search._con.cache_clear()
 
 
@@ -159,6 +177,39 @@ def main():
     check("unmatched names -> empty, not everything",
           keyword_search.documents_for_objects(["API_NEVER_SEEN"]), [])
 
+    print("\nsame filename in two folders is TWO documents")
+    # The conflation this fixes: both chunks name API_CLFN_PRODUCT_SRV under the
+    # filename "Interface Spec.docx", and grouping on the name alone reported one
+    # document with 2 mentions.
+    check("relative_path reached the index", keyword_search.has_path(), True)
+    r = keyword_search.documents_for_object("API_CLFN_PRODUCT_SRV")
+    specs = [d for d in r["documents"] if d["source"] == "Interface Spec.docx"]
+    check("the collision is two rows, not one", len(specs), 2)
+    check("each names its own folder",
+          sorted(d["relative_path"] for d in specs),
+          ["MM/Interface Spec.docx", "SD/Interface Spec.docx"])
+    check("one mention each, not two summed",
+          sorted(d["mentions"] for d in specs), [1, 1])
+    # The counts have to say both things: how many NAMES and how many LOCATIONS.
+    check("distinct filenames still counted by name", r["total_documents"], 2)
+    # 3, not 2: MM/, SD/, and Classification FD.docx, which carries no path and so
+    # counts as its own location via the coalesce to filename.
+    check("but locations are counted too", r["total_locations"], 3)
+    check("and it says so in words when they differ",
+          "more than one folder" in (r.get("path_note") or ""), True)
+    # The lesson-evidence query groups the same way.
+    ev = keyword_search.documents_for_objects(
+        ["API_CLFN_PRODUCT_SRV", "I_ClfnCharacteristic"], limit=5)
+    both = [d for d in ev if d["source"] == "Interface Spec.docx"]
+    check("lesson evidence splits them too", len(both), 2)
+    check("and the SD copy shares both objects",
+          next(d["shared_objects"] for d in both
+               if d["relative_path"].startswith("SD/")), 2)
+    # BM25 hits carry it, so a reader can tell two same-named hits apart.
+    hits = keyword_search.search("Interface classification", k=5)
+    check("search hits carry relative_path",
+          all("relative_path" in h for h in hits), True)
+
     print("\nBM25 unaffected by the extra table")
     hits = keyword_search.search("EKKO classical table", k=5)
     check("hits returned with scores",
@@ -182,6 +233,10 @@ def main():
           keyword_search.usage_counts_for_objects(["EKKO"]), {})
     check("lesson evidence returns []",
           keyword_search.documents_for_objects(["EKKO"]), [])
+    # A pre-path index must keep the OLD grouping. Splitting on a column that is NULL
+    # for every row would report each document as having one unknown location, which
+    # is a worse answer than not mentioning paths at all.
+    check("has_path False on a legacy index", keyword_search.has_path(), False)
 
     print()
     if FAILS:
