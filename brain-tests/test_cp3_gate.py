@@ -139,6 +139,72 @@ def main():
         code = res[1] if isinstance(res, tuple) else 200
         check("%s passes" % dec, code, 200)
 
+    print("\nthe panel is derived when the checkpoint published none")
+    got = app._derive_findings_review({"findings": [
+        F("F-02", "Critical", "Pending Fix"), F("F-09", "Critical", "Resolved"),
+        F("F-01", "Major", "Pending Fix"), F("F-05", "Minor", "Pending Fix"),
+        F("F-06", "Info", "Open")]})
+    check("only open Critical/Major", [e["id"] for e in got], ["F-02", "F-01"])
+    check("empty run yields nothing", app._derive_findings_review({}), [])
+
+    print("\nEND TO END: derive -> accept -> status -> score -> gate opens")
+    # The loop that was broken. An empty findings_review meant no panel, so no decision,
+    # so pipeline_findings_review 409'd, so nothing synced, so the gate blocked forever.
+    rid = "T-e2e"
+    d = TMP / "output" / rid
+    d.mkdir(parents=True, exist_ok=True)
+    ckpt = "CP3 · Findings Review (quality score too low)"
+    (d / "run.json").write_text(json.dumps({
+        "id": rid, "status": "awaiting_approval", "quality_score": 20,
+        "findings": [F("F-02", "Critical", "Pending Fix"), F("F-01", "Major", "Pending Fix")],
+        "steps": [{"n": 11, "name": "Gate 3", "status": "AWAITING_APPROVAL"}],
+        "checkpoint_request": {"checkpoint": ckpt, "findings_review": []},   # the empty array
+    }), encoding="utf-8")
+
+    # 1. blocked while undecided
+    res = app.pipeline_decision(rid, ckpt, "approved", "")
+    check("blocked before any decision", res[1] if isinstance(res, tuple) else 200, 409)
+
+    # 2. the developer records decisions against the DERIVED panel
+    res = app.pipeline_findings_review(rid, [
+        {"id": "F-02", "action": "accept", "notes": "Risk carried: write path is behind the "
+                                                    "tenant's own authorisation check."},
+        {"id": "F-01", "action": "accept", "notes": "Accepted for this release; tracked as TD-114."}])
+    check("decisions persisted", (res[1] if isinstance(res, tuple) else 200), 200)
+
+    _rj = json.loads((d / "run.json").read_text(encoding="utf-8"))
+    _by = {f["id"]: f for f in _rj["findings"]}
+    check("accepted finding is Accepted", _by["F-02"]["status"], "Accepted")
+    check("score recalculated upward", _rj.get("quality_score") > 20, True)
+
+    # 3. and now approval passes
+    res = app.pipeline_decision(rid, ckpt, "approved", "")
+    check("gate opens", res[1] if isinstance(res, tuple) else 200, 200)
+
+    print("\n'fix' does NOT close it — work is still outstanding")
+    rid = "T-fix"
+    d = TMP / "output" / rid
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "run.json").write_text(json.dumps({
+        "id": rid, "status": "awaiting_approval",
+        "findings": [F("F-02", "Critical", "Pending Fix")],
+        "steps": [{"n": 11, "name": "Gate 3", "status": "AWAITING_APPROVAL"}],
+        "checkpoint_request": {"checkpoint": ckpt, "findings_review": []},
+    }), encoding="utf-8")
+    app.pipeline_findings_review(rid, [{"id": "F-02", "action": "fix"}])
+    _rj = json.loads((d / "run.json").read_text(encoding="utf-8"))
+    check("stays Pending Fix", _rj["findings"][0]["status"], "Pending Fix")
+    # The decision must survive on the FINDING. checkpoint_request is cleared on approval,
+    # so a decision recorded only there vanishes exactly when it becomes binding.
+    check("the decision is persisted on the finding", _rj["findings"][0].get("action"), "fix")
+    # A decision was recorded, so the governance gate is satisfied — but the finding is
+    # still open, so the SCORE must not close it. Those are different questions.
+    _res = app.pipeline_decision(rid, ckpt, "approved", "")
+    check("gate accepts the decision", _res[1] if isinstance(_res, tuple) else 200, 200)
+    _rj = json.loads((d / "run.json").read_text(encoding="utf-8"))
+    check("and it is STILL not closed after approval",
+          _rj["findings"][0]["status"], "Pending Fix")
+
     print()
     if FAILS:
         print("== %d FAILED" % len(FAILS))

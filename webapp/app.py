@@ -329,6 +329,44 @@ def _find_gate2_review(run_dir):
         pass
     return None
 
+def _derive_findings_review(data):
+    """CP3 panel entries built from findings[], for a checkpoint that omitted them.
+
+    The reviewer is supposed to republish every open Critical/Major into
+    checkpoint_request.findings_review so the developer can decide fix-or-accept on each.
+    When it does not, the consequences chain: the panel renders empty, no decision can be
+    recorded, pipeline_findings_review refuses with 409, nothing syncs to findings[], and
+    the CP3 gate -- which reads the same array -- demands decisions the UI cannot collect.
+
+    Measured on SMART-SEARCH-FD-R2 (2026-09-08): 2 Critical and 7 Major sat at
+    `Pending Fix` with action=None through a completed run, because of that one empty
+    array.
+
+    So the panel is derived from the findings themselves. The review already recorded
+    what it found; the checkpoint merely failed to republish it. Only open Critical/Major
+    are included -- Minor and Info stay advisory, exactly as the published form does.
+    """
+    out = []
+    for f in (data.get("findings") or []):
+        if (f.get("severity") or "").strip().lower() not in ("critical", "major"):
+            continue
+        if (f.get("status") or "").strip().lower() in ("resolved", "accepted", "closed"):
+            continue
+        out.append({
+            "id": f.get("id"),
+            "severity": f.get("severity"),
+            "what_is_wrong": (f.get("what_is_wrong") or f.get("description")
+                              or f.get("title") or f.get("finding") or ""),
+            "what_to_do": (f.get("what_to_do") or f.get("recommendation")
+                           or f.get("resolution") or ""),
+            "how_to_verify": f.get("how_to_verify") or "",
+            # Carry any decision already on the finding so an earlier round is not lost.
+            "action": f.get("action"),
+            "notes": f.get("notes") or "",
+        })
+    return out
+
+
 def list_runs():
     """Pipeline runs = output/<ID>/run.json manifests written by the s4pc-ricefw-pipeline skill."""
     out_dir = os.path.join(ROOT_DIR, "output")
@@ -371,6 +409,18 @@ def list_runs():
                 if _pick and (_pick.get("naming_contract") or []):
                     _cp = dict(_cp)
                     _cp["naming_contract"] = _pick["naming_contract"]
+                    data["checkpoint_request"] = _cp
+            # Same reasoning one checkpoint later: a CP3 that published no findings_review
+            # renders an empty panel, so the developer cannot record fix/accept and the
+            # CP3 gate blocks on decisions the UI has no way to collect. Derive them from
+            # findings[]. Display only — pipeline_findings_review persists the choices.
+            if _cp and "CP3" in str(_cp.get("checkpoint") or "") \
+                    and not (_cp.get("findings_review") or []):
+                _derived = _derive_findings_review(data)
+                if _derived:
+                    _cp = dict(_cp)
+                    _cp["findings_review"] = _derived
+                    _cp["findings_review_derived"] = True   # so the UI can say where it came from
                     data["checkpoint_request"] = _cp
             run_dir_path = os.path.join(out_dir, name)
             data["files"] = sorted(
@@ -3128,7 +3178,15 @@ def pipeline_findings_review(run_id, findings_actions):
     cp = data.get("checkpoint_request") or {}
     fr = cp.get("findings_review") or []
     if not fr:
-        return {"error": "No findings review on this run"}, 409
+        # list_runs() derives the panel for DISPLAY when the checkpoint omitted it, but the
+        # stored run.json still has none — so a POST of those decisions would 409 against an
+        # array the developer could plainly see. Derive here too, and persist it, so the
+        # decisions have somewhere to land and the next read is authoritative.
+        fr = _derive_findings_review(data)
+        if not fr:
+            return {"error": "No findings review on this run"}, 409
+        cp["findings_review"] = fr
+        data["checkpoint_request"] = cp
     findings_actions = findings_actions or []
     actions_map = {a.get("id"): a for a in findings_actions if a.get("id")}
     for item in fr:
@@ -3142,6 +3200,8 @@ def pipeline_findings_review(run_id, findings_actions):
     # Sync action decisions → run.json findings[] status so Findings Inventory reflects CP3 choices
     _action_map = {item.get("id"): item.get("action")
                    for item in fr if item.get("id") and item.get("action")}
+    _notes_map = {item.get("id"): item.get("notes")
+                  for item in fr if item.get("id") and item.get("notes")}
     for finding in (data.get("findings") or []):
         fid = finding.get("id")
         if fid in _action_map:
@@ -3149,6 +3209,14 @@ def pipeline_findings_review(run_id, findings_actions):
                 finding["status"] = "Accepted"
             elif _action_map[fid] == "fix":
                 finding["status"] = "Pending Fix"
+            # The DECISION is persisted onto the finding, not only onto the checkpoint.
+            # Approval clears checkpoint_request, so a decision recorded only there
+            # disappears at the moment it becomes binding — the audit trail would show a
+            # finding accepted by nobody, for no stated reason. Keeping it here also lets
+            # the CP3 gate honour a decision taken in an earlier round.
+            finding["action"] = _action_map[fid]
+            if fid in _notes_map:
+                finding["notes"] = _notes_map[fid]
     # Recalculate quality_score to match updated statuses.
     # Formula (mirrors Phase C prompt): Critical-resolved×5, Major-open×8, Major-resolved×2,
     # Minor-open×3, Minor-resolved×1. "Accepted" counts as resolved; "Pending Fix" as open.
