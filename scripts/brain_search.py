@@ -107,10 +107,18 @@ DEFAULT_MODE = os.environ.get("BRAIN_SEARCH_MODE", "hybrid").lower()
 FUSION       = os.environ.get("BRAIN_FUSION", "wsum").lower()      # wsum | rrf
 RRF_K        = int(os.environ.get("BRAIN_RRF_K", "60"))
 CAND_DEPTH   = int(os.environ.get("BRAIN_CAND_DEPTH", "100"))
-# Down-rank factor for a superseded / obsolete-marked document. 0 = OFF (default):
-# unlike every other constant here it has NOT been swept against the regression set,
-# so it ships inert rather than as a guess. See _demote_superseded for how to sweep.
-SUPERSEDED_PENALTY = float(os.environ.get("BRAIN_SUPERSEDED_PENALTY", "0"))
+# Down-rank factor for a superseded / obsolete-marked document. Swept 2026-09-08 on
+# the delivery host, once the regression set finally had lifecycle cases to measure
+# against (see _demote_superseded for the numbers). Passing window [0.2, 0.35].
+#
+# Set to the FLOOR of that window rather than its midpoint -- the opposite of
+# KW_WEIGHT, and for a reason. Above 0.2 nothing improves: the current revision is
+# already rank 1 in R-090 and rank 2 in R-091 and does not climb further. What DOES
+# change is that superseded revisions start disappearing from the top ten altogether
+# (8 in view at 0.2, 6 at 0.35, none by 0.75). This penalty exists to demote old
+# revisions, not to hide them -- an old revision is often the only place some detail
+# survives -- so the cheapest value that does the job is the correct one.
+SUPERSEDED_PENALTY = float(os.environ.get("BRAIN_SUPERSEDED_PENALTY", "0.2"))
 # Weight on the lexical half when fusing normalised scores. The dense retriever is
 # the better generalist, so BM25 gets the smaller share and earns its keep through
 # _promote() when it is decisively right.
@@ -232,14 +240,32 @@ def _fuse(rankings):
 def _demote_superseded(fused):
     """Multiply a superseded / obsolete-marked hit's fused score by (1 - penalty).
 
-    OFF BY DEFAULT, and that is deliberate rather than timid. Every other ranking
-    constant in this file was chosen by sweeping the 40-case regression set on the
-    host that has the corpus; this one cannot be swept from a laptop, so shipping it
-    active would mean shipping a guessed ranking change to production -- which is
-    exactly the mistake the downgrade guard made. It ships inert, measurable, and
-    behind one variable.
+    WHAT THE SWEEP FOUND (2026-09-08, delivery host, rank of the CURRENT revision):
 
-    To sweep it on the delivery host:
+        penalty   R-090      R-091      R-092 (control)   superseded still in view
+        0         4th        absent     4th               8 / 8 / 3
+        0.1       4th        2nd        3rd               8 / 6 / 3
+        0.2       1st        2nd        3rd               8 / 6 / 3
+        0.35      1st        2nd        3rd               6 / 6 / 2
+        0.75      1st        2nd        3rd               1 / 0 / 0
+        1.0       1st        2nd        3rd               0 / 0 / 0
+
+    R-091's current revision is ABSENT from the top ten while this is off, so an agent
+    asking about that interface was served nothing but obsolete material. 0.1 recovers
+    it; 0.2 additionally lifts R-090's current revision from 4th to 1st; and the
+    control never degrades at any value, so unlike the KW_WEIGHT sweep there is no
+    conflict to arbitrate with a quota.
+
+    Above 0.2 the ranks stop moving and the last column starts collapsing -- that is
+    the penalty crossing from demoting into hiding, which is the one behaviour it must
+    not have. Hence the floor of the window, not the midpoint. See SUPERSEDED_PENALTY.
+
+    Before this sweep meant anything the set had to be able to see supersession at
+    all: the FIRST attempt passed 40/40 at every value from inert to annihilating and
+    moved ~1% of results, because only 3 of 40 cases retrieved any superseded chunk (5
+    hits across 400 slots). A flat sweep is not evidence of safety.
+
+    To re-sweep it on the delivery host:
         for p in 0 0.1 0.2 0.35 0.5; do
           BRAIN_SUPERSEDED_PENALTY=$p python3.11 scripts/brain_regression.py
         done
