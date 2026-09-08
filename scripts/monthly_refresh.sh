@@ -241,6 +241,19 @@ else
   fail_steps="$fail_steps graph-briefs"
 fi
 
+say "── lesson provenance (L3 → run)"
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would run brain-tests/test_run_evidence.py"
+elif $PY brain-tests/test_run_evidence.py > /dev/null 2>&1; then
+  say "   ok: a lesson resolves to its run, and an inferred match says so"
+else
+  say "   FAILED: lesson provenance is broken. The dangerous direction is an"
+  say "   INFERRED match reported as exact — pointing a reader at a different"
+  say "   run's deliverables reads exactly like the right ones. Detail:"
+  say "     $PY brain-tests/test_run_evidence.py"
+  fail_steps="$fail_steps run-evidence"
+fi
+
 say "── cross-layer freshness"
 if [ -n "$DRY" ]; then
   say "   DRY RUN, would run freshness.report() across L1-L4"

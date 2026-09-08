@@ -811,6 +811,37 @@ def tool_query_experience(args):
     # instead of trusting a score), and one indexed query per lesson rather than an
     # embedding call. Capped, because this is a per-lesson query and query_experience
     # with no filter returns the whole store.
+    # L3 -> the RUN that produced the lesson. Measured 2026-09-08, this is the
+    # provenance that actually exists: the object-shared corpus edge below reaches 1
+    # lesson in 32, because 24 of 32 name no object and 7 of the remaining 8 cite
+    # objects from pipeline runs rather than from the client archive. L3 and L4
+    # describe different bodies of work. `source` already names a run or an FD for 12
+    # of 32 lessons and nothing read it.
+    try:
+        import run_evidence                                  # noqa: PLC0415
+        from_run = 0
+        for h in hits:
+            ev = run_evidence.evidence(h.get("source"))
+            if ev:
+                h["from_run"] = ev
+                from_run += 1
+        if from_run:
+            result["provenance_note"] = (
+                "from_run points at the pipeline run a lesson was recorded against, "
+                "with its deliverables — 02-solution-proposal.md for the approach that "
+                "was approved, 09-review.md for what the review caught. Check "
+                "`matched_by`: 'revision_family' means the named revision's own output "
+                "folder is absent and this is a RELATED run, not the source.")
+        cov = run_evidence.coverage(EXPERIENCE.get("entries") or [])
+        if cov["with_run_evidence"] < cov["lessons"]:
+            result["provenance_coverage"] = (
+                "%d of %d lessons across the whole store can reach a run (%d run(s) on "
+                "disk). The rest are seeded lessons or name a run whose output folder is "
+                "gone — an absent from_run is not evidence the lesson is unfounded."
+                % (cov["with_run_evidence"], cov["lessons"], cov["runs_on_disk"]))
+    except Exception:
+        pass                                                 # additive; never fatal
+
     try:
         import object_usage                                  # noqa: PLC0415
         linked = 0
@@ -890,15 +921,29 @@ def tool_record_experience(args):
     _reject_client_identifiers(args, topic, lesson)
     next_id = "EXP-%03d" % (max([int(e["id"].split("-")[1]) for e in EXPERIENCE["entries"]
                                  if re.match(r"^EXP-\d+$", e.get("id", ""))] or [0]) + 1)
+    # `source` is a lesson's ONLY provenance, and defaulting it to the constant
+    # "pipeline run" is why 20 of 32 stored lessons cannot name where they came from.
+    # Worse, the 12 that can use three different conventions for it — a run id
+    # ("d4279543"), an FD name ("SMART-SEARCH-FD"), and prose ("pipeline run
+    # d4279543") — which is why nothing read the field for a year.
+    #
+    # run_id is now accepted explicitly so the value is unambiguous; `source` stays
+    # free text for callers with no run (seeded lessons, ad-hoc capture). Neither is
+    # REQUIRED: refusing to store a lesson because its provenance is unknown would
+    # lose the lesson, which is worse. The response says so instead.
+    run_id = (args.get("run_id") or "").strip()[:80]
+    src = (args.get("source") or "").strip()[:80]
     entry = {"id": next_id, "category": category, "topic": topic, "lesson": lesson,
              "impact": (args.get("impact") or "").strip()[:200],
              "tags": [t.strip()[:30] for t in (args.get("tags") or [])][:8],
              "added": time.strftime("%Y-%m-%d"),
-             "source": (args.get("source") or "pipeline run").strip()[:80]}
+             "source": run_id or src or "pipeline run"}
+    if run_id:
+        entry["run_id"] = run_id
     EXPERIENCE["entries"].append(entry)
     _save_experience(entry)
-    return {"verified": True, "source": "experience database (persisted)", "recorded": entry,
-            "total_entries": len(EXPERIENCE["entries"]),
+    out = {"verified": True, "source": "experience database (persisted)", "recorded": entry,
+           "total_entries": len(EXPERIENCE["entries"]),
             # Say it HERE, at the moment the divergence is created. This write makes L2
             # stale by exactly one lesson, and nothing else would mention it: the lesson
             # is instantly visible to query_experience (which reads L3 directly) and
@@ -909,6 +954,26 @@ def tool_record_experience(args):
                 "index (L2) is built separately, so semantic_search and "
                 "find_similar_delivery will NOT see this lesson until "
                 "rebuild_vector_index runs. Check layer_health for the current gap.")}
+    # Provenance is checked AFTER the write, never as a precondition: losing a lesson
+    # because nobody passed a run id would cost more than an unattributed lesson.
+    if not run_id:
+        out["provenance_warning"] = (
+            "No run_id given, so this lesson cannot be traced back to the run that "
+            "taught it — query_experience will show no `from_run`. Pass run_id (the "
+            "output/<RUN-ID> folder name) when recording from a pipeline run; 20 of the "
+            "existing lessons lack it and that is why 'why did we learn this' is "
+            "unanswerable for them.")
+    else:
+        try:
+            import run_evidence                              # noqa: PLC0415
+            if not run_evidence.resolve(run_id):
+                out["provenance_warning"] = (
+                    "run_id %r does not match any run under output/. It is stored, but "
+                    "from_run will not resolve until that folder exists — check the "
+                    "spelling against the directory name." % run_id)
+        except Exception:
+            pass
+    return out
 
 def tool_get_reference_links(args):
     return {
@@ -1486,14 +1551,17 @@ TOOLS = {
     "record_experience": {
         "description": ("Persist a new delivery lesson into the experience database (compounding knowledge). Call at "
                         "the package step of a pipeline run when the run taught something non-obvious. Keep it "
-                        "distilled and Public-Cloud-specific."),
+                        "distilled and Public-Cloud-specific. ALWAYS pass run_id when recording from a pipeline "
+                        "run — it is what lets a future reader trace the lesson back to the deliverables that "
+                        "taught it, and without it the lesson is unattributable."),
         "schema": {"type": "object", "properties": {
             "topic": {"type": "string", "description": "Short headline (<=160 chars)"},
             "lesson": {"type": "string", "description": "The distilled lesson (<=1200 chars)"},
             "category": {"type": "string", "description": "general | enhancement | report | interface | conversion | form | workflow | developer | key_user | side_by_side"},
             "impact": {"type": "string", "description": "One line: why it matters"},
             "tags": {"type": "array", "items": {"type": "string"}},
-            "source": {"type": "string", "description": "e.g. 'run MM-EXT-0002'"}},
+            "run_id": {"type": "string", "description": "The output/<RUN-ID> folder name this lesson came from, e.g. 'SMART-SEARCH-FD'. Resolves to the run's deliverables in query_experience's from_run."},
+            "source": {"type": "string", "description": "Free-text origin for lessons with no pipeline run. Prefer run_id when there is one."}},
             "required": ["topic", "lesson"]},
         "handler": tool_record_experience,
     },
