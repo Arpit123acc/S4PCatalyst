@@ -3145,21 +3145,46 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     # CP3 findings-review enforcement — SERVER-SIDE. The UI disables the submit button until every
     # Critical/Major finding is actioned, but a disabled button is not a gate: a stale page, a refresh
     # or a direct POST bypassed it entirely. Mirror the rule here so it actually holds.
-    if decision == "approved" and (_cpreq.get("findings_review") or []):
+    #
+    # THE LIST IS DERIVED, NOT TRUSTED. This used to run only `if _cpreq["findings_review"]`, so the
+    # whole gate hung on an array the MODEL writes when it composes the checkpoint. Omit it and the
+    # condition is falsy and the enforcement silently does not run — a guard that fails open when its
+    # input is absent, which is the same shape as the Gate 2 filename mismatch noted below.
+    #
+    # Measured on SMART-SEARCH-FD-R2 (2026-09-08): CP3 fired correctly, a human approved it with empty
+    # notes, and afterwards 2 Critical and 7 Major findings were still `Pending Fix` with action=None.
+    # Nobody had decided fix-or-accept on any of them, and the run was marked completed. So the
+    # requirement now comes from run.json.findings — the record of what the review actually found —
+    # and the checkpoint array only supplies the DECISIONS. A checkpoint that omits it can no longer
+    # disable the gate; it just means nothing has been actioned yet.
+    if decision == "approved" and "CP3" in (checkpoint or ""):
+        _rj_now = read_json(os.path.join(run_dir, "run.json")) or {}
+        _decided = {}
+        for _f in (_cpreq.get("findings_review") or []):
+            if _f.get("id"):
+                _decided[str(_f["id"])] = _f
         _unactioned, _unjustified = [], []
-        for _f in _cpreq["findings_review"]:
+        for _f in (_rj_now.get("findings") or []):
             if (_f.get("severity") or "").strip().lower() not in ("critical", "major"):
                 continue                      # Minor/Info are advisory
-            _fid = _f.get("id") or "?"
-            _act = (_f.get("action") or "").strip().lower()
+            _status = (_f.get("status") or "").strip().lower()
+            if _status in ("resolved", "accepted", "closed"):
+                continue                      # already dealt with — nothing to decide
+            _fid = str(_f.get("id") or "?")
+            # A decision may live on the checkpoint entry (the panel) or on the finding itself
+            # (an earlier round already actioned it). Either is acceptable evidence.
+            _entry = _decided.get(_fid) or _f
+            _act = (_entry.get("action") or "").strip().lower()
             if _act not in ("fix", "accept"):
                 _unactioned.append(_fid)
-            elif _act == "accept" and not (_f.get("notes") or "").strip():
+            elif _act == "accept" and not (_entry.get("notes") or "").strip():
                 _unjustified.append(_fid)     # accepting a Critical/Major risk needs a justification
         if _unactioned:
-            return {"error": ("Critical/Major findings still need a decision (fix or accept): %s. "
-                              "Action each one in the findings panel before approving."
-                              % ", ".join(_unactioned))}, 409
+            return {"error": ("%d Critical/Major finding(s) still need a decision (fix or accept): %s. "
+                              "Action each one in the findings panel before approving. If the panel is "
+                              "empty, the run's review did not publish them — re-run Gate 3 or choose "
+                              "Adjust to send it back."
+                              % (len(_unactioned), ", ".join(_unactioned)))}, 409
         if _unjustified:
             return {"error": ("Accepting a Critical/Major finding requires a written justification: %s."
                               % ", ".join(_unjustified))}, 409
