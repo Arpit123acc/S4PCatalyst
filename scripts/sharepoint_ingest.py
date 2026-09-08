@@ -1101,6 +1101,12 @@ def _stale_chunks(doc_id: str) -> list:
     Entries are popped, so a document seen twice in a run cannot delete chunks its own
     earlier pass just wrote.
     """
+    _build_chunk_index()
+    return _CHUNK_INDEX.pop(doc_id, [])
+
+
+def _build_chunk_index():
+    """One walk of chunks/, keyed by doc_id. Idempotent."""
     global _CHUNK_INDEX
     if _CHUNK_INDEX is None:
         _CHUNK_INDEX = {}
@@ -1109,7 +1115,69 @@ def _stale_chunks(doc_id: str) -> list:
                 _CHUNK_INDEX.setdefault(p.name.split("_", 1)[0], []).append(p)
             log.info("Indexed %d existing chunk files for stale-chunk cleanup",
                      sum(len(v) for v in _CHUNK_INDEX.values()))
-    return _CHUNK_INDEX.pop(doc_id, [])
+    return _CHUNK_INDEX
+
+
+def doc_id_for(rel_path_raw: str) -> str:
+    """The chunk-file prefix for a source path.
+
+    Hashes the RAW path bytes (surrogatepass) so ids stay unique even when an
+    undecodable byte collapses to '?' in the display name.
+    """
+    return hashlib.md5(rel_path_raw.encode("utf-8", "surrogatepass")).hexdigest()[:8]
+
+
+# Refuse to prune when more than this fraction of the corpus looks orphaned. A
+# legitimate run orphans almost nothing -- only documents genuinely removed at the
+# source -- so a large figure means the FILE LIST was wrong, not that the corpus was.
+MAX_ORPHAN_FRACTION = 0.25
+
+
+def prune_orphan_chunks(expected_ids, allow_shrink=False) -> int:
+    """Delete chunk files whose source document is no longer in raw/.
+
+    WHY THIS IS NEEDED ON TOP OF _stale_chunks
+        _stale_chunks removes the surplus when a document re-chunks into FEWER files,
+        keyed on its own doc_id. That covers a document that changed. It cannot cover a
+        document that went away: doc_id is md5(relative_path), so renaming, moving or
+        deleting a file yields a NEW id (or none), its old chunks are never popped, and
+        they stay in the corpus forever. The embedder then indexes text that exists in
+        no source file -- which is precisely what the _stale_chunks docstring says must
+        not happen, one scope too narrow.
+
+        Measured 2026-09-08: the same monotonic-accumulation bug had already produced
+        21,950 orphans in the S3 backup, where nothing pruned either. It has not bitten
+        the local tree yet only because paths happened to be stable across runs.
+
+    WHY `expected_ids` RATHER THAN "WHATEVER _CHUNK_INDEX HAS LEFT OVER"
+        A file whose extraction FAILS raises before _stale_chunks is reached, so its
+        entry is still in the index at the end of the run. Pruning leftovers blindly
+        would delete the good chunks of any document that merely failed to parse this
+        time -- six files fail extraction on every run of this corpus. Deriving the
+        expectation from the file list instead means "orphan" = "no source file", which
+        is the only definition that cannot destroy recoverable content.
+    """
+    index = _build_chunk_index()
+    orphan_ids = [d for d in index if d not in expected_ids]
+    victims = [p for d in orphan_ids for p in index[d]]
+    if not victims:
+        return 0
+    total = sum(len(v) for v in index.values())
+    fraction = len(victims) / float(total or 1)
+    if fraction > MAX_ORPHAN_FRACTION and not allow_shrink:
+        log.warning("REFUSING to prune %d orphan chunk file(s) across %d document(s): "
+                    "that is %.0f%% of the %d files on disk, above the %.0f%% ceiling. "
+                    "A run that legitimately orphans this much did not read raw/ "
+                    "properly — check the source folder is fully mounted. Override "
+                    "with --allow-shrink once you have confirmed the deletion is right.",
+                    len(victims), len(orphan_ids), fraction * 100, total,
+                    MAX_ORPHAN_FRACTION * 100)
+        return 0
+    for p in victims:
+        p.unlink(missing_ok=True)
+    log.info("Pruned %d orphan chunk file(s) from %d document(s) no longer in raw/",
+             len(victims), len(orphan_ids))
+    return len(victims)
 
 
 def _ingest_one_local(f) -> int:
@@ -1162,9 +1230,7 @@ def _ingest_one_local(f) -> int:
                     safe_name, len(chunks), MAX_CHUNKS_PER_DOC, MAX_CHUNKS_PER_DOC)
         chunks = chunks[:MAX_CHUNKS_PER_DOC]
 
-    # hash the raw path (surrogatepass) so IDs stay unique even when a bad
-    # byte collapsed to '?' in the display name
-    doc_id    = hashlib.md5(rel_path_raw.encode("utf-8", "surrogatepass")).hexdigest()[:8]
+    doc_id    = doc_id_for(rel_path_raw)
 
     for stale in _stale_chunks(doc_id):
         stale.unlink(missing_ok=True)
@@ -1196,7 +1262,7 @@ def _ingest_one_local(f) -> int:
 
 
 # ── LOCAL MODE (POC — files already on EC2) ───────────────────────────────────
-def process_local():
+def process_local(allow_shrink=False):
     """Process files already in brain/sharepoint/raw/ — no Graph API needed."""
     if not RAW_DIR.exists() or not any(RAW_DIR.iterdir()):
         log.error("No files found in %s — upload documents first via SCP", RAW_DIR)
@@ -1210,6 +1276,9 @@ def process_local():
              if f.is_file() and f.suffix.lower() in SUPPORTED_EXT]
     _PROGRESS["total"] = len(files)
     log.info("%d supported files to ingest", len(files))
+    # Derived BEFORE the loop, from the file list rather than from what the loop
+    # managed to process — see prune_orphan_chunks on why that distinction matters.
+    expected_ids = {doc_id_for(str(f.relative_to(RAW_DIR))) for f in files}
     for f in files:
         try:
             n = _ingest_one_local(f)
@@ -1222,6 +1291,9 @@ def process_local():
 
     if skipped:
         log.warning("Skipped %d file(s) due to errors — see warnings above.", skipped)
+    # After the loop, so a document re-chunked during this run has already reclaimed
+    # its own files and only genuinely absent sources remain.
+    prune_orphan_chunks(expected_ids, allow_shrink=allow_shrink)
     log.info("Done. %d files, %d chunks across phases:", total_files, total_chunks)
     for p_dir in sorted(CHUNKS_DIR.rglob("*.json")):
         pass  # counted below
@@ -1420,6 +1492,12 @@ def main():
     parser.add_argument("--clean", action="store_true",
                         help="Wipe chunks/ before ingest (avoids stale chunks from "
                              "earlier runs with old masking/classification). raw/ is kept.")
+    parser.add_argument("--allow-shrink", action="store_true",
+                        help="Prune orphan chunks even when they exceed %.0f%% of the "
+                             "corpus. Only after confirming raw/ is complete — the "
+                             "guard exists because a partially-mounted source folder "
+                             "looks exactly like a mass deletion."
+                             % (MAX_ORPHAN_FRACTION * 100))
     args = parser.parse_args()
 
     if args.clean:
@@ -1427,7 +1505,7 @@ def main():
 
     if args.local:
         log.info("Running in LOCAL mode — processing files from %s", RAW_DIR)
-        process_local()
+        process_local(allow_shrink=args.allow_shrink)
     else:
         log.info("Running in GRAPH API mode")
         process_graph()

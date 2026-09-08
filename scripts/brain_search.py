@@ -67,7 +67,44 @@ MODEL_ID   = os.environ.get("TITAN_MODEL", "amazon.titan-embed-text-v2:0")
 MAX_CHARS  = 40_000
 
 
-@lru_cache(maxsize=1)
+_DENSE_CACHE = {"sig": None, "loaded": None}
+
+
+def _index_signature():
+    """(mtime, size) of the FAISS pair, or None for a non-file backend.
+
+    WHY THE CACHE IS KEYED ON THIS
+        This used to be @lru_cache(maxsize=1), so a long-running reader held the
+        index it loaded at import for the life of the process. Measured 2026-09-08:
+        brain-ui had 3 days of uptime across a full re-ingest, a re-embed and two
+        keyword-index rebuilds, and was still answering from the previous
+        49k-chunk corpus while the MCP served the new 36,912-chunk one.
+
+        Its failure mode is worse than merely stale. The hits carried chunk ids that
+        no longer existed on disk, so the lifecycle and mention joins against the
+        rebuilt keyword.db matched nothing -- and the viewer rendered no version tags
+        and no object names at all, which reads as a corpus that has neither rather
+        than as a process that needs restarting.
+
+        Restarting readers on refresh (monthly_refresh.sh does this now) fixes the
+        scheduled path and not the manual one, and we rebuilt manually several times
+        that day. So the check moves into the reader: one stat() per search, and a
+        reload only when the bytes actually changed -- which is monthly, not per query.
+        Same mtime-keyed pattern as graph_engine._load().
+
+    Size is compared alongside mtime because an atomic publish can land within the
+    same clock tick as the file it replaced on a coarse filesystem.
+    """
+    try:
+        from vectorstore import FaissStore
+        return tuple((p.stat().st_mtime, p.stat().st_size)
+                     for p in (FaissStore.INDEX_PATH, FaissStore.META_PATH))
+    except Exception:
+        # pgvector, or the index is absent — nothing to invalidate on. A constant
+        # signature keeps the previous cache-forever behaviour for those.
+        return None
+
+
 def _load_dense():
     """Load and cache the vector store (pluggable backend) + Bedrock client.
 
@@ -76,7 +113,23 @@ def _load_dense():
     on boto3 + faiss + a FAISS index on disk -- so `--mode keyword`, documented as
     needing none of those, exited on any host that lacked them. Keeping the dense
     dependency behind the dense branch is what lets the lexical half stand alone.
+
+    Reloads when the index on disk changes — see _index_signature.
     """
+    sig = _index_signature()
+    if _DENSE_CACHE["loaded"] is not None and _DENSE_CACHE["sig"] == sig:
+        return _DENSE_CACHE["loaded"]
+    if _DENSE_CACHE["loaded"] is not None:
+        # stderr, matching the keyword-half warning above: this module is imported by
+        # the MCP server, whose stdout is the JSON-RPC channel.
+        print("[brain_search] vector index changed on disk — reloading",
+              file=sys.stderr)
+    loaded = _load_dense_uncached()
+    _DENSE_CACHE.update(sig=sig, loaded=loaded)
+    return loaded
+
+
+def _load_dense_uncached():
     try:
         import boto3
     except ImportError:
