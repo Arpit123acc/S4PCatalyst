@@ -658,6 +658,18 @@ _SHEET_RE = re.compile(r"^\[Sheet: ")
 # budget is smaller than CHUNK_WORDS to keep chunks comparable in real content.
 TABLE_CHUNK_WORDS = 400
 
+# The embedder's real constraint is TOKENS, not words, and tabular SAP content
+# tokenizes at roughly 2 chars/token against ~4 for prose. Titan v2 caps input at
+# 8,192 tokens; a chunk hit 8,248 on 2026-09-08 and killed an embedding run 26,000
+# items in. A word budget cannot prevent that -- 400 'words' of tab-separated codes
+# is far more tokens than 400 words of English -- so the chunk BODY is bounded in
+# characters too. 6,000 chars is ~3,000 tokens worst case, leaving ample headroom.
+MAX_CHUNK_CHARS = 6_000
+
+# The header is re-emitted in EVERY chunk of its sheet, so a very wide one is paid
+# for repeatedly and eats the body's budget. Capped separately.
+MAX_HEADER_CHARS = 1_500
+
 # Hard bounds on what one sheet can contribute. These are guards against a workbook
 # whose DECLARED dimension is wrong, which is common: read_only mode trusts the
 # declaration, so a sheet holding five columns can yield 16,384-wide rows of None.
@@ -941,6 +953,39 @@ def chunk(text: str) -> list:
     return chunks
 
 
+def _split_long_row(line: str, limit: int) -> list:
+    """Split one over-long row so it can never exceed a chunk on its own.
+
+    chunk_table never splits a row -- that is deliberate, a half-row is unreadable --
+    so a single row longer than the budget would produce an over-budget chunk by
+    itself. A wide sheet emitted as column=value pairs makes exactly such a line, and
+    one of those killed an embedding run at 8,248 tokens against Titan's 8,192 cap.
+
+    Splits on tab boundaries so whole fields stay intact. A SINGLE field can still
+    exceed the limit with no tab to split on -- a pasted blob in one cell -- so that
+    is hard-split rather than left to the embedder, which would either reject it (and
+    kill the run) or truncate it (and lose the tail silently).
+    """
+    if len(line) <= limit:
+        return [line]
+    out, cur, n = [], [], 0
+    for field in line.split("\t"):
+        while len(field) > limit:
+            if cur:
+                out.append("\t".join(cur))
+                cur, n = [], 0
+            out.append(field[:limit])
+            field = field[limit:]
+        if cur and n + len(field) + 1 > limit:
+            out.append("\t".join(cur))
+            cur, n = [], 0
+        cur.append(field)
+        n += len(field) + 1
+    if cur:
+        out.append("\t".join(cur))
+    return out
+
+
 def chunk_table(text: str) -> list:
     """Chunk tabular text on ROW boundaries, repeating each sheet's header.
 
@@ -964,10 +1009,15 @@ def chunk_table(text: str) -> list:
     lines = [ln for ln in (text or "").split("\n") if ln.strip()]
     if not lines:
         return []
+    # Rows are never split by the loop below, so an over-long single row would become
+    # an over-long chunk on its own -- a wide sheet in column=value form produces
+    # exactly that. Split such rows on tab boundaries up front.
+    lines = [piece for ln in lines for piece in _split_long_row(ln, MAX_CHUNK_CHARS)]
 
     chunks: list = []
     cur: list = []
     cur_words = 0
+    cur_chars = 0
     sheet = None
     header = None
     emitted = False              # has anything been emitted for the current sheet?
@@ -982,13 +1032,13 @@ def chunk_table(text: str) -> list:
         content (the column names, and quite possibly a one-row sheet whose single row
         was read as a header), so it is emitted when the sheet closes.
         """
-        nonlocal cur, cur_words, emitted
+        nonlocal cur, cur_words, cur_chars, emitted
         if not cur and not (closing and header and not emitted):
             return
         prefix = [p for p in (sheet, header) if p]
         chunks.append("\n".join(prefix + cur))
         emitted = True
-        cur, cur_words = [], 0
+        cur, cur_words, cur_chars = [], 0, 0
 
     for line in lines:
         if _SHEET_RE.match(line):
@@ -998,13 +1048,16 @@ def chunk_table(text: str) -> list:
         if header is None:
             # First row of a sheet is its header: it lives in the prefix so every
             # chunk carries it, and is therefore not repeated in the body.
-            header = line
+            header = (line if len(line) <= MAX_HEADER_CHARS
+                      else line[:MAX_HEADER_CHARS] + "	[header truncated]")
             continue
         n = len(line.split())
-        if cur and cur_words + n > TABLE_CHUNK_WORDS:
+        if cur and (cur_words + n > TABLE_CHUNK_WORDS
+                    or cur_chars + len(line) > MAX_CHUNK_CHARS):
             flush()
         cur.append(line)
         cur_words += n
+        cur_chars += len(line) + 1
     flush(closing=True)
     return chunks
 

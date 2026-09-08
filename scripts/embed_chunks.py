@@ -57,7 +57,13 @@ MANIFEST    = INDEX_DIR / "manifest.json"
 REGION      = os.environ.get("AWS_REGION", "us-east-1")
 MODEL_ID    = os.environ.get("TITAN_MODEL", "amazon.titan-embed-text-v2:0")
 EMBED_DIM   = int(os.environ.get("TITAN_DIM", "1024"))     # v2 supports 256/512/1024
-MAX_CHARS   = 40_000                                        # Titan v2 ~8k tokens
+# Titan v2 accepts 8,192 INPUT TOKENS. 40,000 chars assumed ~4 chars/token, which
+# holds for English prose and does NOT hold for the tabular content this corpus is
+# now full of: SAP field names, transaction codes and numeric IDs tokenize closer
+# to 2 chars/token, so 40,000 chars can be 16k+ tokens. A real chunk failed at
+# 8,248 tokens on 2026-09-08 and killed the run 26,000 items in. 14,000 chars is
+# safe even at 2 chars/token, and is still ~4x a normal 512-word chunk.
+MAX_CHARS   = 14_000
 
 # Metadata fields carried from each chunk into the index sidecar.
 _META_FIELDS = [
@@ -82,6 +88,9 @@ def bedrock_client():
 def embed_text(client, text, dim):
     """Return a Titan v2 embedding (list[float]); retries on throttling."""
     from botocore.exceptions import ClientError
+    if len(text) > MAX_CHARS:
+        log.warning("chunk of %d chars truncated to %d before embedding — it will be "
+                    "indexed on its first %d chars only", len(text), MAX_CHARS, MAX_CHARS)
     body = json.dumps({
         "inputText": text[:MAX_CHARS],
         "dimensions": dim,

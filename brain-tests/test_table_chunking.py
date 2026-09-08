@@ -327,6 +327,41 @@ def main():
     check("a marker with nothing after it yields no chunks",
           len(si.chunk_table("[Sheet: Empty]")), 0)
 
+    print("\nno chunk can exceed the embedder's input limit")
+    # Titan v2 caps input at 8,192 TOKENS. A word budget cannot enforce that: 400
+    # "words" of tab-separated SAP codes is far more tokens than 400 words of English
+    # (~2 chars/token vs ~4). A real chunk hit 8,248 tokens on 2026-09-08 and killed
+    # an embedding run 26,000 items in, so the body is bounded in characters as well,
+    # the repeated header is capped, and over-long rows are split.
+    ceiling = si.MAX_CHUNK_CHARS + si.MAX_HEADER_CHARS + 200
+    shapes = {
+        "wide header, 600 cols":
+            "[Sheet: W]\n" + "\t".join("VeryLongColumnName%03d" % i for i in range(600))
+            + "\n" + "\n".join("\t".join("v%d" % i for i in range(600)) for _ in range(20)),
+        "one enormous row (pairs form)":
+            "[Sheet: P]\nH1\tH2\n"
+            + "\t".join("ColumnName%03d=Value%03d" % (i, i) for i in range(900)),
+        "4000 ordinary rows":
+            "[Sheet: N]\nA\tB\tC\n"
+            + "\n".join("v%d\tw%d\tx%d" % (i, i, i) for i in range(4000)),
+        # No tab to split on -- a blob pasted into a single cell.
+        "one huge field, no tabs":
+            "[Sheet: S]\nH\n" + "X" * 50000,
+        "the header itself is huge":
+            "[Sheet: H]\n" + "Y" * 40000 + "\nv1\tv2",
+    }
+    for label, text in shapes.items():
+        got = si.chunk_table(text)
+        biggest = max((len(c) for c in got), default=0)
+        check_true("%s -> largest chunk %d <= %d" % (label, biggest, ceiling),
+                   biggest <= ceiling)
+    # Splitting must not lose rows.
+    check_true("4000 rows still produce many chunks",
+               len(si.chunk_table(shapes["4000 ordinary rows"])) > 20)
+    # And the embedder's own safety net must be tight enough for tabular content.
+    check_true("embed_chunks MAX_CHARS is safe at 2 chars/token",
+               __import__("embed_chunks").MAX_CHARS // 2 < 8192)
+
     print("\nrow budget is respected without splitting a row")
     wide = si.chunk_table("\n".join(
         ["[Sheet: Big]", "A\tB\tC"] + ["v%d\tw%d\tx%d" % (i, i, i) for i in range(600)]))
