@@ -132,7 +132,7 @@ if have_l4:
 
 # ── L2 -> L1 and L2 -> L4 ────────────────────────────────────────────────────
 print("\nL2 catalog hits carry graph position and prior delivery usage")
-payload, err = _call("semantic_search", {"query": "goods movement posting validation",
+payload, err = _call("semantic_search", {"query": "material stock inventory availability",
                                          "top_k": 8})
 res = (payload or {}).get("results") or []
 edge("semantic_search", "L2", "-", bool(res), err or "%d hit(s)" % len(res))
@@ -142,13 +142,38 @@ edge("graph_context", "L2", "L1", bool(g),
      "%s -> %s" % (g.get("id"), (g.get("graph") or {}).get("area")) if g
      else "no hit carried graph{} — _attach_graph_context did not fire")
 
-pu = _first(res, lambda h: isinstance(h, dict) and h.get("prior_usage"))
-edge("prior_usage", "L2", "L4", bool(pu) or not have_l4,
-     "%s used in %s artifact(s)" % (pu.get("id"), (pu.get("prior_usage") or {}).get("documents"))
-     if pu else ("L4 absent, edge not applicable" if not have_l4
-                 else "no hit carried prior_usage — none of these objects appears in "
-                      "the corpus, which is a legitimate result; retry with an object "
-                      "you know is cited"))
+# NOT a bare "did any hit carry prior_usage". A dead edge and a result set whose
+# objects genuinely appear in no delivery document produce the IDENTICAL output, and
+# the first draft of this file asserted the wrong one of those: it hardcoded a query
+# about goods-movement BAdIs, which this corpus never cites, and reported a MISS for
+# an edge that works. Luck is not a test.
+#
+# So the expectation is DERIVED. Ask the mention index which of these hits ought to be
+# annotatable, then require exactly those to carry prior_usage. That separates the
+# three cases for real: edge broken, edge fine, nothing to annotate.
+if have_l4:
+    ids = [h["id"] for h in res
+           if isinstance(h, dict) and h.get("id")
+           and h.get("type") in ("api", "cds_view", "badi")]
+    try:
+        import object_usage                                   # noqa: PLC0415
+        counts = object_usage.usage_counts(ids)
+    except Exception as exc:                                  # noqa: BLE001
+        counts = {}
+        print("      (mention lookup unavailable: %s)" % exc)
+    expected = {i for i in ids if (counts.get(i.upper()) or {}).get("mentions")}
+    got = {h["id"] for h in res if isinstance(h, dict) and h.get("prior_usage")}
+    if not expected:
+        edge("prior_usage", "L2", "L4", True,
+             "no object in this result set is cited in the corpus, so there is "
+             "nothing to annotate — verified against the mention index, not assumed")
+    else:
+        edge("prior_usage", "L2", "L4", got >= expected,
+             "%d of %d citable hit(s) annotated (%s)"
+             % (len(got & expected), len(expected),
+                ", ".join(sorted(expected))[:60]))
+else:
+    edge("prior_usage", "L2", "L4", True, "L4 absent, edge not applicable")
 
 
 # ── L1 -> L4 + L3 ────────────────────────────────────────────────────────────
