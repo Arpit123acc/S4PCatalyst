@@ -1245,6 +1245,26 @@ def _phase_a_prompt(fd_path, rid):
         '        "naming_contract": [ {"id":"NCB-01","object":"<obj>","type":"<type>","created_in":"side_by_side","name":"<CAP entity/service/destination name>"} ]\n'
         '      }\n'
         "    ],\n"
+        '    "config_contract": [   ← values only a HUMAN can supply; omit the key if there are none\n'
+        '      {"id":"CFG-01","item":"<what it is, e.g. Communication Arrangement>",\n'
+        '       "type":"<communication_arrangement|communication_scenario|destination|'
+        'logical_system|business_role|number_range|other>",\n'
+        '       "where":"<the tenant app that owns it, e.g. Communication Arrangements (F1763)>",\n'
+        '       "why":"<one line: what the build needs it for>",\n'
+        '       "required":true, "value":""}\n'
+        "    ],\n"
+        "CONFIGURATION CONTRACT — declare it, never invent it. Some values the build needs are\n"
+        "  MANUAL TENANT CONFIGURATION, created by a key user in the Fiori launchpad and knowable\n"
+        "  only by the human: Communication Arrangement and Scenario names, destinations, logical\n"
+        "  systems, business roles, number ranges. On Public Cloud a Communication Arrangement is\n"
+        "  set up by hand in the Communication Management apps — nothing in ABAP creates one, and\n"
+        "  nothing should resolve one at runtime.\n"
+        "  List every such value here with value:\"\" and let the human fill it in at CP1; the webapp\n"
+        "  refuses to lock CP1 while a required one is blank, and Build then uses them VERBATIM.\n"
+        "  Do NOT invent a plausible name, do NOT hardcode a placeholder, and do NOT reach for an\n"
+        "  API or factory class to discover one — a previous run did exactly that and shipped a\n"
+        "  call to an object with no release verdict, which Gate 2 then had to catch.\n"
+        "  If the solution needs no manual configuration, omit the key entirely.\n"
         "SBPA GUIDANCE: If the FD involves workflow automation, approval chains, or process orchestration,\n"
         "include an SBPA approach option with mode='sbpa', is_btp=true, is_sbpa=true.\n"
         "SBPA is a BTP service (SAP Discovery Center: sap-build-process-automation).\n"
@@ -1337,6 +1357,15 @@ def _phase_b_prompt(rid, fd_path, decision, notes, fc_txt, cp1_slug,
         "    naming_contract for the SELECTED approach — if present and non-empty, build against THOSE exact\n"
         "    names verbatim. Only if it is absent, fall back to the SELECTED approach's sub-table in\n"
         "    02-solution-proposal.md. Never mix names across modes (e.g. RAP Z-names on a BTP build).\n"
+        "  • CONFIGURATION SOURCE OF TRUTH: that same decision file carries config_contract — tenant\n"
+        "    values a human set up by hand (Communication Arrangement/Scenario, destination, logical\n"
+        "    system, business role, number range). Use each value VERBATIM wherever the build needs it.\n"
+        "    A value of '-' or 'n/a' means the item does not apply — do not substitute anything for it.\n"
+        "    NEVER invent a plausible name, hardcode a placeholder, or call an API/factory class to\n"
+        "    discover one at runtime: nothing in ABAP creates a Communication Arrangement, and a past\n"
+        "    run that reached for if_com_scenario_factory shipped an object with no release verdict.\n"
+        "    If the build needs a configuration value that is NOT in the contract, stop and say so in\n"
+        "    06-build.md as an open item — do not guess it.\n"
         "  • DIGITAL BRAIN — Layer 4 (past technical docs): before writing non-trivial logic, call\n"
         "    search_brain(query='<the artifact + its pattern, e.g. RAP query provider paging>') and narrow\n"
         "    with deliverable_type ∈ {technical_design, architecture_design, configuration, integration_iflow,\n"
@@ -3149,6 +3178,63 @@ def _naming_ok(n, created_in=""):
         return bool(_BTP_NAME_RE.match(v))
     return bool(_NAMESPACE_RE.match(v))
 
+def pipeline_config(run_id, values):
+    """Persist the human-supplied CONFIGURATION values for a run's config contract.
+
+    WHY THIS EXISTS ALONGSIDE THE NAMING CONTRACT
+        CP1 already locks custom OBJECT NAMES: the human decides, the build uses them
+        verbatim, and approval is refused until every name is valid. Configuration values
+        are the same shape and had no equivalent -- a Communication Arrangement name, a
+        Communication Scenario id, a destination, a logical system. Only a human knows
+        them, because on Public Cloud they are set up by a key user in the Communication
+        Management apps, not created by any code.
+
+        With nothing collecting them the agent has two bad options: invent a plausible
+        value, or reach for an API to discover one at runtime. SMART-SEARCH-FD-R2 took the
+        second and the build called if_com_scenario_factory -- an object with no release
+        verdict and no prior use anywhere in the corpus. Gate 2 caught it, but the finding
+        was created by the missing input, not by the code.
+
+        So configuration is declared at the proposal, filled in by the human at CP1, locked
+        with the naming contract, and used verbatim by the build. Same rule as names:
+        never invent one.
+    """
+    if not SAFE_NAME.match(run_id or ""):
+        return {"error": "Invalid run id"}, 400
+    manifest = os.path.join(ROOT_DIR, "output", run_id, "run.json")
+    if not os.path.isfile(manifest):
+        return {"error": "Run not found"}, 404
+    data = read_json(manifest) or {}
+    cp = data.get("checkpoint_request") or {}
+    cc = cp.get("config_contract") or []
+    if not cc:
+        return {"error": "No configuration contract on this run"}, 409
+    values = values or {}
+    for item in cc:
+        if item.get("id") in values:
+            item["value"] = str(values[item["id"]]).strip()
+    cp["config_contract"] = cc
+    data["checkpoint_request"] = cp
+    write_json_atomic(manifest, data)
+    return {"ok": True, "config_contract": cc}, 200
+
+
+def _config_gaps(cp):
+    """Config items the human has not filled in. Empty list == ready to lock.
+
+    Only items marked required block. A value of "-" or "n/a" is an explicit statement
+    that the item does not apply, and counts as answered -- forcing a fake value would
+    just teach people to type one.
+    """
+    gaps = []
+    for item in (cp.get("config_contract") or []):
+        if item.get("required") is False:
+            continue
+        if not str(item.get("value") or "").strip():
+            gaps.append(item.get("id") or item.get("item") or "?")
+    return gaps
+
+
 def pipeline_naming(run_id, names, contract=None, selected_approach=None):
     """Persist edited custom-object names into the run's checkpoint_request.naming_contract, so a
     developer's names survive refresh/restart (like the prerequisite checklist). Approval later
@@ -3363,6 +3449,17 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     if decision == "approved" and (_cpreq.get("naming_contract") or []):
         if any(not _naming_ok(i.get("name"), i.get("created_in")) for i in _cpreq["naming_contract"]):
             return {"error": "Confirm a valid namespaced name for every custom object first."}, 409
+    # Configuration values are locked at CP1 exactly like object names. An unanswered item
+    # is not a formality: it is the input the build would otherwise invent or go looking for
+    # at runtime. See pipeline_config.
+    if decision == "approved":
+        _gaps = _config_gaps(_cpreq)
+        if _gaps:
+            return {"error": ("Configuration value(s) still needed before this can be locked: %s. "
+                              "These are set up manually in the tenant (Communication Arrangements, "
+                              "destinations, logical systems) — only you know them, and the build "
+                              "uses them verbatim. Enter '-' for any that genuinely do not apply."
+                              % ", ".join(_gaps))}, 409
     # CP3 findings-review enforcement — SERVER-SIDE. The UI disables the submit button until every
     # Critical/Major finding is actioned, but a disabled button is not a gate: a stale page, a refresh
     # or a direct POST bypassed it entirely. Mirror the rule here so it actually holds.
@@ -3502,6 +3599,11 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
               # The human's locked custom-object names for the SELECTED approach — captured here so
               # Build reads them verbatim from the decision file (checkpoint_request is cleared on approval).
               "naming_contract": _cpreq.get("naming_contract") or [],
+              # The human-supplied tenant CONFIGURATION values, captured for the same reason as the
+              # names: approval nulls checkpoint_request, so this decision file is the only place
+              # Build can still read them. Without it the values would be collected, gated on, and
+              # then thrown away one step before the build that needs them. See pipeline_config.
+              "config_contract": _cpreq.get("config_contract") or [],
               "by": "developer (webapp)", "date": time.strftime("%Y-%m-%d %H:%M")}
     with open(os.path.join(dec_dir, cp_slug + ".json"), "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=2)
@@ -4004,6 +4106,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(code, payload)
             if path == "/api/pipeline/findings-review":
                 payload, code = pipeline_findings_review(body.get("run", ""), body.get("findings", []))
+                return self._send(code, payload)
+            if path == "/api/pipeline/config":
+                payload, code = pipeline_config(body.get("run", ""), body.get("values", {}))
                 return self._send(code, payload)
             if path == "/api/pipeline/naming":
                 payload, code = pipeline_naming(body.get("run", ""), body.get("names", {}),

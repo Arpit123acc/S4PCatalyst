@@ -1049,10 +1049,22 @@ function checkpointHtml(r,cp){
       h+="<p style='font-size:.72rem;color:var(--muted);margin:0 0 6px'>Names below match the selected approach. Switch approach above and the list updates automatically.</p>";
     h+="<div id='naming-host' style='display:flex;flex-direction:column;gap:8px;margin:8px 0'>"+namingHostHTML(cp)+"</div>";
     h+="<p style='font-size:.72rem;color:var(--muted);margin:2px 0 6px'>Developer/key-user objects use a <code>Z…</code>, <code>Y…</code> or <code>YY1_</code> prefix (key-user field names are the <em>intended</em> name, verified in <code>$metadata</code> at the step 13 prerequisite check); side-by-side (BTP) objects follow CAP / destination naming. No spaces.</p>";
+    h+=configPanelHTML(cp);
     h+="<textarea id='cp-notes' style='min-height:44px' placeholder='Optional notes'></textarea>";
     h+="<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
        "<button class='btn' onclick='submitNaming(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP")+"\")'>Approve &amp; lock names</button>"+
        "<span id='naming-count' style='font-size:.78rem;color:var(--muted)'></span>"+
+       "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
+  }else if(Array.isArray(cp.config_contract)&&cp.config_contract.length){
+    // Configuration but no naming contract: the solution creates no custom objects yet still
+    // needs tenant values. Without this branch nothing would render them, while the server-side
+    // approval gate still demands them -- an unfillable checkpoint.
+    h+=renderApproachOptions(cp.approach_options,cp.selected_approach);
+    h+=configPanelHTML(cp);
+    h+="<textarea id='cp-notes' style='min-height:44px' placeholder='Optional notes'></textarea>";
+    h+="<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
+       "<button class='btn' onclick='submitConfig(\""+esc(r.id)+"\",\""+esc(cp.checkpoint||"CP")+"\")'>Approve &amp; lock configuration</button>"+
+       "<span id='config-count' style='font-size:.78rem;color:var(--muted)'></span>"+
        "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }else if(Array.isArray(cp.checklist)&&cp.checklist.length){
     h+="<p style='font-size:.8rem;font-weight:600;margin:6px 0'>Tick each in-tenant prerequisite you have deployed &amp; activated — the deploy stays blocked until every item is checked:</p>";
@@ -1165,6 +1177,52 @@ function _nameOk(v,ci){
   if(/^(side[_-]?by[_-]?side|btp|cap)$/i.test(ci||""))return /^[A-Za-z][A-Za-z0-9_.\/-]{1,}$/.test(v);
   return /^(YY1_|[ZY])[A-Za-z0-9_]{2,}$/.test(v);
 }
+// -- Tenant CONFIGURATION contract -------------------------------------------
+// Values only a human can supply: a Communication Arrangement, a Communication Scenario, a
+// destination, a logical system. On Public Cloud these are set up by hand in the Communication
+// Management apps -- nothing in ABAP creates one -- so Build has to be GIVEN them. Left
+// uncollected the agent invents a plausible name or reaches for a factory class at runtime,
+// which is how a past run shipped a call with no release verdict. Same contract as the object
+// names: entered here, locked at CP1, used verbatim by Build.
+function _cfgOk(v){return (v||"").trim().length>0;}
+function renderConfigRows(contract){
+  return (contract||[]).map(function(it){var idv=esc(it.id||"");
+    var opt=it.required===false;
+    return "<div style='display:flex;gap:10px;align-items:flex-start'>"+
+      "<div style='flex:1;min-width:0'><div style='font-size:.82rem'>"+esc(it.item||it.id||"")+
+        (opt?" <span style='font-size:.68rem;color:var(--muted);font-weight:400'>(optional)</span>":"")+"</div>"+
+      "<div style='font-size:.72rem;color:var(--muted)'>"+esc(it.type||"")+(it.where?" · "+esc(it.where):"")+"</div>"+
+      (it.why?"<div style='font-size:.7rem;color:var(--muted);font-style:italic'>"+esc(it.why)+"</div>":"")+"</div>"+
+      "<input class='cfg-item' data-id='"+idv+"' data-req='"+(opt?"0":"1")+"' value='"+esc(it.value||"")+"' oninput='updateConfig()' spellcheck='false' placeholder='value from your tenant' style='width:220px;font-family:monospace;font-size:.8rem'>"+
+      "<span class='cfg-ok' id='cok-"+idv+"' style='width:14px;font-weight:700'></span></div>";
+  }).join("");
+}
+function _cfgItems(){return Array.prototype.slice.call(document.querySelectorAll(".cfg-item"));}
+function _cfgValues(){var o={};_cfgItems().forEach(function(x){o[x.dataset.id]=x.value;});return o;}
+function _cfgGaps(){return _cfgItems().filter(function(x){return x.dataset.req==="1"&&!_cfgOk(x.value);}).length;}
+function updateConfig(skipSave){
+  var items=_cfgItems();
+  if(!items.length)return;
+  var need=0,done=0;
+  items.forEach(function(x){var ok=_cfgOk(x.value),req=x.dataset.req==="1";
+    if(req){need++;if(ok)done++;}
+    var sp=document.getElementById("cok-"+x.dataset.id);
+    if(sp){sp.textContent=ok?"✓":(req?"⚠":"");sp.style.color=ok?"var(--green)":"var(--amber)";}});
+  var cnt=document.getElementById("config-count");
+  if(cnt)cnt.textContent=need?(done+" / "+need+" configuration values supplied"):"";
+  var vals=_cfgValues();
+  if(EX_RUN&&EX_RUN.checkpoint_request&&Array.isArray(EX_RUN.checkpoint_request.config_contract))
+    EX_RUN.checkpoint_request.config_contract.forEach(function(it){if(vals[it.id]!=null)it.value=vals[it.id];});
+  if(EX_RUN&&EX_RUN.id&&!skipSave)
+    fetch("/api/pipeline/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:EX_RUN.id,values:vals})}).catch(function(){});
+}
+function configPanelHTML(cp){
+  var cc=(cp&&cp.config_contract)||[];
+  if(!cc.length)return"";
+  return "<p style='font-size:.8rem;font-weight:600;margin:14px 0 2px'>Supply the tenant configuration values — these are set up by hand in your tenant, only you know them, and Build uses them verbatim:</p>"+
+    "<div id='config-host' style='display:flex;flex-direction:column;gap:8px;margin:8px 0'>"+renderConfigRows(cc)+"</div>"+
+    "<p style='font-size:.72rem;color:var(--muted);margin:2px 0 6px'>Communication Arrangements &amp; Scenarios, destinations, logical systems, business roles and number ranges are created by a key user in the Fiori launchpad — nothing in ABAP creates one, and Build must never invent one or look one up at runtime. Enter <code>-</code> for any item that genuinely does not apply.</p>";
+}
 function renderNamingRows(contract){
   return (contract||[]).map(function(it){var idv=esc(it.id||"");
     return "<div style='display:flex;gap:10px;align-items:center'>"+
@@ -1195,6 +1253,10 @@ async function submitNaming(runId,checkpoint){
   var items=Array.prototype.slice.call(document.querySelectorAll(".name-item"));
   var bad=items.filter(function(x){return !_nameOk(x.value,x.dataset.ci);}).length;
   if(bad){alert("Complete the object names first to proceed — "+bad+" still need a valid name (developer/key-user: Z…, Y… or YY1_ prefix; side-by-side/BTP: CAP-style name, no spaces).");return;}
+  // A CP1 carries BOTH contracts. The server refuses to lock while a required configuration
+  // value is blank, so check it here as well and say which, rather than surfacing a 409.
+  var cfgBad=_cfgGaps();
+  if(cfgBad){alert("Supply the tenant configuration values first — "+cfgBad+" still blank. These are set up by hand in your tenant and Build uses them verbatim; enter '-' for any that genuinely does not apply.");return;}
   var msg=document.getElementById("cp-msg");
   var sel=document.querySelector("input[name=approach-select]:checked");
   var selectedApproach=sel?sel.value:"";
@@ -1209,9 +1271,26 @@ async function submitNaming(runId,checkpoint){
     var contract=items.map(function(x){var b=meta[x.dataset.id]||{};return {id:x.dataset.id,object:b.object||"",type:b.type||"",created_in:b.created_in||x.dataset.ci||"",name:x.value};});
     await fetch("/api/pipeline/naming",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,contract:contract,selected_approach:selectedApproach})});
   }
+  if(_cfgItems().length)
+    await fetch("/api/pipeline/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,values:_cfgValues()})});
   var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
   const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:withMaterialNote(notes),selected_approach:selectedApproach})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");
+  loadJobs();
+}
+async function submitConfig(runId,checkpoint){
+  var gaps=_cfgGaps();
+  if(gaps){alert("Supply every required configuration value first — "+gaps+" still blank. Enter '-' for any that genuinely does not apply.");return;}
+  var msg=document.getElementById("cp-msg");
+  var sel=document.querySelector("input[name=approach-select]:checked");
+  var selectedApproach=sel?sel.value:"";
+  var cp=(EX_RUN&&EX_RUN.checkpoint_request)||{};
+  if((cp.approach_options||[]).length&&!selectedApproach){if(msg)msg.textContent="Please select an approach above before locking.";return;}
+  if(msg)msg.textContent="Locking configuration + resuming…";
+  await fetch("/api/pipeline/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,values:_cfgValues()})});
+  var notes=(document.getElementById("cp-notes")||{}).value||"Tenant configuration values confirmed and locked.";
+  const res=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:withMaterialNote(notes),selected_approach:selectedApproach})}).then(x=>x.json());
+  if(msg)msg.textContent=res.ok?"✓ "+(res.message||"approved"):"✕ "+(res.error||"failed");
   loadJobs();
 }
 function updatePrereqBtn(){
@@ -1496,6 +1575,7 @@ function selectRun(id){
   $("#ex-checkpoint").innerHTML=cpActive?checkpointHtml(r,cp):"";
   if(cpActive&&Array.isArray(cp.checklist)&&cp.checklist.length)updatePrereqBtn();
   if(cpActive&&cp&&Array.isArray(cp.naming_contract)&&cp.naming_contract.length)updateNaming();
+  if(cpActive&&cp&&Array.isArray(cp.config_contract)&&cp.config_contract.length)updateConfig(true);
   if(cpActive&&cp&&Array.isArray(cp.code_files)&&cp.code_files.length)updateCodeComments();
   if(cpActive&&cp&&Array.isArray(cp.findings_review)&&cp.findings_review.length)updateFindingsReview();
   // Findings carry a THREE-valued status — Open, Pending Fix, Resolved — and this used
