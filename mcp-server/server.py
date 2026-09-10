@@ -315,18 +315,27 @@ def _authenticate(headers):
     entries = _parse_api_keys()
     if not entries:
         return True, "anonymous", None
-    presented = (headers.get("x-api-key") or "").strip()
-    if not presented:
-        auth = headers.get("Authorization", "")
-        if auth[:7].lower() == "bearer ":
-            presented = auth[7:].strip()
+    # Both headers are considered, rather than preferring whichever appears first.
+    # Behind API Gateway, `x-api-key` is claimed by the gateway's own usage-plan key
+    # and forwarded here unchanged, so treating it as the only credential shadows a
+    # perfectly valid Bearer token and 401s every caller.
+    presented = []
+    xk = (headers.get("x-api-key") or "").strip()
+    if xk:
+        presented.append(xk)
+    auth = headers.get("Authorization", "")
+    if auth[:7].lower() == "bearer ":
+        bearer = auth[7:].strip()
+        if bearer:
+            presented.append(bearer)
     if not presented:
         return False, None, None
     for name, secret, tools in entries:
         # compare_digest on every entry — no early exit, so timing does not leak
         # which key prefix was close.
-        if hmac.compare_digest(presented, secret):
-            return True, name, tools
+        for candidate in presented:
+            if hmac.compare_digest(candidate, secret):
+                return True, name, tools
     return False, None, None
 
 

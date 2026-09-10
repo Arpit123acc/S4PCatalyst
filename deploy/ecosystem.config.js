@@ -45,6 +45,15 @@ module.exports = {
       interpreter: 'python3.11',
       env: {
         S4PC_MODE: 'offline',
+        // The one sanctioned exception to the loopback rule (server.py: "override only
+        // when something in front terminates TLS and authenticates"). Valid ONLY while
+        // all three hold: API Gateway terminates TLS, S4PC_API_KEYS is set so /mcp
+        // returns 401 without a key, and the EC2 SG admits 3002 from the internal ALB's
+        // SG alone. Remove any one and this must go back to 127.0.0.1 — a wildcard bind
+        // with auth off is the 2026-09-03 exposure, which server.py audits as
+        // `insecure_bind`. S4PC_API_KEYS is a secret and is supplied out-of-band; it
+        // never appears in this file.
+        S4PC_MCP_HOST: '0.0.0.0',
         AWS_REGION: 'us-east-1',       // Bedrock Titan embeddings for search_brain
         // Layer 2 (semantic_search) embeds via Bedrock Titan rather than a local
         // sentence-transformers model: this host has 3.7 GB RAM and already holds the
