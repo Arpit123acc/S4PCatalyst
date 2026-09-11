@@ -147,13 +147,14 @@ checkpoints. Each step maps to a specialist **role** below.
 | 2 Solution Proposal · 3 Object Inventory | extensibility-architect | 02-solution-proposal.md, 03-release-verdicts.md |
 | 4 GATE 1 Release Check | clean-core-reviewer | gate verdict → run.json |
 | 5 ✋ CP1 Solution approval | delivery-lead (human checkpoint) | checkpoint_request |
-| 6 Build | developer | 06-code.md |
-| 7 GATE 2 Code Review + ✋ CP2 Code approval | clean-core-reviewer → human checkpoint | gate verdict, checkpoint_request |
-| 8 Lint | clean-core-reviewer (runs `abap_cloud_lint`) | 07-lint-report.md |
-| 9 Unit Test Design | test-agent | 08-unit-tests.md |
-| 10 FD Analysis + Technical Design (documentation) | extensibility-architect + developer | 04-fd-analysis.md, 05-technical-design.md |
-| 11 GATE 3 Peer Review + Challenger + ✋ CP3 | clean-core-reviewer (incl. security) + challenger → human checkpoint | 09-review.md, checkpoint_request |
-| 12 Package | delivery-lead | 10-package-summary.md |
+| 6 Build | developer | 06-build.md |
+| 7 GATE 2 Code Review + ✋ CP2 Code approval | clean-core-reviewer → human checkpoint | 07-gate2-review.md, checkpoint_request |
+| 7B Apply CP2 corrections | developer | 06-build-corrected.md |
+| 8 Lint | clean-core-reviewer (runs `abap_cloud_lint`) | 08-lint-report.md |
+| 9 Unit Test Design | test-agent | 09-unit-tests.md |
+| 10 FD Analysis + Technical Design (documentation) | extensibility-architect + developer | 10-technical-design.md |
+| 11 GATE 3 Peer Review + Challenger + ✋ CP3 | clean-core-reviewer (incl. security) + challenger → human checkpoint | 11-gate3-review.md, checkpoint_request |
+| 12 Package | delivery-lead | 12-package.md |
 
 The **developer** role builds per the mode(s) chosen at step 2 — developer extensibility
 (RAP/CDS/BAdI/Fiori), key-user (Custom Fields & Logic, Adapt UI, CDS/analytics, forms, flexible
@@ -377,10 +378,15 @@ destination + HTML5 repo host). Set each step's `run.json` status so the run com
 
 ## Output structure
 
-Write deliverables to `output/<OBJECT-ID>/`:
-`01-discovery.md`, `02-solution-proposal.md`, `03-release-verdicts.md`, `04-fd-analysis.md`,
-`05-technical-design.md`, `06-code.md`, `07-lint-report.md`, `08-unit-tests.md`, `09-review.md`,
-`10-package-summary.md`.
+Write deliverables to `output/<OBJECT-ID>/`. **The number prefix is the STEP that produced
+it** — so the folder reads in execution order and two steps never share a prefix:
+`01-discovery.md`, `02-solution-proposal.md`, `03-release-verdicts.md`, `06-build.md`,
+`06-build-corrected.md`, `07-gate2-review.md`, `08-lint-report.md`, `09-unit-tests.md`,
+`10-technical-design.md`, `11-gate3-review.md`, `12-package.md`.
+
+A side-by-side (BTP) run substitutes `06-sbpa-design.md`, `07-completeness-check.md`,
+`08-test-scenarios.md`, `09-review.md`, `10-handover-guide.md`, and adds
+`13-btp-prereq-check.md` / `14-deploy-report.md`.
 
 Every document ends with a "Sources & verification" section separating (a) verified facts
 (tool-checked) from (b) assumptions to verify in tenant. Never present (b) as (a).
