@@ -82,9 +82,9 @@ message volume, SBPA process instances). Recommend the winner and say why the ot
 EXP-ids you applied. At the package step, `record_experience` for anything non-obvious the run
 taught (source = the run id) — this is how the pipeline compounds.
 
-**Digital Brain — client document RAG (`search_brain`, Layer 4).** Beyond the catalog/graph/experience
-layers, the brain holds the harvested **client documents** (SharePoint FDs, TDs, standards, prior
-specs) as Bedrock+FAISS vectors. Use it at the steps where a client document is the best source of
+**Digital Brain — learning document RAG (`search_brain`, Layer 4).** Beyond the catalog/graph/experience
+layers, the brain holds the harvested **learning documents** (SharePoint FDs, TDs, standards, prior
+specs) as Bedrock+FAISS vectors. Use it at the steps where a learning document is the best source of
 truth — it degrades gracefully (a helpful message) when the brain host/index is absent, so always
 call it and continue if offline:
 - **Intake (step 1):** `search_brain(query=<requirement>)` for prior client context that informs scope.

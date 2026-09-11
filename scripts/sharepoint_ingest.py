@@ -181,7 +181,7 @@ def detect_phase(path_str: str, text: str = "") -> str:
 # ── SAP STANDARD BPD DOCS ─────────────────────────────────────────────────────
 # SAP-delivered Business Process Documentation, named <SCOPE>_S4CLD<ver>_BPD_...
 # (e.g. 1MR_S4CLD2402_BPD_EN_US.docx). These are SAP STANDARD reference content —
-# separated from client delivery docs (source_system=sap_bpd, phase=Reference) and
+# separated from learning documents (source_system=sap_bpd, phase=Reference) and
 # linked back to the scope catalog by the scope item ID in the filename.
 # Tolerate a leading "BPD " label and both release strings (S4CLD… and S4HANA…),
 # e.g. "BPD 35F_S4CLD2308_BPD_EN_US.docx", "2Q2_S4HANA2023_BPD_EN_XX.docx".
@@ -1252,7 +1252,7 @@ def _ingest_one_local(f) -> int:
     if bpd_scope:                       # SAP standard BPD — reference, not delivery
         source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
         deliverable, scope_item_id = "business_process_doc", bpd_scope
-    else:                               # client delivery document
+    else:                               # learning document
         source_system, scope_item_id = "sharepoint", None
         phase       = detect_phase(rel_path, text)
         agent_role  = detect_agent_role(rel_path, text)
@@ -1469,7 +1469,7 @@ def process_graph():
         if bpd_scope:                       # SAP standard BPD — reference, not delivery
             source_system, phase, agent_role = "sap_bpd", "Reference", "reference"
             deliverable, scope_item_id = "business_process_doc", bpd_scope
-        else:                               # client delivery document
+        else:                               # learning document
             source_system, scope_item_id = "sharepoint", None
             phase       = detect_phase(folder_path)
             agent_role  = detect_agent_role(folder_path)

@@ -65,7 +65,7 @@ It binds `127.0.0.1` by default and **has no authentication**. `--host 0.0.0.0` 
 behind something that terminates TLS and authenticates — see
 [docs/brain-endpoint-setup.md](../docs/brain-endpoint-setup.md). Two things to weigh first:
 
-- Search results contain **masked client delivery content**. Masking removes PII, not commercial
+- Search results contain **masked learning content**. Masking removes PII, not commercial
   context — document titles and body text still identify programmes.
 - There is no per-tenant filter yet. Anyone who can reach it can query the whole corpus. Namespace
   isolation is a prerequisite for showing it to more than one client.

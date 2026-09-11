@@ -115,5 +115,5 @@ audit log cannot tell who made which call, and a leak means rotating for the who
 at once. So it matters more, not less, that they stay inside the group. If one leaks, say
 so immediately; rotation takes about a minute.
 
-The corpus contains masked client delivery content. Masking removes PII, not commercial
-context, so treat anything the brain returns as client-confidential.
+The corpus contains masked learning content. Masking removes PII, not commercial
+context, so treat anything the brain returns as confidential.

@@ -5,7 +5,7 @@
 # means re-running the SharePoint harvest and a full re-embed. This covers that gap.
 #
 #   bash scripts/backup_brain.sh              # tier 1: index + masked chunks (~500 MB)
-#   bash scripts/backup_brain.sh --with-raw   # also the 7.2 GB of RAW client documents
+#   bash scripts/backup_brain.sh --with-raw   # also the 7.2 GB of RAW learning documents
 #   bash scripts/backup_brain.sh --dry-run    # show what would transfer, write nothing
 #   bash scripts/backup_brain.sh --allow-shrink   # prune even though the corpus shrank
 #
@@ -31,9 +31,9 @@
 # TIERS — deliberate, not arbitrary:
 #   tier 1  brain/index      expensive to rebuild (tens of thousands of Bedrock calls)
 #           brain/sharepoint/chunks   PII-MASKED text; needs spaCy NER to regenerate
-#   tier 2  brain/sharepoint/raw      RAW, PRE-MASKING client documents. SharePoint is the
+#   tier 2  brain/sharepoint/raw      RAW, PRE-MASKING learning documents. SharePoint is the
 #           system of record, so this is re-harvestable. Opt in ONLY when you have
-#           confirmed that unmasked client content may live in the target bucket.
+#           confirmed that unmasked learning content may live in the target bucket.
 set -euo pipefail
 
 BUCKET="${BRAIN_BACKUP_BUCKET:-digitalbrain-knowledge-us-east-1}"
@@ -106,11 +106,11 @@ sync_one brain/index                  index
 sync_one brain/sharepoint/chunks      sharepoint/chunks
 
 if [ "$WITH_RAW" = "1" ]; then
-  echo "== tier 2: RAW client documents (pre-masking) — 7+ GB"
+  echo "== tier 2: RAW learning documents (pre-masking) — 7+ GB"
   sync_one brain/sharepoint/raw       sharepoint/raw
 else
-  echo "== tier 2 skipped (raw client documents). Add --with-raw to include them,"
-  echo "   but confirm first that unmasked client content may reside in $BUCKET."
+  echo "== tier 2 skipped (raw learning documents). Add --with-raw to include them,"
+  echo "   but confirm first that unmasked learning content may reside in $BUCKET."
 fi
 
 # A manifest makes a restore verifiable instead of hopeful -- but only if it describes

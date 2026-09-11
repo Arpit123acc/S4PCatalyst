@@ -140,7 +140,7 @@ def check_assertions(case, hits):
 # catalog, which is already committed under mcp-server/catalog/.
 #
 # Everything else is treated as client material and redacted. brain/ is gitignored
-# exactly so client documents never reach git, and this repo is public -- a baseline
+# exactly so learning documents never reach git, and this repo is public -- a baseline
 # that recorded `source` verbatim would have carried names like
 # "<client> Cutover Plan.xlsx" and "... Role Mapping - Production <person>.xlsx"
 # straight past that boundary. Hashing keeps drift detection exact (overlap is
@@ -258,7 +258,7 @@ def main():
             "top_k": args.k, "cases": results,
         }, indent=2, ensure_ascii=False), encoding="utf-8")
         print("\n== baseline written: %s (%d cases)" % (BASELINE, len(results)))
-        print("== client document names are redacted to hashes — safe to commit")
+        print("== learning document names are redacted to hashes — safe to commit")
         return
 
     print("\n== %d passed, %d FAILED, %d pending (%d cases)"

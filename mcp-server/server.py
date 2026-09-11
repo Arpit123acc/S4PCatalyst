@@ -823,7 +823,7 @@ def tool_query_experience(args):
     # L3 -> the RUN that produced the lesson. Measured 2026-09-08, this is the
     # provenance that actually exists: the object-shared corpus edge below reaches 1
     # lesson in 32, because 24 of 32 name no object and 7 of the remaining 8 cite
-    # objects from pipeline runs rather than from the client archive. L3 and L4
+    # objects from pipeline runs rather than from the learning archive. L3 and L4
     # describe different bodies of work. `source` already names a run or an FD for 12
     # of 32 lessons and nothing read it.
     try:

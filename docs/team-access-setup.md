@@ -17,7 +17,7 @@ uniformly is the mistake to avoid.
 
 | Service | Port | Auth today | Verdict |
 |---|---|---|---|
-| **brain-ui** | 8400 | **none** | The one to share. Read-only, but it renders masked client document *snippets*, so it still needs a control in front. Its own `--host` help says: "put it behind a proxy that terminates TLS and authenticates." |
+| **brain-ui** | 8400 | **none** | The one to share. Read-only, but it renders masked learning document *snippets*, so it still needs a control in front. Its own `--host` help says: "put it behind a proxy that terminates TLS and authenticates." |
 | **s4pc-webapp** | 8321 | none | **Do not expose.** It holds the pipeline's human-approval controls. `deploy/ecosystem.config.js` keeps it a separate process precisely so a demo surface cannot reach them. |
 | **MCP server** | 3002 | implemented, **disabled** | Agents only, via brain-endpoint-setup.md §4. Never move it off loopback without setting `S4PC_API_KEYS` **in the same change** — the server logs a boxed warning and an `insecure_bind` audit event if you do. |
 
@@ -155,7 +155,7 @@ it is not the place to start.
 
 ## 5. Explicitly out of scope
 
-**Internet-facing exposure.** The corpus holds masked client delivery documents, and
+**Internet-facing exposure.** The corpus holds masked learning documents, and
 masking removes PII, not commercial context. brain-endpoint-setup.md §4 Option D already
 rejected third-party tunnels (ngrok / Cloudflare Tunnel) on data-processing grounds, and
 that reasoning applies more strongly to a UI that renders document snippets to a browser.

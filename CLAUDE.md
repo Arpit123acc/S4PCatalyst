@@ -58,8 +58,15 @@ governance layer. Use it as follows — these are gates, not suggestions:
    redesign, not apology text.
 3. **Every extensibility decision** goes through `extensibility_advisor` and is documented with
    the decision path and the objects' release verdicts.
-4. **Catalog answers are seeds, not truth.** Always repeat the authoritative source in deliverables:
-   SAP Business Accelerator Hub (api.sap.com), the tenant's Custom Logic app, ADT Released Objects.
+4. **Cite the authoritative source — as a reference, not an open item.** The catalog is
+   refreshed monthly from api.sap.com (the `brain-refresh` job), so a **`catalog_hit`** is
+   current evidence, not a guess. Name its source — SAP Business Accelerator Hub
+   (api.sap.com), the tenant's Custom Logic app, ADT Released Objects — in a **References**
+   section. **Open items** is only for what is genuinely unresolved: `naming_heuristic_only`
+   hits, `NOT_VERIFIED` objects, and tenant values nobody has confirmed yet. A blanket
+   "nothing is final until checked on these sources" under Open Items is wrong twice over —
+   it makes a sound deliverable read as incomplete, and it flattens the distinction in gate 1,
+   where a fabricated name and a real catalog entry look identical if you ignore `evidence`.
 5. In live mode, ground designs with `odata_get_metadata` / `odata_query` (read-only, allowlisted)
    instead of assuming field names.
 6. **Human-in-the-loop is mandatory.** Pipeline runs stop at three checkpoints (solution

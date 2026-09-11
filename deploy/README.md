@@ -116,7 +116,7 @@ npm install -g @anthropic-ai/claude-code@<version>
 # then re-run a pipeline end-to-end before trusting it
 ```
 
-## The brain's client documents are not in git
+## The brain's learning documents are not in git
 
 `brain/` (raw client docs, masked chunks, FAISS index, ingest logs, OAuth token cache) is
 git-ignored and is **not** restored by this bootstrap. Re-run the SharePoint harvest and

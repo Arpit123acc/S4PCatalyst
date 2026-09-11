@@ -36,7 +36,7 @@ independently filterable. Connectors feed the *same* downstream pipeline.
 **To add a source:** write a loader that yields `(text, {"source_system": "<name>", …})`
 and register it in `embed_chunks.py`'s source list. No change to the store, search, or
 MCP layers. PII masking (`sharepoint_ingest.mask()`) is reused by any connector that
-carries client-derived text; authoritative SAP sources (Hub, Help) need no masking.
+carries learning-derived text; authoritative SAP sources (Hub, Help) need no masking.
 
 ## 2. Pipeline — ingest, mask, classify, chunk, embed
 
@@ -97,10 +97,12 @@ owns the network/embedding path. Clean separation, both registered side by side.
 ## 6. Security
 
 - **PII masking at ingest** — client/person/contact/credential/infra data is masked
-  before anything is embedded or stored.
+  before anything is embedded or stored. ("client" here names a masking token the masker
+  actually emits — `[CLIENT]`, `[CLIENT_OBJECT]` — not a classification of the corpus,
+  which is learning material.)
 - **No LLM/API keys** — Bedrock (Titan embeddings + Claude inference) via the EC2 IAM
   instance profile only.
-- **Never published** — `brain/` (client raw docs, masked chunks, embeddings, ingest
+- **Never published** — `brain/` (raw learning docs, masked chunks, embeddings, ingest
   logs, SharePoint OAuth token cache) is git-ignored. Only the public SAP scope catalog
   (`mcp-server/catalog/scope_items.json`) is tracked.
 - **Auditable** — the governance MCP server logs tool calls to `mcp-server/logs/`.

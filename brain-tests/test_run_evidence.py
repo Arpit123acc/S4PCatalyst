@@ -4,7 +4,7 @@
 WHY THIS EXISTS
     The first attempt at lesson provenance linked a lesson to CORPUS documents sharing
     its SAP objects, and measured 1 lesson in 32 on the real store: 24 of 32 name no
-    object, and 7 of the remaining 8 cite objects the client corpus never mentions
+    object, and 7 of the remaining 8 cite objects the learning corpus never mentions
     because L3's lessons come from PIPELINE RUNS while L4 is the client's archive.
 
     The provenance that does exist was already in `source`, unread, in three different

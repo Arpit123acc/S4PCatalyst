@@ -144,7 +144,7 @@ certificate request, a DNS record and a WAF policy — four separate cloud-team 
 
 ### Option D — Cloudflare Tunnel / ngrok
 
-Fastest to stand up, and **not appropriate here.** It routes masked client delivery content
+Fastest to stand up, and **not appropriate here.** It routes masked learning content
 through a third party that is not covered by the engagement's data-processing terms. Raise it with
 security before considering it, not after.
 
@@ -178,7 +178,7 @@ a client — and if OAuth is required, that is a scoped addition to §3, not a r
 | API Gateway integration timeout: 30s (HTTP API) / 29s (REST) | `search_brain` runs ~1–3s (Titan embed + FAISS), well inside. Heavier tools may not be. | Measure each of the 25 tools; keep long-running ones off the public endpoint. |
 | MCP Streamable HTTP responses | The server already returns a single buffered SSE event and closes — no long-lived stream to proxy. | No change; do not add real streaming without re-testing through the gateway. |
 | FAISS index is a file on EBS | One node, one writer. Fine for reads at this scale; a second node cannot share it. | Switch `BRAIN_BACKEND=pgvector` when horizontal scale or a shared store is needed — `scripts/vectorstore.py` already implements it. |
-| Corpus contains masked client content | Masking removes PII, not commercial context. | Per-key tenant scoping (§3) before a second tenant is admitted. Not optional. |
+| Corpus contains masked learning content | Masking removes PII, not commercial context. | Per-key tenant scoping (§3) before a second tenant is admitted. Not optional. |
 | Public endpoint + no quota | Bedrock embedding cost is per call. | API Gateway throttling per key, plus a usage alarm. |
 
 ## 7. Sequence
