@@ -21,11 +21,21 @@ module.exports = {
       cwd: '/home/ec2-user/s4pc',
       script: 'webapp/app.py',
       interpreter: 'python3.11',
-      // No S4PC_UI_HOST override: app.py defaults to 127.0.0.1 and must stay there.
-      // An SSH tunnel does not need a wildcard bind — `-L 8321:localhost:8321` resolves
-      // its target on this host, so loopback serves it. Binding 0.0.0.0 published the
-      // pipeline UI to everything that could route to this box.
-      env: {},
+      env: {
+        // Exception to the loopback rule, added 2026-09-11 to serve the team dashboard.
+        // An SSH tunnel never needed this (`-L 8321:localhost:8321` resolves its target
+        // on this host), and binding 0.0.0.0 with auth off is the 2026-09-03 exposure —
+        // so this is valid ONLY while all three hold:
+        //   1. the INTERNAL NLB (DigitBrain, TCP:8321) is the only route in — no
+        //      internet path, unlike the API Gateway in front of s4pc-mcp;
+        //   2. DigitalBrainSG admits 8321 from the NLB subnet 10.35.21.0/25 alone;
+        //   3. S4PC_ACCESS_PASSWORD is set, so every route 401s without credentials.
+        // Remove any one and this goes back to 127.0.0.1. Note this is a WEAKER footing
+        // than s4pc-mcp's exception: nothing terminates TLS, so the Basic-auth password
+        // crosses the wire in the clear. See docs/dashboard-access-migration.md §3.1.
+        // S4PC_ACCESS_PASSWORD is a secret, supplied out-of-band, never in this file.
+        S4PC_UI_HOST: '0.0.0.0',
+      },
       autorestart: true,
       max_restarts: 10,
       min_uptime: '30s',           // a crash inside 30s counts toward max_restarts

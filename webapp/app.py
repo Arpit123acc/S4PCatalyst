@@ -830,6 +830,13 @@ def settings_data():
 
 JOBS = {}  # job_id -> {proc, log, fd, kind, started, prompt_head}
 JOBS_LOCK = threading.Lock()
+# How many pipeline runs may be in flight at once. Each live run holds at most one
+# `claude -p` (a run is sequential: spawn -> checkpoint -> spawn), so this bounds the Node
+# processes competing for RAM with s4pc-mcp's resident FAISS index. Default 2 is sized for
+# the 3.7 GB host; it is an env var so resizing the instance does not need a code change.
+# Checkpoint continuations are deliberately NOT capped — a run in flight is committed work,
+# and stranding it mid-pipeline to admit a new run is backwards.
+MAX_CONCURRENT_RUNS = int(os.environ.get("S4PC_MAX_CONCURRENT_RUNS", "2"))
 ENGINE_LOG_DIR = os.path.join(APP_DIR, "logs")
 os.makedirs(ENGINE_LOG_DIR, exist_ok=True)
 
@@ -3141,9 +3148,18 @@ def pipeline_start(fd_path):
     if fd_path not in known:
         return {"error": "Unknown FD: %s (upload it first)" % fd_path}, 400
     with JOBS_LOCK:
+        live = 0
         for j in JOBS.values():
-            if j["fd"] == fd_path and j["proc"].poll() is None:
+            if j["proc"].poll() is not None:
+                continue
+            if j["fd"] == fd_path:
                 return {"error": "A pipeline job for this FD is already running."}, 409
+            live += 1
+        if live >= MAX_CONCURRENT_RUNS:
+            return {"error": "%d pipeline run(s) already in flight and this host admits %d at "
+                             "once. Wait for one to reach a checkpoint, then start this one. "
+                             "(Raise S4PC_MAX_CONCURRENT_RUNS after resizing the instance.)"
+                             % (live, MAX_CONCURRENT_RUNS)}, 429
     try:
         with open(os.path.join(ROOT_DIR, fd_path), encoding="utf-8", errors="replace") as _fh:
             _head = _fh.read(2000)
