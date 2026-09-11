@@ -3604,7 +3604,39 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     # requirement now comes from run.json.findings — the record of what the review actually found —
     # and the checkpoint array only supplies the DECISIONS. A checkpoint that omits it can no longer
     # disable the gate; it just means nothing has been actioned yet.
-    if decision == "approved" and "CP3" in (checkpoint or ""):
+    # RESUMING, not approving again. Every gate below reads the evidence out of
+    # checkpoint_request — and the resumed phase's FIRST instruction is to clear it. So once
+    # a phase has been launched and dies (engine crash, `error_during_execution`), re-posting
+    # the same decision hits gates whose inputs no longer exist and can never be supplied:
+    # the panel is gone from the UI too, because it renders from the same field. The run is
+    # then unrecoverable. Hit 2026-09-11 when the CLI died at step 9.
+    #
+    # decisions/<slug>.json is the right signal because the WEBAPP writes it, below, only
+    # after these gates have passed. human_approvals is not — the model appends that, and a
+    # phase that crashed early may never have got to it.
+    # Matched on the CPn token read from INSIDE each decision file, not on its filename. The
+    # filename is a slug of whatever checkpoint string the caller sent — the UI posts
+    # "CP2 · Code approval", a manual resume posts "CP2" — so an exact-filename lookup would
+    # never match and this guard would silently never fire. That is the same fail-open shape
+    # as the Gate 2 filename mismatch noted below, and it is worth not repeating.
+    _cp_m = re.search(r"CP\s*(\d+)", checkpoint or "", re.I)
+    _resuming = False
+    if decision == "approved" and _cp_m:
+        _cp_tok = "CP" + _cp_m.group(1)
+        try:
+            _dec_dir_now = os.path.join(run_dir, "decisions")
+            for _df in sorted(os.listdir(_dec_dir_now)):
+                if not _df.endswith(".json"):
+                    continue
+                _pd = read_json(os.path.join(_dec_dir_now, _df)) or {}
+                if (_pd.get("decision") or "").strip().lower() != "approved":
+                    continue
+                if re.search(r"\b%s\b" % _cp_tok, str(_pd.get("checkpoint") or ""), re.I):
+                    _resuming = True
+                    break
+        except OSError:
+            pass
+    if decision == "approved" and "CP3" in (checkpoint or "") and not _resuming:
         _rj_now = read_json(os.path.join(run_dir, "run.json")) or {}
         _decided = {}
         for _f in (_cpreq.get("findings_review") or []):
@@ -3639,7 +3671,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     # standard SAP object that has no verdict. This is the anti-hallucination gate made deterministic:
     # the prompts ask for it, this makes it non-optional. 'adjusted'/'rejected' still pass through, so
     # the developer always has a way forward.
-    if decision == "approved" and "CP2" in (checkpoint or ""):
+    if decision == "approved" and "CP2" in (checkpoint or "") and not _resuming:
         _unver = _unverified_objects_in_code(run_dir)
         if _unver:
             _bits = ["%s — under “%s”" % (n, s) if s else n for n, s in _unver[:8]]
@@ -3656,7 +3688,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     # Resolve the review file by PATTERN, not one hardcoded name: the engine has written it as
     # 07-code-review.md as well as 07-gate2-review.md, and a name mismatch silently disabled this
     # gate entirely (a run was approved with 6 open Majors and no fix comments).
-    if decision == "approved" and "CP2" in (checkpoint or ""):
+    if decision == "approved" and "CP2" in (checkpoint or "") and not _resuming:
         # Prefer the STRUCTURED findings: a Major the reviewer already fixed is not something the
         # developer must comment on. Counting "| Major |" mentions in the markdown blocked a run whose
         # Majors were all marked Resolved. Fall back to the markdown only when findings[] is absent.
@@ -3669,7 +3701,11 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                             if (f.get("status") or "Open").strip().lower()
                             not in ("resolved", "accepted", "pending fix")]
             _g2_major_count = len(_open_majors)
+            # Say when the list is truncated. "8 unresolved — F-02, F-03, F-04, F-05, F-06,
+            # F-10" reads as a miscount and sends people hunting for the discrepancy.
             _g2_ids = ", ".join(f.get("id") or "?" for f in _open_majors[:6])
+            if _g2_major_count > 6:
+                _g2_ids += " and %d more" % (_g2_major_count - 6)
         elif _g2_path:
             with open(_g2_path, "r", encoding="utf-8") as _gf:
                 _g2_content = _gf.read().lower()
