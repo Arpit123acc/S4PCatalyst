@@ -58,6 +58,12 @@ def check(label, got, want):
         FAILS.append("%s: got %r, want %r" % (label, got, want))
 
 
+def _unverified(d):
+    """Names only. The function returns (name, section) pairs so the CP2 blocker can say
+    WHERE an object is; the section is asserted separately below."""
+    return [name for name, _section in app._unverified_objects_in_code(d)]
+
+
 def _run_dir(files):
     d = Path(tempfile.mkdtemp(prefix="s4pc-relgate-"))
     for name, body in files.items():
@@ -90,58 +96,58 @@ VERDICTS_FULL = VERDICTS_PARTIAL + "| CL_ABAP_CONTEXT_INFO | LIKELY_RELEASED (ca
 def main():
     print("THE REGRESSION: an ABAP class in the code with no verdict must be caught")
     d = _run_dir({"06-build.md": CODE, "03-release-verdicts.md": VERDICTS_PARTIAL})
-    got = app._unverified_objects_in_code(d)
+    got = _unverified(d)
     check("the class is flagged", [g.upper() for g in got], ["CL_ABAP_CONTEXT_INFO"])
     check("reported in the code's own spelling", got, ["cl_abap_context_info"])
 
     print("\nonce its verdict is recorded, the gate stops blocking")
     # Without this the gate would be unsatisfiable -- see the header.
     d = _run_dir({"06-build.md": CODE, "03-release-verdicts.md": VERDICTS_FULL})
-    check("nothing unverified", app._unverified_objects_in_code(d), [])
+    check("nothing unverified", _unverified(d), [])
 
     print("\ninterfaces too")
     d = _run_dir({"06-build.md": "```abap\nDATA lo TYPE REF TO if_oo_adt_classrun.\n```",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
-    check("interface flagged", app._unverified_objects_in_code(d), ["if_oo_adt_classrun"])
+    check("interface flagged", _unverified(d), ["if_oo_adt_classrun"])
 
     print("\ncustom objects stay OUT - governed by the naming contract, not verdicts")
     # \\b means ZCL_/ZIF_ cannot match CL_/IF_: the preceding Z is a word character.
     d = _run_dir({"06-build.md": "```abap\nDATA lo TYPE REF TO zcl_ss_assign_to_me.\n"
                                  "DATA li TYPE REF TO zif_ss_handler.\n```",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
-    check("ZCL_/ZIF_ not flagged", app._unverified_objects_in_code(d), [])
+    check("ZCL_/ZIF_ not flagged", _unverified(d), [])
 
     print("\nprose outside a code fence does not block")
     # A design that explicitly REJECTS an object still names it in prose.
     d = _run_dir({"06-build.md": "We rejected CL_GUI_FRONTEND_SERVICES as not cloud-ready.\n",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
-    check("unfenced mention ignored", app._unverified_objects_in_code(d), [])
+    check("unfenced mention ignored", _unverified(d), [])
 
     print("\nthe filename hole: a differently-named build file is still found")
     d = _run_dir({"06-build-v2.md": CODE, "03-release-verdicts.md": VERDICTS_PARTIAL})
     check("code file resolved by pattern",
-          app._unverified_objects_in_code(d), ["cl_abap_context_info"])
+          _unverified(d), ["cl_abap_context_info"])
     d = _run_dir({"06-build.md": CODE, "03-objects.md": VERDICTS_PARTIAL})
     check("verdict file resolved by pattern",
-          app._unverified_objects_in_code(d), ["cl_abap_context_info"])
+          _unverified(d), ["cl_abap_context_info"])
 
     print("\ngenuinely absent files still return empty (nothing to compare)")
     check("no code file",
-          app._unverified_objects_in_code(_run_dir({"03-release-verdicts.md": "x"})), [])
+          _unverified(_run_dir({"03-release-verdicts.md": "x"})), [])
     check("no verdict file",
-          app._unverified_objects_in_code(_run_dir({"06-build.md": CODE})), [])
-    check("empty dir", app._unverified_objects_in_code(_run_dir({})), [])
+          _unverified(_run_dir({"06-build.md": CODE})), [])
+    check("empty dir", _unverified(_run_dir({})), [])
 
     print("\nthe original coverage still holds")
     # CDS views are CamelCase by SAP convention and stay case-SENSITIVE.
     d = _run_dir({"06-build.md": "```abap\nSELECT * FROM I_MaterialStock.\n```",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
-    check("CDS view still caught", app._unverified_objects_in_code(d), ["I_MaterialStock"])
+    check("CDS view still caught", _unverified(d), ["I_MaterialStock"])
 
     print("\ndiffering case between code and verdicts is not a missing verdict")
     d = _run_dir({"06-build.md": "```abap\nSELECT * FROM I_MaterialStock.\n```",
                   "03-release-verdicts.md": "| I_MATERIALSTOCK | LIKELY_RELEASED |\n"})
-    check("matched case-insensitively", app._unverified_objects_in_code(d), [])
+    check("matched case-insensitively", _unverified(d), [])
 
     print("\nABAP locals must NOT be flagged")
     # The reason cl_/if_ are relaxed but c_/e_/r_/p_ are not.
@@ -149,7 +155,25 @@ def main():
                                  "DATA e_result TYPE string.\nDATA r_value TYPE i.\n"
                                  "DATA p_param TYPE i.\n```",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
-    check("no false positives from locals", app._unverified_objects_in_code(d), [])
+    check("no false positives from locals", _unverified(d), [])
+
+    print("\nthe section is captured, so the blocker can say WHERE the object is")
+    # Without this the CP2 message named the object but told the reviewer to comment on
+    # "the relevant file" without saying which -- unactionable on a build with 9 sections.
+    d = _run_dir({"06-build.md": "# Build\n\n## 8. ZCL_STK_CLFN_CLIENT\n\n"
+                                 "```abap\nINTERFACES if_t100_message.\n```\n",
+                  "03-release-verdicts.md": "| Object |\n|---|\n"})
+    check("object reported with its section",
+          app._unverified_objects_in_code(d),
+          [("if_t100_message", "8. ZCL_STK_CLFN_CLIENT")])
+
+    print("\nan object before any heading still reports, with an empty section")
+    # The blocker must degrade to the old behaviour rather than crash on a build file
+    # that opens with code.
+    d = _run_dir({"06-build.md": "```abap\nINTERFACES if_t100_message.\n```\n",
+                  "03-release-verdicts.md": "| Object |\n|---|\n"})
+    check("no heading yet", app._unverified_objects_in_code(d),
+          [("if_t100_message", "")])
 
     print()
     if FAILS:

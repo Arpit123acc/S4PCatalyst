@@ -328,11 +328,25 @@ def _unverified_objects_in_code(run_dir):
     # cl_abap_context_info, and a plain set difference calls that a missing verdict — a
     # false positive that trains people to click past this gate. Same for a CDS view
     # tabled as I_MATERIALSTOCK and used as I_MaterialStock.
+    # Walked line by line, tracking the nearest heading, rather than joining every fenced
+    # block into one string: the join loses position, so the blocker could name the object
+    # but not where it lives — and it then told the reviewer to "comment on the relevant
+    # file" without saying which one. The section is the only part of the message that
+    # makes it actionable.
     found = {}
-    for _m in _SAP_OBJ_CODE_RE.finditer("\n".join(_FENCED_RE.findall(code_md))):
-        found.setdefault(_m.group(0).upper(), _m.group(0))
+    heading, in_fence = "", False
+    for line in code_md.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            for _m in _SAP_OBJ_CODE_RE.finditer(line):
+                found.setdefault(_m.group(0).upper(), (_m.group(0), heading))
+        elif stripped.startswith("#"):
+            heading = stripped.lstrip("#").strip()
     verified = {v.upper() for v in _SAP_OBJ_RE.findall(verdicts)}
-    return sorted(orig for key, orig in found.items() if key not in verified)
+    return [found[key] for key in sorted(found) if key not in verified]
 
 def _find_gate2_review(run_dir):
     """Locate the Gate 2 (code review) deliverable regardless of the exact name the engine used.
@@ -3555,12 +3569,16 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
     if decision == "approved" and "CP2" in (checkpoint or ""):
         _unver = _unverified_objects_in_code(run_dir)
         if _unver:
+            _bits = ["%s — under “%s”" % (n, s) if s else n for n, s in _unver[:8]]
             return {"error": (
-                "%d SAP object(s) used in the code have no release verdict: %s. "
+                "%d SAP object(s) used in the code have no release verdict:\n\n%s\n\n"
                 "Every object must be checked (check_object_release_state) and listed in "
-                "03-release-verdicts.md before the code can be approved. Add a comment on the "
-                "relevant file asking for the verdict, then choose Adjust to send it back."
-                % (len(_unver), ", ".join(_unver[:8]) + (" …" if len(_unver) > 8 else "")))}, 409
+                "03-release-verdicts.md before the code can be approved. Comment on the file "
+                "card for the section named above, asking for that object's verdict, then "
+                "choose “Request changes” to send it back."
+                % (len(_unver),
+                   "\n".join("  • " + b for b in _bits)
+                   + ("\n  … and %d more" % (len(_unver) - 8) if len(_unver) > 8 else "")))}, 409
     # Gate 2 Major enforcement — CP2 approval requires fix comments when Gate 2 found Majors.
     # Resolve the review file by PATTERN, not one hardcoded name: the engine has written it as
     # 07-code-review.md as well as 07-gate2-review.md, and a name mismatch silently disabled this
