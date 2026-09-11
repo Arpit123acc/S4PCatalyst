@@ -4303,6 +4303,22 @@ def _watchdog():
             pass
 
 def main():
+    # Fail closed. A non-loopback bind with no password serves the pipeline's approval
+    # controls to anything that can route here — CP1/CP2/CP3 become "whoever clicks".
+    # Refusing to start is the only safe response: warning and continuing is how this
+    # shipped open on 2026-09-11, because the operator saw 0.0.0.0 in `ss` and read it
+    # as success. The usual cause is `pm2 restart --update-env` with the variable merely
+    # exported: the pm2 daemon keeps the environment it started with, so the export never
+    # reaches the process. Pass it to pm2 itself instead —
+    #   S4PC_ACCESS_PASSWORD='…' pm2 start deploy/ecosystem.config.js --only s4pc-webapp
+    if HOST not in ("127.0.0.1", "localhost", "::1") and not ACCESS_PASSWORD:
+        sys.stderr.write(
+            "\n" + "=" * 72 + "\n"
+            "REFUSING TO START: bound to %s with S4PC_ACCESS_PASSWORD unset.\n"
+            "That publishes the pipeline's approval controls with no authentication.\n"
+            "Set the password, or set S4PC_UI_HOST=127.0.0.1.\n" % HOST
+            + "=" * 72 + "\n\n")
+        raise SystemExit(2)
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     url = "http://%s:%d" % (HOST, PORT)
     print("S4PC Catalyst running at %s  (mode=%s, python=%s, %s)" % (

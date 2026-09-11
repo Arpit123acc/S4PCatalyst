@@ -34,7 +34,15 @@ module.exports = {
         // than s4pc-mcp's exception: nothing terminates TLS, so the Basic-auth password
         // crosses the wire in the clear. See docs/dashboard-access-migration.md §3.1.
         // S4PC_ACCESS_PASSWORD is a secret, supplied out-of-band, never in this file.
+        // It is REFERENCED here rather than stored: `process.env` is read when pm2 parses
+        // this file, so the value must be present in the shell that runs pm2 —
+        //   S4PC_ACCESS_PASSWORD='…' pm2 start deploy/ecosystem.config.js --only s4pc-webapp
+        // Exporting it and relying on `pm2 restart --update-env` is NOT enough: the pm2
+        // daemon carries its own environment from whenever it started, so the export never
+        // reaches the process and the app comes up on a wildcard bind with auth OFF.
+        // That happened on 2026-09-11. app.py now refuses to start in that state.
         S4PC_UI_HOST: '0.0.0.0',
+        S4PC_ACCESS_PASSWORD: process.env.S4PC_ACCESS_PASSWORD,
       },
       autorestart: true,
       max_restarts: 10,
