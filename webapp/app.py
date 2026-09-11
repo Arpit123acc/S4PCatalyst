@@ -1618,8 +1618,12 @@ def _phase_c_prompt(rid, fd_path, decision, notes, fc_txt, cp2_slug, is_sbpa=Fal
         _sbpa_steps = _SBPA_PHASE_C_INSTRUCTIONS % {"rid": rid}
         _cp3 = (
             "── CHECKPOINT 3 / QUALITY GATE ──────────────────────────────────────────────\n"
-            "Compute quality_score first (formula: 100 minus Critical-resolved×5, Major-open×8,\n"
-            "Major-resolved×2, Minor-open×3, Minor-resolved×1; floor 0).\n\n"
+            "Compute quality_score first. Count ONLY findings with kind='defect' — a pending\n"
+            "tenant confirmation or an unanswered client question is an input the delivery is\n"
+            "waiting on, not a flaw in it. 100 minus: Critical-open×15, Critical-resolved×5,\n"
+            "Major-open×8, Major-resolved×2, Minor-open×3, Minor-resolved×1; floor 0. An open\n"
+            "finding always costs more than the same finding resolved, so fixing one always\n"
+            "raises the score.\n\n"
             "Count open_critical = findings where severity=Critical AND status=Open.\n"
             "Count open_major   = findings where severity=Major   AND status=Open.\n\n"
             "RULE — findings review checkpoint fires if ANY of these is true:\n"
@@ -1862,8 +1866,11 @@ def _phase_c_prompt(rid, fd_path, decision, notes, fc_txt, cp2_slug, is_sbpa=Fal
         "Update run.json: step 11 → PASS, findings[], quality_score, gates_passed.\n"
         "gate_results entry schema: {\"name\":\"Peer Review\",\"status\":\"PASS|CONDITIONAL_PASS|FAIL\",\"detail\":\"<one line>\"}\n\n"
         "── CHECKPOINT 3 / QUALITY GATE ──────────────────────────────────────────────\n"
-        "Compute quality_score (formula: 100 minus Critical-resolved×5, Major-open×8,\n"
-        "Major-resolved×2, Minor-open×3, Minor-resolved×1; floor 0).\n\n"
+        "Compute quality_score. Count ONLY findings with kind='defect' — a pending tenant\n"
+        "confirmation or an unanswered client question is an input the delivery is waiting on,\n"
+        "not a flaw in it. 100 minus: Critical-open×15, Critical-resolved×5, Major-open×8,\n"
+        "Major-resolved×2, Minor-open×3, Minor-resolved×1; floor 0. An open finding always\n"
+        "costs more than the same finding resolved, so fixing one always raises the score.\n\n"
         "Count open_critical = findings where severity=Critical AND status=Open.\n"
         "Count open_major   = findings where severity=Major   AND status=Open.\n\n"
         "RULE — findings review checkpoint fires if ANY of these is true:\n"
@@ -3630,21 +3637,30 @@ def pipeline_findings_review(run_id, findings_actions):
             finding["action"] = _action_map[fid]
             if fid in _notes_map:
                 finding["notes"] = _notes_map[fid]
-    # Recalculate quality_score to match updated statuses.
-    # Formula (mirrors Phase C prompt): Critical-resolved×5, Major-open×8, Major-resolved×2,
-    # Minor-open×3, Minor-resolved×1. "Accepted" counts as resolved; "Pending Fix" as open.
+    # Recalculate quality_score to match updated statuses. This is authoritative — it
+    # overwrites whatever the model computed — so the formula lives here.
+    #
+    # An open finding always costs MORE than the same finding resolved. The previous table
+    # had no Critical-open term at all: an unfixed Critical cost 0 while fixing one cost 5,
+    # so leaving the worst defects open scored better than repairing them, and an open Minor
+    # (3) outweighed an open Critical (0). Resolved still deducts a little — the defect
+    # happened — but fixing anything now always raises the score.
+    #
+    # Only kind='defect' counts. A pending tenant confirmation or an unanswered client
+    # question is an input the delivery is waiting on, not a flaw in it, and scoring them
+    # identically means the number drops for doing the governance properly. Findings written
+    # before 'kind' existed default to defect and score exactly as they did.
     _resolved = {"Resolved", "Accepted"}
+    _penalty = {("critical", False): 15, ("critical", True): 5,
+                ("major",    False):  8, ("major",    True): 2,
+                ("minor",    False):  3, ("minor",    True): 1}
     _qs = 100
     for _f in (data.get("findings") or []):
+        if (_f.get("kind") or "defect").strip().lower() != "defect":
+            continue
         _sev = (_f.get("severity") or "").strip().lower()
         _done = (_f.get("status") or "Open") in _resolved
-        if _sev == "critical":
-            if _done:
-                _qs -= 5          # Critical-resolved ×5
-        elif _sev == "major":
-            _qs -= 2 if _done else 8
-        elif _sev == "minor":
-            _qs -= 1 if _done else 3
+        _qs -= _penalty.get((_sev, _done), 0)
     data["quality_score"] = max(0, _qs)
     data["auto_corrections"] = data.get("auto_corrections", 0)  # preserve existing field
     data["checkpoint_request"] = cp
