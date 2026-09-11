@@ -1023,14 +1023,25 @@ function checkpointHtml(r,cp){
     "<h3>✋ "+esc(cp.checkpoint||"Checkpoint")+" — your decision is needed</h3>"+
     "<p style='margin:8px 0;color:var(--ink);font-size:.84rem'>"+esc(cp.summary||"")+"</p>"+mat;
   if(Array.isArray(cp.code_files)&&cp.code_files.length){
-    h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>Review the built code — add a comment against any file you want changed (leave blank to accept), then choose your decision:</p>";
+    var nBlocked=cp.code_files.filter(function(it){return (it.blockers||[]).length;}).length;
+    h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>"+(nBlocked
+        ? "<span style='color:#b45309'>"+nBlocked+" file"+(nBlocked>1?"s":"")+" below need a comment before this can proceed.</span> Every other comment is optional — leave blank to accept."
+        : "Review the built code — add a comment against any file you want changed (leave blank to accept), then choose your decision:")+"</p>";
+    if((cp.blockers_unplaced||[]).length)
+      h+="<div style='font-size:.76rem;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:7px 10px;margin:6px 0'>"+
+         "No release verdict for <b>"+cp.blockers_unplaced.map(esc).join(", ")+"</b>, and the section could not be matched to a file below. Note it in the overall notes.</div>";
     h+="<div style='display:flex;flex-direction:column;gap:10px;margin:8px 0'>";
     cp.code_files.forEach(function(it){var idv=esc(it.id||"");
-      h+="<div style='border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px'>"+
-         "<div style='font-size:.82rem;font-weight:600'>"+esc(it.file||it.id||"")+"</div>"+
+      var blk=(it.blockers||[]);
+      h+="<div style='border:1px solid "+(blk.length?"#fcd34d":"#e2e8f0")+";border-radius:8px;padding:8px 10px"+(blk.length?";background:#fffbeb":"")+"'>"+
+         "<div style='font-size:.82rem;font-weight:600'>"+esc(it.file||it.id||"")+
+           (blk.length?" <span style='background:#b45309;color:#fff;border-radius:4px;padding:1px 7px;font-size:.62rem;font-weight:700;margin-left:6px'>COMMENT REQUIRED</span>":"")+"</div>"+
          (it.summary?"<div style='font-size:.72rem;color:var(--muted);margin:2px 0 4px'>"+esc(it.summary)+"</div>":"")+
+         (blk.length?"<div style='font-size:.72rem;color:#92400e;margin:3px 0 5px'>No release verdict for <b>"+blk.map(esc).join(", ")+"</b>. Ask for it here, then choose “Request changes”.</div>":"")+
          (it.material?"<div style='font-size:.72rem;margin:2px 0 6px'><a onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(it.material)+"\")'>open "+esc(it.material)+"</a></div>":"")+
-         "<textarea class='code-comment' data-id='"+idv+"' data-file='"+esc(it.file||idv)+"' oninput='updateCodeComments()' placeholder='Comment on this file (optional)' style='min-height:38px;font-size:.8rem'>"+esc(it.comment||"")+"</textarea>"+
+         "<textarea class='code-comment' data-id='"+idv+"' data-file='"+esc(it.file||idv)+"' data-blockers='"+esc(blk.join(", "))+"' oninput='updateCodeComments()' placeholder='"+
+           (blk.length?"Required — ask for the release verdict on "+esc(blk.join(", ")):"Comment on this file (optional)")+
+           "' style='min-height:38px;font-size:.8rem"+(blk.length?";border-color:#f59e0b":"")+"'>"+esc(it.comment||"")+"</textarea>"+
          "</div>";});
     h+="</div>";
     h+="<div style='display:flex;gap:16px;margin:6px 0;font-size:.84rem'>"+
@@ -1163,6 +1174,19 @@ async function submitCodeReview(runId,checkpoint){
   var overall=((document.getElementById("cp-notes")||{}).value||"").trim();
   if(dec==="adjusted"&&!lines.length){alert("Add a comment on at least one file to request changes (or choose Approve).");return;}
   if(dec==="rejected"&&!overall&&!lines.length){alert("Add a note or a file comment explaining the rejection.");return;}
+  // Files with no release verdict need a comment saying so, or the run goes back to the
+  // developer with no instruction. Skipped when rejecting: killing the run outright does
+  // not need per-file detail. Approving is refused server-side regardless, but catching it
+  // here says WHICH box is empty rather than repeating the blocker list.
+  if(dec!=="rejected"){
+    var missing=items.filter(function(x){return x.dataset.blockers&&!(x.value||"").trim();})
+                     .map(function(x){return x.dataset.file||x.dataset.id;});
+    if(missing.length){
+      alert("These files have objects with no release verdict and need a comment:\n\n  "+
+            missing.join("\n  ")+"\n\nAsk for the verdict in each box, then choose “Request changes”.");
+      return;
+    }
+  }
   var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Recording review + resuming…";
   await fetch("/api/pipeline/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,comments:comments})}).catch(function(){});
   var notes=(dec==="adjusted")?("Code review — changes requested:\n"+lines.join("\n")):(dec==="rejected"?"Code review — rejected.":"Code review — approved as-is."+(lines.length?"\nMinor comments:\n"+lines.join("\n"):""));

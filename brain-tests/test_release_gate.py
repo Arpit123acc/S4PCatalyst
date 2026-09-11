@@ -161,19 +161,41 @@ def main():
     # Without this the CP2 message named the object but told the reviewer to comment on
     # "the relevant file" without saying which -- unactionable on a build with 9 sections.
     d = _run_dir({"06-build.md": "# Build\n\n## 8. ZCL_STK_CLFN_CLIENT\n\n"
-                                 "```abap\nINTERFACES if_t100_message.\n```\n",
+                                 "```abap\nDATA lo TYPE REF TO cl_abap_context_info.\n```\n",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
     check("object reported with its section",
           app._unverified_objects_in_code(d),
-          [("if_t100_message", "8. ZCL_STK_CLFN_CLIENT")])
+          [("cl_abap_context_info", "8. ZCL_STK_CLFN_CLIENT")])
 
     print("\nan object before any heading still reports, with an empty section")
     # The blocker must degrade to the old behaviour rather than crash on a build file
     # that opens with code.
-    d = _run_dir({"06-build.md": "```abap\nINTERFACES if_t100_message.\n```\n",
+    d = _run_dir({"06-build.md": "```abap\nDATA lo TYPE REF TO cl_abap_context_info.\n```\n",
                   "03-release-verdicts.md": "| Object |\n|---|\n"})
     check("no heading yet", app._unverified_objects_in_code(d),
-          [("if_t100_message", "")])
+          [("cl_abap_context_info", "")])
+
+    print("\nABAP's own message interfaces are not consumable objects and must not block")
+    # Every RAP exception class writes `INTERFACES if_t100_message.` -- a gate that fires on
+    # every run gets clicked past, which defeats the gate. See _LANGUAGE_INTERFACES.
+    d = _run_dir({"06-build.md": "```abap\nCLASS zcx_x DEFINITION.\n"
+                                 "  INTERFACES if_t100_message.\n"
+                                 "  INTERFACES if_t100_dyn_msg.\nENDCLASS.\n```",
+                  "03-release-verdicts.md": "| Object |\n|---|\n"})
+    check("T100 interfaces allowlisted", app._unverified_objects_in_code(d), [])
+
+    print("\nbut the allowlist is exactly two names, not a CL_/IF_ free pass")
+    d = _run_dir({"06-build.md": "```abap\nDATA lo TYPE REF TO if_oo_adt_classrun.\n```",
+                  "03-release-verdicts.md": "| Object |\n|---|\n"})
+    check("other interfaces still caught", [n for n, _s in app._unverified_objects_in_code(d)],
+          ["if_oo_adt_classrun"])
+
+    print("\nsection numbers come from the explicit forms only")
+    # A "first digit anywhere" rule reads ZCL_STK_APP2_QRY as section 2 and pins the
+    # blocker to the wrong card.
+    check("digit inside a name is not a section", app._cp2_section_number("ZCL_STK_APP2_QRY"), None)
+    check("card form", app._cp2_section_number("ZCL_STK_APP2_QRY (section 6)"), "6")
+    check("heading form", app._cp2_section_number("6. ZCL_STK_APP2_QRY"), "6")
 
     print()
     if FAILS:

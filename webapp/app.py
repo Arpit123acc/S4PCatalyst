@@ -287,6 +287,20 @@ _SAP_OBJ_CODE_RE = re.compile(
     r'|[Cc][Ll]_[A-Za-z0-9_]{3,}|[Ii][Ff]_[A-Za-z0-9_]{3,}'
     r'|[A-Z][A-Z0-9_]{5,}_SRV)\b')
 _FENCED_RE = re.compile(r'```[^\n]*\n(.*?)```', re.S)
+# The T100 message interfaces are ABAP's exception-declaration plumbing: you write
+# `INTERFACES if_t100_message.` so a class can carry a message, the same way you write a
+# keyword. They are not objects anyone chose to consume off a released API surface, there is
+# nothing to redesign if they are "unreleased", and every RAP exception class trips them —
+# so they would fire on essentially every run. A gate that always fires teaches people to
+# click past release blockers, which is the failure this gate exists to prevent (see the
+# header above: "a gate you cannot satisfy gets worked around").
+#
+# Kept deliberately to these two. CL_ABAP_CONTEXT_INFO is NOT here even though
+# forbidden_patterns.json PC-017 recommends it over SY-UNAME, because it is the exact
+# regression this gate was built for (F-19, SMART-SEARCH-FD-R2) — it is a class you call for
+# data, and it belongs in the verdict table. Recommending an object and governing it are not
+# in conflict.
+_LANGUAGE_INTERFACES = {"IF_T100_MESSAGE", "IF_T100_DYN_MSG"}
 
 def _unverified_objects_in_code(run_dir):
     """Return SAP objects referenced in the built CODE that carry no verdict in 03-release-verdicts.md.
@@ -346,7 +360,56 @@ def _unverified_objects_in_code(run_dir):
         elif stripped.startswith("#"):
             heading = stripped.lstrip("#").strip()
     verified = {v.upper() for v in _SAP_OBJ_RE.findall(verdicts)}
-    return [found[key] for key in sorted(found) if key not in verified]
+    return [found[key] for key in sorted(found)
+            if key not in verified and key not in _LANGUAGE_INTERFACES]
+
+def _cp2_section_number(text):
+    """The section a CP2 card and a build heading have in common, or None.
+
+    Two shapes: the card reads "ZCL_STK_CLFN_CLIENT (section 8)", the heading reads
+    "8. ZCL_STK_CLFN_CLIENT". Matched on the explicit forms only — a bare "first digit
+    anywhere" rule reads ZCL_STK_APP2_QRY as section 2 and pins the blocker to the
+    wrong card, which is worse than not placing it at all.
+    """
+    t = str(text or "")
+    m = re.search(r'section\s*(\d+)', t, re.I)
+    if m:
+        return m.group(1)
+    m = re.match(r'\s*(\d+)\s*[.)]', t)
+    return m.group(1) if m else None
+
+def _annotate_cp2_blockers(cp, run_dir):
+    """Tag each CP2 code_files card with the unverified objects found in its section.
+
+    Display only — `pipeline_decision` is still what refuses the approval. This exists so
+    the panel can point at the card that needs a comment instead of saying "the relevant
+    file" and leaving the reviewer to guess across nine sections.
+    """
+    files = cp.get("code_files") or []
+    if not files:
+        return cp
+    unver = _unverified_objects_in_code(run_dir)
+    if not unver:
+        return cp
+    by_section = {}
+    for name, heading in unver:
+        by_section.setdefault(_cp2_section_number(heading), []).append(name)
+    cards, placed = [], set()
+    for item in files:
+        item = dict(item)
+        hits = by_section.get(_cp2_section_number(item.get("file")))
+        if hits:
+            item["blockers"] = list(hits)
+            placed.update(hits)
+        cards.append(item)
+    cp = dict(cp)
+    cp["code_files"] = cards
+    # An object whose heading matched no card still blocks approval, so it has to reach
+    # the reviewer somewhere — otherwise the panel looks clean while Submit keeps failing.
+    unplaced = [n for n, _h in unver if n not in placed]
+    if unplaced:
+        cp["blockers_unplaced"] = unplaced
+    return cp
 
 def _find_gate2_review(run_dir):
     """Locate the Gate 2 (code review) deliverable regardless of the exact name the engine used.
@@ -455,6 +518,14 @@ def list_runs():
                     _cp = dict(_cp)
                     _cp["findings_review"] = _derived
                     _cp["findings_review_derived"] = True   # so the UI can say where it came from
+                    data["checkpoint_request"] = _cp
+            # Same idea at CP2: the approval gate knows which objects lack a verdict, so say
+            # which CARD each one sits on. Without this the panel gives no clue where to act
+            # and every comment box reads "optional" while Submit refuses.
+            if _cp and "CP2" in str(_cp.get("checkpoint") or ""):
+                _cp2 = _annotate_cp2_blockers(_cp, os.path.join(out_dir, name))
+                if _cp2 is not _cp:
+                    _cp = _cp2
                     data["checkpoint_request"] = _cp
             run_dir_path = os.path.join(out_dir, name)
             data["files"] = sorted(
