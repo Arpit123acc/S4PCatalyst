@@ -3656,6 +3656,14 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                     break
         except OSError:
             pass
+        # ...but only if the checkpoint is actually CLOSED. A phase clears checkpoint_request
+        # when it starts, so an empty one means "already launched, this is a retry". If the
+        # request is still open on this same checkpoint, a new round is genuinely waiting for
+        # a decision — a CP3 fix loop can bring CP2 back round — and its gates must run.
+        # Without this, one approval would disable the gates for every later approval.
+        if _resuming and re.search(r"\b%s\b" % _cp_tok,
+                                   str(_cpreq.get("checkpoint") or ""), re.I):
+            _resuming = False
     if decision == "approved" and "CP3" in (checkpoint or "") and not _resuming:
         _rj_now = read_json(os.path.join(run_dir, "run.json")) or {}
         _decided = {}
