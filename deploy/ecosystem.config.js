@@ -24,15 +24,24 @@ module.exports = {
       env: {
         // Exception to the loopback rule, added 2026-09-11 to serve the team dashboard.
         // An SSH tunnel never needed this (`-L 8321:localhost:8321` resolves its target
-        // on this host), and binding 0.0.0.0 with auth off is the 2026-09-03 exposure —
-        // so this is valid ONLY while all three hold:
-        //   1. the INTERNAL NLB (DigitBrain, TCP:8321) is the only route in — no
-        //      internet path, unlike the API Gateway in front of s4pc-mcp;
-        //   2. DigitalBrainSG admits 8321 from the NLB subnet 10.35.21.0/25 alone;
-        //   3. S4PC_ACCESS_PASSWORD is set, so every route 401s without credentials.
-        // Remove any one and this goes back to 127.0.0.1. Note this is a WEAKER footing
-        // than s4pc-mcp's exception: nothing terminates TLS, so the Basic-auth password
-        // crosses the wire in the clear. See docs/dashboard-access-migration.md §3.1.
+        // on this host), and binding 0.0.0.0 with auth off is the 2026-09-03 exposure.
+        //
+        // S4PC_ACCESS_PASSWORD IS THE ONLY CONTROL. Measured 2026-09-11, not assumed:
+        // AIEP_INTERNAL_SECURITY_GROUP (sg-2bc0e25c) carries an `IpProtocol: -1` rule —
+        // every port — for ~30 internal CIDRs including the VPN subnet (10.50.1.0/24)
+        // and the workspace ranges (10.35.22-23.0/24). Security groups are additive, so
+        // NO rule added to DigitalBrainSG can narrow that, and the internal NLB in front
+        // supplies a stable hostname, NOT isolation: `curl http://10.35.20.84:8321`
+        // succeeds from any laptop on the VPN. Verified, do not re-derive.
+        //
+        // So this bind is defensible only while the password is set and strong. There is
+        // no network boundary behind it, and no TLS in front — Basic auth is base64, so
+        // the password crosses the wire in the clear. Weaker footing than s4pc-mcp's
+        // exception, which at least sits behind API Gateway TLS.
+        // See docs/dashboard-access-migration.md §3.1.
+        //
+        // The same finding is why brain-ui (8400) MUST stay on loopback: it has no
+        // authentication at all, so a wildcard bind there publishes it to all ~30 CIDRs.
         // S4PC_ACCESS_PASSWORD is a secret, supplied out-of-band, never in this file.
         // It is REFERENCED here rather than stored: `process.env` is read when pm2 parses
         // this file, so the value must be present in the shell that runs pm2 —
@@ -63,14 +72,18 @@ module.exports = {
       interpreter: 'python3.11',
       env: {
         S4PC_MODE: 'offline',
-        // The one sanctioned exception to the loopback rule (server.py: "override only
-        // when something in front terminates TLS and authenticates"). Valid ONLY while
-        // all three hold: API Gateway terminates TLS, S4PC_API_KEYS is set so /mcp
-        // returns 401 without a key, and the EC2 SG admits 3002 from the internal ALB's
-        // SG alone. Remove any one and this must go back to 127.0.0.1 — a wildcard bind
-        // with auth off is the 2026-09-03 exposure, which server.py audits as
-        // `insecure_bind`. S4PC_API_KEYS is a secret and is supplied out-of-band; it
-        // never appears in this file.
+        // Exception to the loopback rule (server.py: "override only when something in
+        // front terminates TLS and authenticates"). API Gateway does terminate TLS, and
+        // S4PC_API_KEYS makes /mcp return 401 without a key — but the third condition
+        // once claimed here, that the SG admits 3002 from the load balancer alone, was
+        // never true. Corrected 2026-09-11: AIEP_INTERNAL_SECURITY_GROUP (sg-2bc0e25c)
+        // has an `IpProtocol: -1` rule for ~30 internal CIDRs, so every port on this host
+        // is reachable from most of the internal network and no DigitalBrainSG rule can
+        // narrow it (SGs are additive). S4PC_API_KEYS is therefore the only thing between
+        // the internal network and this server's tools — it is not defence in depth.
+        // Keep it set, keep it strong. A wildcard bind with auth off is the 2026-09-03
+        // exposure, which server.py audits as `insecure_bind`. S4PC_API_KEYS is a secret
+        // supplied out-of-band; it never appears in this file.
         S4PC_MCP_HOST: '0.0.0.0',
         AWS_REGION: 'us-east-1',       // Bedrock Titan embeddings for search_brain
         // Layer 2 (semantic_search) embeds via Bedrock Titan rather than a local

@@ -3,9 +3,22 @@
 **Goal:** teammates open a URL on the Accenture network, log in, and run the pipeline. No
 Claude Code install, no Python, no keys, no AWS access.
 
-**Scope of work: one load balancer and one config change.** There is no rebuild. The pipeline
-already runs server-side against Bedrock, and the dashboard already has authentication. This
-document exists because the *sequencing* has a trap in it (§3).
+**Scope of work: one NLB listener and one config change.** There is no rebuild. The pipeline
+already runs server-side against Bedrock, and the dashboard already has authentication.
+
+**Status: done, 2026-09-11.** Live at
+`http://DigitBrain-ff204297f4ffd6c1.elb.us-east-1.amazonaws.com:8321`, user `team`.
+
+Two things went differently from the plan below, and both are worth reading before repeating
+any of it:
+
+- **§2 describes an ALB. We did not build one.** The VPC (`vpc-19c4027c`, 10.35.20.0/23) has
+  all three subnets in a single AZ, and an ALB hard-requires two. Rather than carve scarce
+  CIDR in a shared production VPC, we added a **TCP:8321 listener to the existing internal
+  NLB** (`DigitBrain`) with a TCP health check. Keep §2 for the ALB path if the VPC ever gains
+  an AZ; the NLB steps are what actually happened.
+- **The dashboard came up briefly with no authentication** (§3.2). Read that before deploying
+  anything else this way.
 
 ---
 
@@ -159,22 +172,44 @@ env: {
 },
 ```
 
-### 3.1 This deviates from the loopback rule as written — knowingly
+### 3.1 The password is the only control — measured, not assumed
 
 `server.py`'s rule is: override the loopback bind only behind something that **terminates TLS
-and authenticates**. The POC meets the authentication half and, with an HTTP listener, does
-not meet the TLS half. Say that out loud rather than let the comment imply otherwise — a
-security invariant that has quietly stopped being true is worse than one that was never
-claimed.
+and authenticates**. This deployment meets the authentication half and neither of the other
+two things one would hope for. Stated plainly, because a security invariant that has quietly
+stopped being true is worse than one never claimed:
 
-What carries the weight instead is the ALB's **internal scheme**: there is no internet path to
-it at all, so the exposure is bounded to the VPC and whoever the VPN admits. That is a
-genuinely different risk from the `s4pc-mcp` case, where API Gateway *is* internet-facing and
-TLS is doing real work.
+| Hoped-for control | Reality (verified 2026-09-11) |
+|---|---|
+| TLS in front | ❌ HTTP listener — Basic auth is base64, password in clear |
+| Load balancer is the only route in | ❌ `curl http://10.35.20.84:8321` succeeds from any VPN laptop |
+| SG admits 8321 from the NLB subnet alone | ❌ Cannot be made true — see below |
+| `S4PC_ACCESS_PASSWORD` set → 401 without it | ✅ Verified |
 
-This deviation closes when the HTTPS listener goes in (§2, step 3), which is the same change
-as Entra OIDC. Until then it is a POC-scoped compromise with a named trigger, not a new
-standard — do not cite it as precedent for binding anything else off loopback.
+The third line is not a misconfiguration to fix. `AIEP_INTERNAL_SECURITY_GROUP`
+(`sg-2bc0e25c`), attached to this instance, has an **`IpProtocol: -1`** rule — all protocols,
+all ports — for **~30 internal CIDRs**, including the VPN subnet (`10.50.1.0/24`) and the
+workspace ranges (`10.35.22.0/24`, `10.35.23.0/24`). Security groups are **additive**, so no
+rule added to `DigitalBrainSG` can subtract from it. That SG is central infrastructure — Qlik,
+Hexagon, Teamcenter, ARIS and AppStream connections all live in it, across 63 instances. Do
+not edit it.
+
+**So the honest posture:** the pipeline's approval controls are reachable by most of the
+Accenture internal network, protected by one shared Basic-auth password that travels in
+cleartext. The NLB supplies a stable hostname; it supplies no isolation.
+
+That is a defensible POC position with a small known group and a strong generated password. It
+is not a position to grow into. Two consequences:
+
+- **HTTPS is nearer-term than "someday."** The earlier argument — that HTTP is fine because
+  the exposed leg sits inside the VPN — assumed a small trusted segment. Thirty CIDRs
+  including "workspace users" is not that.
+- **Rotate the password when the POC group changes**, since it is the entire control and
+  everyone shares it.
+
+Do not cite this as precedent for binding anything else off loopback on this host. The same
+finding is why `brain-ui` (8400) must stay on `127.0.0.1`: it has no authentication at all,
+so loopback is the only thing keeping it off the internal network.
 
 **Do not make this change before the SG rule is in place, and never without
 `S4PC_ACCESS_PASSWORD` set in the same change.** This is the pipeline's *approval* surface —
@@ -182,10 +217,45 @@ CP1/CP2/CP3 live here. A wildcard bind with auth off does not merely expose a de
 anything routing to the box approve a checkpoint. That is the 2026-09-03 exposure with a worse
 blast radius.
 
-Restarting to pick it up has the same trap as the MCP server: `pm2 restart s4pc-webapp
---update-env` only carries `S4PC_ACCESS_PASSWORD` through if it is exported in *that* shell.
-If it is not, the restart strips it from the running process and leaves a wildcard bind with
-no password. Export it first, or restart without `--update-env`.
+**`pm2 restart --update-env` does not work for this.** The pm2 *daemon* carries the
+environment it started with, so exporting a variable in your shell never reaches the process.
+Pass it to pm2 itself, on the command:
+
+```bash
+pm2 delete s4pc-webapp
+S4PC_ACCESS_PASSWORD='…' pm2 start deploy/ecosystem.config.js --only s4pc-webapp
+pm2 save
+```
+
+`ecosystem.config.js` reads it via `process.env.S4PC_ACCESS_PASSWORD`, so the value must be
+present in the shell that invokes pm2 — and is still never stored in the file.
+
+### 3.2 What went wrong on 2026-09-11 — read before repeating this
+
+The first attempt used `pm2 restart deploy/ecosystem.config.js --only s4pc-webapp
+--update-env` with the password merely exported. **The app came up on `0.0.0.0` with
+authentication off**, and the NLB listener was already live, so for a few minutes the
+pipeline's approval controls were reachable unauthenticated by the whole internal network.
+
+What makes this worth writing down is how *convincing* the broken state looked:
+
+```
+$ ss -tlnp | grep 8321
+LISTEN 0 5 0.0.0.0:8321 ...        ← exactly what success looks like
+```
+
+The bind had changed. The process was online. `pm2 list` was green. Every signal an operator
+would naturally check said it had worked. Only an explicit `curl` for a **401** revealed it,
+and that check was the last step rather than the gate.
+
+**The fix was not a better runbook.** `webapp/app.py` now exits at startup if the bind is
+non-loopback and `S4PC_ACCESS_PASSWORD` is unset, printing `REFUSING TO START`. A warning
+would have been useless — the misleading evidence was already there. The bad state had to stop
+being *startable*.
+
+The general lesson for this host: when a deployment step's success signal is "the thing is
+listening", that signal cannot distinguish safe from unsafe. Make the unsafe variant fail to
+start, then the signal means something.
 
 ## 4. Verify before telling anyone the URL
 
