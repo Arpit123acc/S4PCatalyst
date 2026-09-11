@@ -23,6 +23,9 @@ webapp/data/btp-connections.json
 mcp-server/logs/
 mcp-server/vector/index.json
 mcp-server/vector/index.npy
+# a rebuild keeps the previous index alongside the new one (no trailing comments here —
+# gitignore treats them as part of the pattern, which silently matches nothing)
+mcp-server/vector/*.prev
 mcp-server/graph/graph.json
 mcp-server/catalog/catalog.db
 *.pyc
