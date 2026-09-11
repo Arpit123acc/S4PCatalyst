@@ -46,6 +46,26 @@ PORT = int(os.environ.get("S4PC_UI_PORT", "8321"))
 # mode, behaviour unchanged. Used for the "one shared machine" hosting option.
 ACCESS_USER = os.environ.get("S4PC_ACCESS_USER", "team")
 ACCESS_PASSWORD = os.environ.get("S4PC_ACCESS_PASSWORD", "")
+# Browser sessions, because Basic auth alone cannot serve a browser here: Chromium refuses
+# to show its credential prompt over plain HTTP (policy BasicAuthOverHttpEnabled), so the
+# 401 body renders as raw JSON and there is no way to log in. The Basic path is kept for
+# curl and scripts. Sessions are in-memory on purpose — a restart logging everyone out is
+# the right blast radius for a single-process POC, and session tokens never touch disk.
+SESSIONS = {}                       # token -> expiry epoch
+SESSION_TTL = 12 * 3600
+# Failed logins per client IP, as [count, window_start]. The password is the ONLY control
+# on this host (the SG grants every port to ~30 internal CIDRs — see deploy/
+# ecosystem.config.js), so an unthrottled login form is a standing invitation.
+#
+# 20, not 5, because this is effectively ONE SHARED BUCKET: the NLB target group has
+# client-IP preservation off, so every teammate arrives from the same NLB address and a
+# single person fumbling the password would lock out the whole team. 20 tries per 5 minutes
+# is ~240/hour against a 24-byte random password — not a threat — while leaving room for
+# several people to mistype on the same afternoon.
+LOGIN_FAILURES = {}
+LOGIN_MAX_FAILURES = 20
+LOGIN_WINDOW = 300
+_AUTH_LOCK = threading.Lock()
 STARTED_AT = time.time()
 
 # ------------------------------------------------ load the real MCP module ---
@@ -4022,6 +4042,53 @@ def run_tool(name, arguments):
 MIME = {".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "application/javascript",
         ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon"}
 
+def _prune_sessions():
+    """Caller holds _AUTH_LOCK."""
+    now = time.time()
+    for tok in [t for t, exp in SESSIONS.items() if exp <= now]:
+        SESSIONS.pop(tok, None)
+
+# Messages are fixed strings, never caller input, so they are safe to interpolate.
+LOGIN_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign in &middot; S4PC Catalyst</title>
+<style>
+ *{box-sizing:border-box} body{margin:0;min-height:100vh;display:flex;align-items:center;
+  justify-content:center;background:#0f1420;color:#e8edf5;
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+ .tile{width:100%%;max-width:380px;background:#171d2b;border:1px solid #252d3f;
+  border-radius:12px;padding:32px 30px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+ h1{margin:0 0 4px;font-size:19px;letter-spacing:-.2px}
+ .sub{margin:0 0 24px;color:#8b97ad;font-size:13px}
+ label{display:block;margin:0 0 6px;font-size:12px;color:#a8b3c7;text-transform:uppercase;
+  letter-spacing:.4px}
+ input{width:100%%;padding:10px 12px;margin:0 0 16px;background:#0f1420;color:#e8edf5;
+  border:1px solid #2c3548;border-radius:7px;font-size:14px}
+ input:focus{outline:none;border-color:#4a7cf7;box-shadow:0 0 0 3px rgba(74,124,247,.15)}
+ button{width:100%%;padding:11px;background:#3b6ef5;color:#fff;border:0;border-radius:7px;
+  font-size:14px;font-weight:600;cursor:pointer}
+ button:hover{background:#3160e8}
+ .err{margin:0 0 16px;padding:9px 12px;background:rgba(232,76,76,.12);
+  border:1px solid rgba(232,76,76,.35);border-radius:7px;color:#ff9b9b;font-size:13px}
+ .foot{margin:20px 0 0;color:#6b7689;font-size:11px;text-align:center;line-height:1.6}
+</style></head><body>
+<form class="tile" method="POST" action="/login">
+  <h1>S4PC Catalyst</h1>
+  <p class="sub">Clean-core delivery pipeline</p>
+  %s
+  <label for="u">Username</label>
+  <input id="u" name="user" autocomplete="username" autofocus required>
+  <label for="p">Password</label>
+  <input id="p" name="password" type="password" autocomplete="current-password" required>
+  <button type="submit">Sign in</button>
+  <p class="foot">Shared account &middot; approvals are recorded against this login</p>
+</form></body></html>
+"""
+
+def _login_page(error=""):
+    return LOGIN_PAGE % ('<p class="err">%s</p>' % error if error else "")
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "S4PC-Catalyst/1.0"
 
@@ -4041,11 +4108,24 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _session_token(self):
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == "s4pc_session":
+                return value
+        return None
+
     def _authorized(self):
         if not ACCESS_PASSWORD:
             return True                        # no password set → open (local single-user mode)
         import base64, hmac
-        hdr = self.headers.get("Authorization", "")
+        tok = self._session_token()            # the browser path
+        if tok:
+            with _AUTH_LOCK:
+                if SESSIONS.get(tok, 0) > time.time():
+                    return True
+                SESSIONS.pop(tok, None)
+        hdr = self.headers.get("Authorization", "")   # curl / scripts
         if hdr.startswith("Basic "):
             try:
                 user, _, pw = base64.b64decode(hdr[6:]).decode("utf-8", "replace").partition(":")
@@ -4056,18 +4136,87 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def _auth_challenge(self):
-        body = b'{"error":"Authentication required"}'
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="S4PC Catalyst"')
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
+        # 401 either way — the status stays honest so scripted callers and the deploy
+        # checks can still branch on it. Only the body differs: a page a person can log
+        # in with, or JSON a fetch() can read. WWW-Authenticate is sent only on /api/,
+        # since a browser that DID honour it would pop a prompt over the form.
+        if self.path.split("?")[0].startswith("/api/"):
+            body = b'{"error":"Authentication required"}'
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="S4PC Catalyst"')
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except Exception:
+                pass
+            return
+        self._send(401, _login_page(), "text/html; charset=utf-8")
+
+    def _login_throttled(self, ip):
+        with _AUTH_LOCK:
+            count, started = LOGIN_FAILURES.get(ip, (0, 0.0))
+            if time.time() - started > LOGIN_WINDOW:
+                LOGIN_FAILURES.pop(ip, None)
+                return False
+            return count >= LOGIN_MAX_FAILURES
+
+    def _login_record(self, ip, ok):
+        with _AUTH_LOCK:
+            if ok:
+                LOGIN_FAILURES.pop(ip, None)
+                return
+            count, started = LOGIN_FAILURES.get(ip, (0, time.time()))
+            if time.time() - started > LOGIN_WINDOW:
+                count, started = 0, time.time()
+            LOGIN_FAILURES[ip] = (count + 1, started)
+
+    def _do_login(self):
+        import hmac, secrets
+        ip = self.client_address[0]
+        if self._login_throttled(ip):
+            MCP.audit("ui_login", {"ip": ip, "ok": False, "reason": "throttled"})
+            return self._send(429, _login_page("Too many attempts. Wait a minute, then try again."),
+                              "text/html; charset=utf-8")
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length).decode("utf-8", "replace") if length else ""
+        form = urllib.parse.parse_qs(raw)
+        user = (form.get("user") or [""])[0]
+        pw = (form.get("password") or [""])[0]
+        ok = hmac.compare_digest(user, ACCESS_USER) and hmac.compare_digest(pw, ACCESS_PASSWORD)
+        self._login_record(ip, ok)
+        MCP.audit("ui_login", {"user": user, "ip": ip, "ok": ok})
+        if not ok:
+            return self._send(401, _login_page("Incorrect username or password."),
+                              "text/html; charset=utf-8")
+        token = secrets.token_urlsafe(32)
+        with _AUTH_LOCK:
+            SESSIONS[token] = time.time() + SESSION_TTL
+            _prune_sessions()
+        self.send_response(303)
+        self.send_header("Location", "/")
+        # No Secure flag: the listener is plain HTTP today, and a Secure cookie would
+        # simply never be sent. Add it in the same change that adds TLS.
+        self.send_header("Set-Cookie", "s4pc_session=%s; HttpOnly; SameSite=Lax; Path=/; Max-Age=%d"
+                         % (token, SESSION_TTL))
+        self.send_header("Content-Length", "0")
         self.end_headers()
-        try:
-            self.wfile.write(body)
-        except Exception:
-            pass
+
+    def _do_logout(self):
+        tok = self._session_token()
+        if tok:
+            with _AUTH_LOCK:
+                SESSIONS.pop(tok, None)
+        self.send_response(303)
+        self.send_header("Location", "/")
+        self.send_header("Set-Cookie", "s4pc_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_GET(self):
+        if self.path.split("?")[0] == "/logout":        # before the gate: it ends a session
+            return self._do_logout()
         if self.path.split("?")[0] == "/favicon.ico":   # silence the browser's automatic favicon 404
             self.send_response(204)
             self.end_headers()
@@ -4087,6 +4236,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(500, {"error": str(exc)})
 
     def do_POST(self):
+        if self.path.split("?")[0] == "/login":     # before the gate: it establishes a session
+            return self._do_login()
         if not self._authorized():
             return self._auth_challenge()
         with _LOCK:
