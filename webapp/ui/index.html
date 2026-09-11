@@ -1708,6 +1708,11 @@ function normalizeFinding(f){
     established:f.established||f.already_established||f.tool_findings||"",
     resolution:f.resolution||f.action||f.fix||f.recommendation||"",
     verify:f.verify||f.how_to_verify||"",
+    // Only a 'defect' is a shortcoming of the delivery. config / verification / decision are
+    // inputs the delivery is waiting on, and showing them identically makes a normal run look
+    // unfinished. Runs written before kind existed have none, so fall back to defect and read
+    // the same as they always did.
+    kind:(f.kind||"defect").toLowerCase(),
     status:f.status||(resolved?"Resolved":"Open"),
     _raw:f                                  // keep the original for developer_input / resolution_applied
   };
@@ -1716,10 +1721,21 @@ function renderFindings(){
   const raw=EX_RUN.findings||[];
   const all=raw.map(normalizeFinding);
   const sevs=["All","Critical","Major","Minor","Info"];
+  // Count DEFECTS separately. "28 findings, 24 open" reads as a failing delivery when most of
+  // them are tenant confirmations and client questions — which are inputs the delivery is
+  // waiting on, not shortcomings in it.
+  const nDef=all.filter(f=>f.kind==="defect"&&f.status!=="Resolved").length;
+  const nOther=all.filter(f=>f.kind!=="defect"&&f.status!=="Resolved").length;
   $("#ex-sev-tabs").innerHTML=sevs.map(s=>{
     const n=s==="All"?all.length:all.filter(f=>f.severity===s).length;
-    return "<button class='"+(s===EX_SEV?"on":"")+"' onclick='EX_SEV=\""+s+"\";renderFindings()'>"+s+" ("+n+")</button>"}).join("");
+    return "<button class='"+(s===EX_SEV?"on":"")+"' onclick='EX_SEV=\""+s+"\";renderFindings()'>"+s+" ("+n+")</button>"}).join("")
+    +(nOther?"<span style='margin-left:12px;font-size:.72rem;color:var(--muted)'>"+
+      nDef+" open defect"+(nDef===1?"":"s")+" &middot; "+nOther+
+      " awaiting tenant confirmation or a client answer</span>":"");
   const sevChip={Critical:"red",Major:"amber",Minor:"amber",Info:"blue"};
+  const KIND={config:["Config","#7c3aed","belongs in the configuration contract"],
+              verification:["Verify in tenant","#0ea5e9","belongs in the Tenant Verification Checklist"],
+              decision:["Client decision","#b45309","waiting on a business or scope answer"]};
   $("#ex-findings").innerHTML=all.filter(f=>EX_SEV==="All"||f.severity===EX_SEV).map(f=>{
     var verifyHtml=f.verify?"<div style='font-size:.68rem;color:var(--muted);margin-top:3px'>Verify: "+esc(f.verify)+"</div>":"";
     // Already answered by the tools — surfaced so a Major finding whose value the catalog supplied
@@ -1731,9 +1747,13 @@ function renderFindings(){
       (raw.developer_input_file?" <span style='color:var(--muted)'>("+esc(raw.developer_input_file)+")</span>":"")+": "+esc(raw.developer_input)+"</div>":"";
     var applied=raw.resolution_applied?"<div style='font-size:.68rem;margin-top:4px;border-left:3px solid var(--green,#16a34a);padding-left:6px;color:var(--ink)'><b>Applied</b>: "+esc(raw.resolution_applied)+"</div>":"";
     var stChip=f.status==="Resolved"?"green":(f.status==="Accepted"?"blue":"amber");
+    var k=KIND[f.kind];
+    var kindChip=k?"<div style='margin-top:4px'><span title='"+esc(k[2])+"' style='background:"+k[1]+
+      ";color:#fff;border-radius:4px;padding:1px 6px;font-size:.6rem;font-weight:700;white-space:nowrap'>"+
+      esc(k[0])+"</span></div>":"";
     return "<tr>"+
       "<td><b>"+esc(f.id)+"</b></td>"+
-      "<td><span class='chip "+(sevChip[f.severity]||"gray")+"'>"+esc(f.severity||"—")+"</span></td>"+
+      "<td><span class='chip "+(sevChip[f.severity]||"gray")+"'>"+esc(f.severity||"—")+"</span>"+kindChip+"</td>"+
       "<td style='white-space:nowrap;font-size:.72rem'>"+esc(f.source)+"</td>"+
       "<td>"+esc(f.description)+estHtml+yours+applied+"</td>"+
       "<td style='color:var(--muted)'>"+esc(f.resolution)+verifyHtml+"</td>"+
