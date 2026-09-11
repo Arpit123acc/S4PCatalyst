@@ -473,6 +473,33 @@ def list_runs():
             manifest = os.path.join(out_dir, name, "run.json")
             data = read_json(manifest)
             if not data:
+                # A run whose manifest will not parse must NOT silently disappear. The folder
+                # and every deliverable in it still exist, but `continue` makes the run
+                # indistinguishable from a deleted one in the UI — so the natural response is
+                # to re-run, throwing away work that is sitting on disk. Observed 2026-09-11:
+                # the model wrote run.json with a missing `},` between two steps, and a run
+                # that had completed Gate 2 simply vanished.
+                #
+                # read_json already salvages trailing junk via raw_decode; reaching here means
+                # the break is structural and mid-file, so surface it for repair instead.
+                if os.path.isfile(manifest):
+                    try:
+                        with open(manifest, encoding="utf-8") as _mf:
+                            json.load(_mf)
+                        _why = "run.json is empty"
+                    except Exception as _exc:
+                        _why = str(_exc)
+                    runs.append({
+                        "id": name, "folder": name, "title": name,
+                        "status": "unreadable", "manifest_error": _why,
+                        "workflow": "RICEFW Pipeline (12 steps)",
+                        "type": "—", "steps": [], "findings": [], "deliverables": [],
+                        "human_approvals": [], "gates_passed": "—", "quality_score": None,
+                        "files": sorted(
+                            f for f in os.listdir(os.path.join(out_dir, name))
+                            if not f.startswith(".")
+                            and os.path.isfile(os.path.join(out_dir, name, f))),
+                    })
                 continue
             data["folder"] = name
             # A run is the 14-step BTP variant when a deployable side-by-side solution was chosen:
@@ -3094,6 +3121,20 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
         return None, ("Claude Code CLI not found on PATH. Install/log in to Claude Code on this "
                       "machine, or set S4PC_CLAUDE_BIN to its full path. (Fallback: copy the "
                       "pipeline command from the FD card and run it in interactive Claude Code.)")
+    # Snapshot the manifest before handing it to the model. The webapp writes run.json
+    # through write_json_atomic, but the ENGINE edits it with the plain Write/Edit tool —
+    # no atomicity, no JSON validation — so one malformed edit takes the whole run's state
+    # with it. That happened 2026-09-11: a missing `},` between two steps left a run that
+    # had already passed Gate 2 unreadable. This costs one file copy per phase and turns
+    # "re-run everything" into "restore and retry the phase".
+    if run_id:
+        _man = os.path.join(ROOT_DIR, "output", run_id, "run.json")
+        try:
+            if os.path.isfile(_man) and read_json(_man):      # never snapshot a broken one
+                import shutil as _sh_snap
+                _sh_snap.copyfile(_man, _man + ".last-good")
+        except OSError:
+            pass                                              # insurance, never a blocker
     job_id = uuid.uuid4().hex[:10]
     log_path = os.path.join(ENGINE_LOG_DIR, "pipeline-%s.log" % job_id)
     log_fh = open(log_path, "w", encoding="utf-8")
@@ -3140,10 +3181,28 @@ def _spawn_claude(prompt, fd, kind, run_id=None):
             pass
         exit_code = proc.poll()
         duration_s = int(time.time() - _phase_started)
+        # Did the phase leave a readable manifest? A phase can exit 0 having corrupted
+        # run.json, and nothing downstream notices until the UI or run_status.sh chokes on
+        # it — by which time the cause is several steps back. Checked here so the audit
+        # log names the phase that broke it, and points at the snapshot taken on spawn.
+        _manifest_ok, _manifest_err = True, ""
+        if run_id:
+            _man_p = os.path.join(ROOT_DIR, "output", run_id, "run.json")
+            if os.path.isfile(_man_p):
+                try:
+                    with open(_man_p, encoding="utf-8") as _mf:
+                        json.load(_mf)
+                except Exception as _mexc:
+                    _manifest_ok, _manifest_err = False, str(_mexc)
+                    sys.stderr.write(
+                        "[engine] run.json is NOT valid JSON after phase %s of %s: %s"
+                        " — last good copy is run.json.last-good\n"
+                        % (kind, run_id, _manifest_err))
         MCP.audit("pipeline_phase_completed", {
             "job": job_id, "run": run_id or "", "kind": kind, "fd": fd,
             "exit_code": exit_code, "duration_s": duration_s,
-            "ok": exit_code == 0
+            "ok": exit_code == 0,
+            "manifest_ok": _manifest_ok, "manifest_error": _manifest_err,
         })
         _record_run_usage(run_id, job_id, kind, log_path, fd)
         # Rebuild the vector index when a pipeline run completes so new experience
