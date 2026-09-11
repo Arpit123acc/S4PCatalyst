@@ -974,6 +974,10 @@ async function submitKeepRejected(runId,checkpoint){
 }
 function updateFindingsReview(){
   // Only Critical and Major findings are mandatory — Minor/Info are advisory (optional).
+  // CP1 and CP2 render the same cards without the gating button: answering there is offered,
+  // not required. With no #fr-submit-btn there is nothing to gate, so leave early rather than
+  // disable a button belonging to a different checkpoint.
+  if(!document.getElementById("fr-submit-btn"))return;
   var cp=(EX_RUN||{}).checkpoint_request||{};
   var findings=cp.findings_review||[];
   var allMandatoryDone=true;
@@ -1010,6 +1014,68 @@ async function submitFindingsReview(runId,checkpoint){
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"resumed"):"✕ "+(r.error||"failed");
   loadJobs();
 }
+// The finding cards, without the surrounding chrome, so CP1 and CP2 can show the questions
+// their own steps raised instead of every one of them landing on CP3 at once. `blocking` is
+// true only at CP3: there the decisions gate the approval, and there the submit button is
+// wired to them. At CP1/CP2 the panel is offered, never required — answering early removes
+// the item from CP3, ignoring it changes nothing. Additive by design, so no run can strand
+// on a control that did not exist when it started.
+function findingsCardsHTML(cp,blocking){
+  var fs=cp.findings_review||[];
+  if(!fs.length)return "";
+  var mandatory=fs.filter(function(f){var s=(f.severity||"").toLowerCase();return s==="critical"||s==="major";}).length;
+  var advisory=fs.length-mandatory;
+  var h=blocking
+    ? "<div style='background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:.8rem;color:var(--ink)'>"+
+      "<b>Action required before pipeline can continue.</b><br>"+
+      "<span style='color:#721c24'>Critical and Major findings ("+mandatory+") must each have a decision — fix or accept.</span>"+
+      (advisory?" Minor findings ("+advisory+") are advisory — no action required.":"")+"</div>"
+    : "<div style='background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:.8rem;color:var(--ink)'>"+
+      "<b>"+fs.length+" open question"+(fs.length===1?"":"s")+" raised by the steps behind this checkpoint.</b><br>"+
+      "Answering here settles them now, while the design is still cheap to change. Anything you "+
+      "leave will come back at CP3 — this is optional, not a blocker.</div>";
+  h+="<div style='display:flex;flex-direction:column;gap:10px;margin:8px 0'>";
+  var KINDL={config:["Config","#7c3aed"],verification:["Verify in tenant","#0ea5e9"],
+             decision:["Client decision","#b45309"],defect:["Defect","#dc3545"]};
+  fs.forEach(function(f,fi){
+    var sev=(f.severity||""),sevLow=sev.toLowerCase();
+    var isMandatory=blocking&&(sevLow==="critical"||sevLow==="major");
+    var sevBg=sevLow==="critical"?"#dc3545":sevLow==="major"?"#fd7e14":"#adb5bd";
+    var k=KINDL[(f.kind||"defect")]||KINDL.defect;
+    h+="<div style='border:1.5px solid "+(isMandatory?"#dc3545":"#dee2e6")+";border-radius:9px;padding:12px 14px;background:#fff'>"+
+       "<div style='display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap'>"+
+       "<span style='background:"+sevBg+";color:"+(sevLow==="critical"?"#fff":"#000")+";border-radius:6px;padding:2px 8px;font-size:.68rem;font-weight:700'>"+esc(sev)+"</span>"+
+       "<b style='font-size:.82rem'>"+esc(f.id||("F-"+(fi+1)))+"</b>"+
+       "<span style='background:"+k[1]+";color:#fff;border-radius:4px;padding:1px 7px;font-size:.6rem;font-weight:700'>"+esc(k[0])+"</span>"+
+       (f.source?"<span style='font-size:.66rem;color:var(--muted)'>from "+esc(f.source)+"</span>":"")+
+       (isMandatory?"<span style='color:#dc3545;font-size:.68rem;font-weight:700'>ACTION REQUIRED</span>":"")+"</div>"+
+       "<p style='font-size:.78rem;margin-bottom:6px'><b>What is wrong:</b> "+esc(f.what_is_wrong||"")+"</p>"+
+       "<p style='font-size:.78rem;margin-bottom:6px'><b>What you need to do:</b> "+esc(f.what_to_do||"")+"</p>"+
+       "<p style='font-size:.78rem;margin-bottom:8px'><b>How to verify:</b> "+esc(f.how_to_verify||"")+"</p>"+
+       "<div style='display:flex;gap:14px;font-size:.78rem;margin-bottom:6px;flex-wrap:wrap'>"+
+       "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='fr-action-"+fi+"' value='fix' onchange='updateFindingsReview()'"+(f.action==="fix"?" checked":"")+"> I will fix this before shipping</label>"+
+       "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='fr-action-"+fi+"' value='accept' onchange='updateFindingsReview()'"+(f.action==="accept"?" checked":"")+">"+(isMandatory?"I accept this risk (add justification below)":"I accept / answered")+"</label>"+
+       "</div>"+
+       "<input type='text' id='fr-notes-"+fi+"' placeholder='"+(isMandatory?"Justification required if accepting risk":"Your answer or note")+"' style='font-size:.78rem;padding:5px 8px;width:100%' value='"+esc(f.notes||"")+"'>"+
+       "</div>";
+  });
+  return h+"</div>";
+}
+// Collect whatever the cards hold. Shared by every checkpoint that renders them.
+function collectFindingsActions(){
+  var cp=(EX_RUN||{}).checkpoint_request||{};
+  return (cp.findings_review||[]).map(function(f,fi){
+    var sel=document.querySelector("input[name='fr-action-"+fi+"']:checked");
+    var n=document.getElementById("fr-notes-"+fi);
+    return {id:f.id,action:sel?sel.value:null,notes:n?n.value:""};
+  }).filter(function(x){return x.action;});
+}
+async function postFindingsActions(runId){
+  var items=collectFindingsActions();
+  if(!items.length)return;
+  await fetch("/api/pipeline/findings-review",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,findings:items})}).catch(function(){});
+}
 function checkpointHtml(r,cp){
   // The review material used to be a bare link with nowhere to respond: a reviewer who wanted a
   // change to the DOCUMENT (not to a code file) had no way to say so, even though the checkpoint
@@ -1023,6 +1089,7 @@ function checkpointHtml(r,cp){
     "<h3>✋ "+esc(cp.checkpoint||"Checkpoint")+" — your decision is needed</h3>"+
     "<p style='margin:8px 0;color:var(--ink);font-size:.84rem'>"+esc(cp.summary||"")+"</p>"+mat;
   if(Array.isArray(cp.code_files)&&cp.code_files.length){
+    h+=findingsCardsHTML(cp,false);   // questions steps 5-7 raised, answerable here
     var nBlocked=cp.code_files.filter(function(it){return (it.blockers||[]).length;}).length;
     h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>"+(nBlocked
         ? "<span style='color:#b45309'>"+nBlocked+" file"+(nBlocked>1?"s":"")+" below need a comment before this can proceed.</span> Every other comment is optional — leave blank to accept."
@@ -1055,6 +1122,7 @@ function checkpointHtml(r,cp){
        "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }else if(Array.isArray(cp.naming_contract)&&cp.naming_contract.length){
     h+=renderApproachOptions(cp.approach_options,cp.selected_approach);
+    h+=findingsCardsHTML(cp,false);   // questions steps 1-4 raised, answerable here
     h+="<p style='font-size:.8rem;font-weight:600;margin:8px 0 2px'>Confirm the exact technical name for each custom object — edit to match your tenant conventions, Build uses these verbatim:</p>";
     if(Array.isArray(cp.approach_options)&&cp.approach_options.length>1)
       h+="<p style='font-size:.72rem;color:var(--muted);margin:0 0 6px'>Names below match the selected approach. Switch approach above and the list updates automatically.</p>";
@@ -1090,39 +1158,7 @@ function checkpointHtml(r,cp){
        "<span id='prereq-count' style='font-size:.78rem;color:var(--muted)'></span>"+
        "<span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }else if(Array.isArray(cp.findings_review)&&cp.findings_review.length){
-    var mandatoryCount=cp.findings_review.filter(function(f){var s=(f.severity||"").toLowerCase();return s==="critical"||s==="major";}).length;
-    var advisoryCount=cp.findings_review.length-mandatoryCount;
-    h+="<div style='background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:.8rem;color:var(--ink)'>"+
-       "<b>Action required before pipeline can continue.</b><br>"+
-       "<span style='color:#721c24'>Critical and Major findings ("+mandatoryCount+") must each have a decision — fix or accept.</span>"+
-       (advisoryCount?" Minor findings ("+advisoryCount+") are advisory — no action required.":"")+
-       "</div>";
-    h+="<div style='display:flex;flex-direction:column;gap:10px;margin:8px 0'>";
-    cp.findings_review.forEach(function(f,fi){
-      var sev=(f.severity||"");
-      var sevLow=sev.toLowerCase();
-      var isMandatory=(sevLow==="critical"||sevLow==="major");
-      var sevBg=sevLow==="critical"?"#dc3545":sevLow==="major"?"#fd7e14":"#adb5bd";
-      var sevTextCol=sevLow==="critical"?"#fff":"#000";
-      var borderCol=isMandatory?"#dc3545":"#dee2e6";
-      var fixChk=(f.action==="fix")?" checked":"";
-      var accChk=(f.action==="accept")?" checked":"";
-      var requiredLabel=isMandatory?"<span style='color:#dc3545;font-size:.68rem;font-weight:700;margin-left:6px'>ACTION REQUIRED</span>":"<span style='color:#6c757d;font-size:.68rem;margin-left:6px'>advisory</span>";
-      h+="<div style='border:1.5px solid "+borderCol+";border-radius:9px;padding:12px 14px;background:#fff'>"+
-         "<div style='display:flex;gap:8px;align-items:center;margin-bottom:8px'>"+
-         "<span style='background:"+sevBg+";color:"+sevTextCol+";border-radius:6px;padding:2px 8px;font-size:.68rem;font-weight:700'>"+esc(sev||"")+"</span>"+
-         "<b style='font-size:.82rem'>"+esc(f.id||("F-"+(fi+1)))+"</b>"+requiredLabel+"</div>"+
-         "<p style='font-size:.78rem;margin-bottom:6px'><b>What is wrong:</b> "+esc(f.what_is_wrong||"")+"</p>"+
-         "<p style='font-size:.78rem;margin-bottom:6px'><b>What you need to do:</b> "+esc(f.what_to_do||"")+"</p>"+
-         "<p style='font-size:.78rem;margin-bottom:8px'><b>How to verify:</b> "+esc(f.how_to_verify||"")+"</p>"+
-         "<div style='display:flex;gap:14px;font-size:.78rem;margin-bottom:6px;flex-wrap:wrap'>"+
-         "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='fr-action-"+fi+"' value='fix' onchange='updateFindingsReview()'"+fixChk+"> I will fix this before shipping</label>"+
-         "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='fr-action-"+fi+"' value='accept' onchange='updateFindingsReview()'"+accChk+">"+(isMandatory?"I accept this risk (add justification below)":"I accept / no action needed")+"</label>"+
-         "</div>"+
-         "<input type='text' id='fr-notes-"+fi+"' placeholder='"+(isMandatory?"Justification required if accepting risk":"Notes (optional)")+"' style='font-size:.78rem;padding:5px 8px;width:100%' value='"+esc(f.notes||"")+"'>"+
-         "</div>";
-    });
-    h+="</div>";
+    h+=findingsCardsHTML(cp,true);
     h+="<p id='fr-validation-msg' style='font-size:.72rem;color:#dc3545;font-weight:600;margin:6px 0'></p>"+
        "<textarea id='cp-notes' style='min-height:44px' placeholder='Overall notes (optional)'></textarea>"+
        "<div style='margin-top:10px;display:flex;gap:10px;align-items:center'>"+
@@ -1188,6 +1224,8 @@ async function submitCodeReview(runId,checkpoint){
     }
   }
   var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Recording review + resuming…";
+  // Findings answered on this checkpoint's panel, so they do not resurface at CP3.
+  await postFindingsActions(runId);
   await fetch("/api/pipeline/comments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,comments:comments})}).catch(function(){});
   var notes=(dec==="adjusted")?("Code review — changes requested:\n"+lines.join("\n")):(dec==="rejected"?"Code review — rejected.":"Code review — approved as-is."+(lines.length?"\nMinor comments:\n"+lines.join("\n"):""));
   if(overall)notes+="\nOverall: "+overall;
@@ -1297,6 +1335,9 @@ async function submitNaming(runId,checkpoint){
   }
   if(_cfgItems().length)
     await fetch("/api/pipeline/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,values:_cfgValues()})});
+  // Answered findings, posted AFTER the configuration values: a config finding closes when
+  // the CFG-nn value it names exists, so the values have to land first.
+  await postFindingsActions(runId);
   var notes=(document.getElementById("cp-notes")||{}).value||"Custom-object names confirmed and locked.";
   const r=await fetch("/api/pipeline/decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:withMaterialNote(notes),selected_approach:selectedApproach})}).then(x=>x.json());
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"approved"):"✕ "+(r.error||"failed");

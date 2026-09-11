@@ -449,6 +449,13 @@ def _derive_findings_review(data):
             continue
         if (f.get("status") or "").strip().lower() in ("resolved", "accepted", "closed"):
             continue
+        # A tenant confirmation is not a decision anyone can take at a checkpoint — it is
+        # settled by opening ADT or the tenant, and it lives in the Tenant Verification
+        # Checklist. Putting it here forces a fix/accept choice on a question the developer
+        # cannot answer from this screen, which is how the panel filled with items nobody
+        # could action. Defects, configuration values and business decisions remain.
+        if (f.get("kind") or "defect").strip().lower() == "verification":
+            continue
         out.append({
             "id": f.get("id"),
             "severity": f.get("severity"),
@@ -457,11 +464,94 @@ def _derive_findings_review(data):
             "what_to_do": (f.get("what_to_do") or f.get("recommendation")
                            or f.get("resolution") or ""),
             "how_to_verify": f.get("how_to_verify") or "",
+            "kind": (f.get("kind") or "defect").strip().lower(),
+            "source": f.get("source") or "",
+            "owner_cp": _owning_checkpoint(f.get("source")),
             # Carry any decision already on the finding so an earlier round is not lost.
             "action": f.get("action"),
             "notes": f.get("notes") or "",
         })
     return out
+
+
+def _findings_panel_for(data, checkpoint):
+    """The findings this checkpoint should put in front of the developer.
+
+    A checkpoint owns the findings raised by its own steps, PLUS anything an earlier
+    checkpoint should have settled and did not — so nothing is lost if a question was
+    raised before the panel existed, and nothing is asked twice once answered. Resolved
+    items are already filtered out upstream, so answering at CP1 removes it from CP2 and
+    CP3 rather than repeating it three times.
+    """
+    m = re.search(r"CP\s*(\d+)", str(checkpoint or ""), re.I)
+    if not m:
+        return []
+    here = "CP" + m.group(1)
+    order = {"CP1": 1, "CP2": 2, "CP3": 3}
+    rank = order.get(here, 3)
+    return [f for f in _derive_findings_review(data)
+            if order.get(f.get("owner_cp") or "CP3", 3) <= rank]
+
+
+def _owning_checkpoint(source):
+    """Which checkpoint should settle a finding raised by `source` ('Step 3', 'Gate 2', …).
+
+    CP1 covers steps 1-4, CP2 covers 5-7, CP3 covers 8-11. A question raised at Step 1 is
+    answerable at Step 1 — carrying it to CP3 means the developer meets it once the code is
+    already written, which is the wrong moment to learn the report was scoped wrongly.
+    Unrecognised sources fall to CP3: better asked late than never.
+    """
+    src = str(source or "")
+    # "Gate 2" is step 7, not step 2 — the gates number 1-3 on their own scale and reading
+    # the digit as a step number files every Gate 2 finding under CP1.
+    g = re.search(r"\bgate\s*(\d+)", src, re.I)
+    if g:
+        return {"1": "CP1", "2": "CP2", "3": "CP3"}.get(g.group(1), "CP3")
+    m = re.search(r"(\d+)", src)
+    if not m:
+        return "CP3"
+    n = int(m.group(1))
+    return "CP1" if n <= 4 else ("CP2" if n <= 7 else "CP3")
+
+_CFG_REF_RE = re.compile(r"\bCFG-(\d+)\b", re.I)
+
+def _autoresolve_config_findings(data):
+    """Close kind='config' findings whose CFG-nn values the human has already supplied.
+
+    A config finding says 'supply the row cap in CFG-06'. Once CFG-06 carries a value in the
+    configuration contract, the finding IS answered — there is nothing further for anyone to
+    do. Leaving it Open means the developer sees the same question at CP3 that they answered
+    at CP1, and the answer is sitting one panel away. Mutates `data`; returns how many closed.
+    """
+    values = {}
+    for dec in (data.get("human_approvals") or []):
+        for item in (dec.get("config_contract") or []):
+            v = str(item.get("value") or "").strip()
+            if v:
+                values[str(item.get("id") or "").strip().upper()] = v
+    for item in ((data.get("checkpoint_request") or {}).get("config_contract") or []):
+        v = str(item.get("value") or "").strip()
+        if v:
+            values.setdefault(str(item.get("id") or "").strip().upper(), v)
+    if not values:
+        return 0
+    closed = 0
+    for f in (data.get("findings") or []):
+        if (f.get("kind") or "").strip().lower() != "config":
+            continue
+        if (f.get("status") or "Open").strip().lower() in ("resolved", "accepted", "closed"):
+            continue
+        refs = {("CFG-" + g) for g in _CFG_REF_RE.findall(
+            "%s %s" % (f.get("resolution") or "", f.get("description") or ""))}
+        supplied = {r: values[r] for r in refs if r in values}
+        # Every CFG- it names must be answered. A finding needing CFG-07 AND CFG-08 is not
+        # settled by CFG-07 alone.
+        if refs and len(supplied) == len(refs):
+            f["status"] = "Resolved"
+            f["resolution_applied"] = "Supplied in the configuration contract: " + "; ".join(
+                "%s = %s" % (k, supplied[k]) for k in sorted(supplied))
+            closed += 1
+    return closed
 
 
 def list_runs():
@@ -538,9 +628,18 @@ def list_runs():
             # renders an empty panel, so the developer cannot record fix/accept and the
             # CP3 gate blocks on decisions the UI has no way to collect. Derive them from
             # findings[]. Display only — pipeline_findings_review persists the choices.
-            if _cp and "CP3" in str(_cp.get("checkpoint") or "") \
-                    and not (_cp.get("findings_review") or []):
-                _derived = _derive_findings_review(data)
+            # Close config findings whose values the human already supplied, BEFORE deriving
+            # any panel — otherwise a question answered in the CP1 configuration contract is
+            # put back in front of them at CP2 and again at CP3.
+            if _cp:
+                _autoresolve_config_findings(data)
+            # Every checkpoint gets the findings it owns (CP1 → steps 1-4, CP2 → 5-7,
+            # CP3 → 8-11) plus anything an earlier one left unsettled. Previously only CP3
+            # derived a panel, so a scope question raised at Step 1 first reached the
+            # developer after the code was written — too late to act on cheaply — and every
+            # earlier finding piled up there at once.
+            if _cp and not (_cp.get("findings_review") or []):
+                _derived = _findings_panel_for(data, _cp.get("checkpoint"))
                 if _derived:
                     _cp = dict(_cp)
                     _cp["findings_review"] = _derived
@@ -3765,6 +3864,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
             _resuming = False
     if decision == "approved" and "CP3" in (checkpoint or "") and not _resuming:
         _rj_now = read_json(os.path.join(run_dir, "run.json")) or {}
+        _autoresolve_config_findings(_rj_now)   # a value supplied at CP1 must not block CP3
         _decided = {}
         for _f in (_cpreq.get("findings_review") or []):
             if _f.get("id"):
@@ -3776,6 +3876,13 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
             _status = (_f.get("status") or "").strip().lower()
             if _status in ("resolved", "accepted", "closed"):
                 continue                      # already dealt with — nothing to decide
+            # Tenant confirmations are excluded from the panel (nobody can settle them from
+            # this screen), so demanding a decision on one here would be unsatisfiable — the
+            # gate would refuse and offer no control to satisfy it. They ride the Tenant
+            # Verification Checklist instead. Keep this in step with _derive_findings_review:
+            # a kind filtered out of the panel must be filtered out of the gate.
+            if (_f.get("kind") or "defect").strip().lower() == "verification":
+                continue
             _fid = str(_f.get("id") or "?")
             # A decision may live on the checkpoint entry (the panel) or on the finding itself
             # (an earlier round already actioned it). Either is acceptable evidence.
