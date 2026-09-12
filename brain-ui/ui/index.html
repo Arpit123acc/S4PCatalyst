@@ -228,6 +228,23 @@
     <div id="results"></div>
   </div>
 
+  <div class="card" style="margin-bottom:16px">
+    <h2>Trace a question through all four layers</h2>
+    <p class="cap">The same question put to every layer in turn, with what each one returned and
+      what it cost. L2 and L4 surface candidate objects, L1 expands one into its neighbourhood,
+      L3 supplies the lessons that apply — and only then does the governance check say whether
+      any of it is actually released.</p>
+    <div class="searchbar">
+      <input type="text" id="tq" placeholder="an object name, or a requirement in plain English"
+             autocomplete="off">
+      <button class="primary" id="tgo">Trace</button>
+    </div>
+    <p class="cap" style="margin-top:6px">Try <a href="#" class="ex">I_MaterialStock</a> beside
+      <a href="#" class="ex">API_TOTALLY_MADE_UP_THING</a> — both come back LIKELY_RELEASED, and
+      the difference is entirely in the evidence.</p>
+    <div id="trace"></div>
+  </div>
+
   <div class="card">
     <h2>How an agent connects</h2>
     <p class="cap">The brain is exposed as an MCP tool, so any MCP-capable agent consumes it
@@ -354,6 +371,53 @@ function fillFilters(s) {
   }
 }
 
+/* ── layer trace ───────────────────────────────────────────── */
+const LAYER_COL = { L1:"#0ea5e9", L2:"#7c3aed", L3:"#16a34a", L4:"#b45309", GOV:"#dc3545" };
+
+async function doTrace() {
+  const query = $("tq").value.trim();
+  if (!query) return;
+  $("tgo").disabled = true;
+  $("trace").innerHTML = `<p class="note">Putting the question to each layer…</p>`;
+  try {
+    const r = await fetch("/api/trace", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }) });
+    const d = await r.json();
+    if (d.error) { $("trace").innerHTML = `<p class="err">${esc(d.error)}</p>`; return; }
+    $("trace").innerHTML =
+      `<p class="note" style="margin-bottom:10px"><b>${esc(d.query)}</b> — ${d.total_ms} ms across ${d.layers.length} layers</p>` +
+      d.layers.map(L => {
+        const col = LAYER_COL[L.layer] || "#64748b";
+        // A layer that could not run says so. Rendering it as "0 results" would be a lie
+        // of exactly the shape layer_health exists to catch: unavailable and empty look
+        // identical, and the audience would read a broken layer as a thin corpus.
+        const body = L.error
+          ? `<p class="err" style="margin:4px 0 0">unavailable — ${esc(L.error)}</p>`
+          : (L.items.length
+              ? `<ul style="margin:6px 0 0;padding-left:18px">` + L.items.map(it =>
+                  `<li style="font-size:.8rem;margin:2px 0"><code>${esc(it.name)}</code>` +
+                  (it.type ? ` <span class="note" style="border:0;padding:0">${esc(it.type)}</span>` : "") +
+                  (it.note ? ` — ${esc(it.note)}` : "") +
+                  (typeof it.score === "number" ? ` <span class="note" style="border:0;padding:0">${(it.score*100).toFixed(0)}%</span>` : "") +
+                  `</li>`).join("") + `</ul>`
+              : `<p class="note" style="margin:4px 0 0">nothing matched</p>`);
+        return `<div style="border-left:4px solid ${col};padding:8px 12px;margin-bottom:8px;background:var(--panel,#fafafa);border-radius:0 8px 8px 0">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+            <b style="color:${col}">${esc(L.layer)}</b>
+            <b style="font-size:.85rem">${esc(L.title)}</b>
+            <code style="font-size:.72rem">${esc(L.tool)}</code>
+            <span class="note" style="border:0;padding:0;margin-left:auto">${L.ms} ms</span>
+          </div>
+          <p class="cap" style="margin:2px 0 0">${esc(L.what)}</p>${body}</div>`;
+      }).join("");
+  } catch (e) {
+    $("trace").innerHTML = `<p class="err">${esc(String(e))}</p>`;
+  } finally {
+    $("tgo").disabled = false;
+  }
+}
+
 /* ── search ────────────────────────────────────────────────── */
 async function doSearch() {
   const query = $("q").value.trim();
@@ -426,6 +490,12 @@ async function doSearch() {
 }
 $("go").onclick = doSearch;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
+$("tgo").onclick = doTrace;
+$("tq").addEventListener("keydown", e => { if (e.key === "Enter") doTrace(); });
+// The two worked examples are the demo: click one, then the other.
+document.querySelectorAll("a.ex").forEach(a => a.addEventListener("click", e => {
+  e.preventDefault(); $("tq").value = a.textContent.trim(); doTrace();
+}));
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g,

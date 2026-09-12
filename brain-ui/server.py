@@ -24,6 +24,7 @@ boto3 installed.
 """
 
 import os
+import re
 import sys
 import json
 import argparse
@@ -134,6 +135,166 @@ def run_search(payload):
     return {"query": query, "count": len(hits), "results": hits}
 
 
+_mcp = None
+
+def _load_mcp():
+    """The governance server, imported lazily and kept.
+
+    Lazily because a viewer that nobody has asked for a trace should not be holding the
+    vector and graph engines: the host has 3.7 GB and s4pc-mcp already carries them under a
+    2 GB ceiling. The engines inside are themselves lazy, so this import is cheap until a
+    trace actually runs.
+
+    Imported rather than called over HTTP on :3002 so the trace runs the SAME code an agent
+    runs — the release verdict especially. Reimplementing that here would be a second copy of
+    the rules that drifts from the first, and a demo that disagrees with the pipeline is worse
+    than no demo. (It would also need an API key, since S4PC_API_KEYS applies to loopback too.)
+    """
+    global _mcp
+    if _mcp is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "s4pc_mcp_trace", str(BASE_DIR / "mcp-server" / "server.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _mcp = mod
+    return _mcp
+
+
+def _call(mcp, tool, args):
+    """Run one governance tool, timed. Never raises — a layer that fails is reported as a
+    failed layer, because a trace that dies halfway tells the audience less than one that
+    says which layer was unavailable.
+
+    A tool that returns {"error": ...} counts as failed. It does NOT raise, so reading only
+    its results would render an unavailable layer as an empty one — the same "fails by
+    returning less" trap layer_health exists to catch, and the worst possible thing to have
+    happen while showing this to an audience.
+    """
+    import time as _t
+    started = _t.time()
+    try:
+        payload = mcp.TOOLS[tool]["handler"](args)
+        err = payload.get("error") if isinstance(payload, dict) else None
+    except KeyError:
+        payload, err = {}, "tool '%s' is not registered on this host" % tool
+    except Exception as exc:                                  # noqa: BLE001
+        payload, err = {}, str(exc)
+    return payload, err, int((_t.time() - started) * 1000)
+
+
+def _graph_connections(payload, limit=6):
+    """Flatten get_object_graph's `connections`, which is a dict keyed by object type
+    ({"api": [...], "badi": [...], "cds_view": [...]}) — not a flat list under `related`
+    or `edges`. Guessing those names showed an empty graph on a host holding 275k edges."""
+    out = []
+    for otype, entries in (payload.get("connections") or {}).items():
+        for e in (entries or []):
+            if isinstance(e, dict) and e.get("name"):
+                out.append({"name": e["name"], "type": otype,
+                            "score": None, "note": (e.get("title") or "")[:80]})
+            if len(out) >= limit:
+                return out
+    return out
+
+
+def _objects_from(payload, limit=6):
+    """Object names a retrieval surfaced, wherever the tool happens to put them."""
+    names, seen = [], set()
+    for hit in (payload.get("results") or payload.get("hits") or []):
+        if not isinstance(hit, dict):
+            continue
+        for key in ("object_name", "name", "id", "object"):
+            v = hit.get(key)
+            if isinstance(v, str) and v.strip() and v.upper() not in seen:
+                seen.add(v.upper()); names.append(v.strip()); break
+        for v in (hit.get("objects_mentioned") or []):
+            if isinstance(v, str) and v.strip() and v.upper() not in seen:
+                seen.add(v.upper()); names.append(v.strip())
+    return names[:limit]
+
+
+def run_trace(payload):
+    """One question, and what each layer contributed to answering it.
+
+    The point of the panel: L2/L4 surface candidate objects, L1 expands them into their
+    neighbourhood, L3 supplies the lessons that apply, and only then does the governance
+    check say whether any of it is actually released. A chat answer collapses all of that
+    into prose and discards the provenance, which is the part worth showing.
+    """
+    query = (payload.get("query") or "").strip()
+    if not query:
+        return {"error": "query is required"}
+    try:
+        mcp = _load_mcp()
+    except Exception as exc:                                  # noqa: BLE001
+        return {"error": "governance server could not be loaded: %s" % exc}
+
+    layers, total = [], 0
+
+    def add(layer, title, tool, what, data, err, ms, items):
+        layers.append({"layer": layer, "title": title, "tool": tool, "what": what,
+                       "ms": ms, "error": err, "count": len(items), "items": items})
+
+    # L2 — released-object semantic index (catalog side)
+    l2, err2, ms2 = _call(mcp, "semantic_search", {"query": query, "top_k": 5})
+    total += ms2
+    l2_items = [{"name": h.get("object_name") or h.get("name") or "",
+                 "type": h.get("object_type") or h.get("type") or "",
+                 "score": h.get("score")}
+                for h in (l2.get("results") or [])[:5] if isinstance(h, dict)]
+    add("L2", "Semantic index", "semantic_search",
+        "released SAP objects matching the meaning of the question", l2, err2, ms2, l2_items)
+
+    # L4 — the learning corpus
+    l4, err4, ms4 = _call(mcp, "search_brain", {"query": query, "top_k": 3})
+    total += ms4
+    l4_items = [{"name": h.get("title") or h.get("source_file") or h.get("chunk_file") or "",
+                 "type": h.get("deliverable_type") or h.get("source_system") or "",
+                 "score": h.get("score")}
+                for h in (l4.get("results") or [])[:3] if isinstance(h, dict)]
+    add("L4", "Learning corpus", "search_brain",
+        "past delivery documents that answer this kind of question", l4, err4, ms4, l4_items)
+
+    # L1 — the object graph, expanded around the best candidate the searches surfaced.
+    # An object name typed directly is a seed in its own right: the sharpest demo of this
+    # whole stack is asking about one specific object (a real one beside a fabricated one),
+    # and that must not depend on a semantic search happening to surface it first.
+    seeds = _objects_from(l2) or _objects_from(l4)
+    if not seeds and re.match(r"^[A-Za-z][A-Za-z0-9_]{3,}$", query):
+        seeds = [query]
+    g, l1_items, err1, ms1 = {}, [], None, 0
+    if seeds:
+        g, err1, ms1 = _call(mcp, "get_object_graph", {"object_name": seeds[0]})
+        total += ms1
+        l1_items = _graph_connections(g)
+    add("L1", "Object graph", "get_object_graph",
+        ("what %s connects to (%s in total)" % (seeds[0], (g.get("total_connections") if seeds else 0)))
+        if seeds else "nothing to expand — no object surfaced above", {}, err1, ms1, l1_items)
+
+    # L3 — lessons this team has already recorded
+    l3, err3, ms3 = _call(mcp, "query_experience", {"query": query})
+    total += ms3
+    l3_items = [{"name": e.get("id") or "", "type": e.get("category") or "",
+                 "score": None, "note": (e.get("topic") or "")[:120]}
+                for e in (l3.get("results") or [])[:3] if isinstance(e, dict)]
+    add("L3", "Experience", "query_experience",
+        "lessons from previous runs that apply here", l3, err3, ms3, l3_items)
+
+    # Governance — the gate. Verdicts for whatever the layers above surfaced.
+    gov_items, msg = [], 0
+    for name in seeds[:3]:
+        v, errv, msv = _call(mcp, "check_object_release_state", {"object_name": name})
+        msg += msv
+        gov_items.append({"name": name, "type": v.get("evidence") or ("error" if errv else ""),
+                          "score": None, "note": v.get("verdict") or errv or ""})
+    total += msg
+    add("GOV", "Release governance", "check_object_release_state",
+        "whether each object is actually released — verdict AND evidence", {}, None, msg, gov_items)
+
+    return {"query": query, "total_ms": total, "layers": layers}
+
+
 def _chunk_snippet(chunk_file, limit=600):
     if not chunk_file:
         return ""
@@ -183,14 +344,15 @@ class _Handler(BaseHTTPRequestHandler):
         return self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path.split("?", 1)[0] != "/api/search":
+        path = self.path.split("?", 1)[0]
+        if path not in ("/api/search", "/api/trace"):
             return self._send(404, {"error": "not found"})
         try:
             n = int(self.headers.get("Content-Length", 0))
             payload = json.loads(self.rfile.read(n) or b"{}")
         except Exception as exc:
             return self._send(400, {"error": "bad request: %s" % exc})
-        result = run_search(payload)
+        result = run_trace(payload) if path == "/api/trace" else run_search(payload)
         return self._send(500 if "error" in result else 200, result)
 
 
