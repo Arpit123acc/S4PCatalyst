@@ -133,7 +133,25 @@ def _edge(frm: str, to: str, rel: str, source: str,
     return e
 
 
-def replaces_edges(apis: list, cds_views: list, badis: list):
+def _load_scope_items() -> tuple:
+    """(active, retired) scope items from the catalog, or ([], []) if unavailable.
+
+    Loaded here rather than passed in so build_graph keeps its signature and every
+    existing caller — build_graph.py, sync_object_graph — picks the scope layer up
+    without changing. A missing catalog degrades to no scope edges, reported in stats
+    rather than raised: L1 is still valid without them.
+    """
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "catalog", "scope_items.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            d = json.load(fh)
+        return (d.get("scope_items") or [], d.get("retired_scope_items") or [])
+    except Exception:
+        return ([], [])
+
+
+def replaces_edges(ctx: dict):
     """cds_view --replaces--> classical_table, from views[].replaces.
 
     The clean-core query in both directions: "what replaced EKKO" and "what is
@@ -143,7 +161,7 @@ def replaces_edges(apis: list, cds_views: list, badis: list):
     the platform rules forbid. Targets land in `ext_nodes`, never in `nodes`, so they
     can never be listed by get_area_map or counted as catalog objects. See build_graph.
     """
-    for v in cds_views:
+    for v in ctx["cds_views"]:
         name = (v.get("name") or "").strip()
         if not name:
             continue
@@ -158,7 +176,7 @@ def replaces_edges(apis: list, cds_views: list, badis: list):
                             "declared", target_kind="classical_table")
 
 
-def exposes_edges(apis: list, cds_views: list, badis: list):
+def exposes_edges(ctx: dict):
     """api --exposes--> cds_view, from apis[].key_entities.
 
     OData entity sets are named A_<Concept>; the released view behind one is
@@ -168,8 +186,8 @@ def exposes_edges(apis: list, cds_views: list, badis: list):
     naming_heuristic_only mistake this layer exists to avoid.
     """
     by_lower = {(v.get("name") or "").lower(): (v.get("name") or "")
-                for v in cds_views if v.get("name")}
-    for a in apis:
+                for v in ctx["cds_views"] if v.get("name")}
+    for a in ctx["apis"]:
         name = (a.get("name") or "").strip()
         if not name:
             continue
@@ -184,13 +202,84 @@ def exposes_edges(apis: list, cds_views: list, badis: list):
                             "catalog:released_apis.key_entities", "declared")
 
 
+def scope_dependency_edges(ctx: dict):
+    """scope_item --requires--> scope_item, from scope_items[].required_scope_items.
+
+    Entries are dicts ({"to": "BKJ", "conditional": false}), not bare ids, and the
+    `conditional` flag is carried onto the edge: a conditional prerequisite is not the
+    same commitment as a hard one, and collapsing the two would overstate scope.
+
+    22 targets are not in the active list — 2 are RETIRED and 20 unknown to this
+    catalog. They are still emitted, because "this scope item depends on something
+    retired" is exactly the kind of finding a functional agent should surface. The
+    ext_node carries the distinction.
+    """
+    for s in ctx["scope_items"]:
+        sid = (s.get("scope_item_id") or "").strip()
+        if not sid:
+            continue
+        for dep in s.get("required_scope_items") or []:
+            to = (dep.get("to") or "").strip() if isinstance(dep, dict) else str(dep).strip()
+            if not to:
+                continue
+            e = _edge(sid, to, "requires",
+                      "catalog:scope_items.required_scope_items",
+                      "declared", target_kind="scope_item")
+            if isinstance(dep, dict) and dep.get("conditional"):
+                e["conditional"] = True
+            yield e
+
+
+def scope_master_data_edges(ctx: dict):
+    """scope_item --requires--> master_data, from scope_items[].required_master_data.
+
+    The values are ids in a SEPARATE namespace — 73 of the 79 are not scope items at
+    all. We can state that the dependency exists and cite it; we cannot name the
+    object, because this catalog does not carry master-data descriptions. The ext_node
+    is therefore an id with no title, which is honest rather than invented.
+    """
+    for s in ctx["scope_items"]:
+        sid = (s.get("scope_item_id") or "").strip()
+        if not sid:
+            continue
+        for md in s.get("required_master_data") or []:
+            md = (md or "").strip()
+            if md:
+                yield _edge(sid, md, "requires",
+                            "catalog:scope_items.required_master_data",
+                            "declared", target_kind="master_data")
+
+
+def scope_taxonomy_edges(ctx: dict):
+    """scope_item --belongs_to--> lob / business_area.
+
+    The business taxonomy a functional agent navigates by. Note it does NOT join to
+    the 33 `area` values on released objects: only 3 overlap exactly (Inventory,
+    Production Planning, Quality Management). Bridging scope items to objects needs a
+    crosswalk or corpus co-occurrence — neither is derivable here, so neither is faked.
+    """
+    for s in ctx["scope_items"]:
+        sid = (s.get("scope_item_id") or "").strip()
+        if not sid:
+            continue
+        for field, kind in (("lob", "lob"), ("business_area", "business_area")):
+            val = (s.get(field) or "").strip()
+            if val:
+                yield _edge(sid, val, "belongs_to",
+                            "catalog:scope_items.%s" % field,
+                            "declared", target_kind=kind)
+
+
 # Registry. Adding a relation is adding a generator here — no schema migration, and
 # no change to any consumer, because typed edges are carried alongside the adjacency
-# rather than replacing it. Still to land: requires (communication_scenario, 74),
-# extends (badis[].business_context, 46), belongs_to + requires (scope items, 3,116).
+# rather than replacing it. Still to land: requires (communication_scenario, 74) and
+# extends (badis[].business_context, 46).
 EDGE_SOURCES = (
     replaces_edges,
     exposes_edges,
+    scope_dependency_edges,
+    scope_master_data_edges,
+    scope_taxonomy_edges,
 )
 
 
@@ -292,25 +381,62 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
     # briefs_for_names, the BFS in get_object_graph and freshness._l1 all read, and
     # mixing declared relations into it would change every existing caller's results
     # and the L1 node/edge counts the freshness checks compare against.
-    typed_edges: list[dict]    = []
+    scope_items, retired_items = _load_scope_items()
+    scope_by_id   = {s.get("scope_item_id"): s for s in scope_items if s.get("scope_item_id")}
+    retired_by_id = {s.get("scope_item_id"): s for s in retired_items if s.get("scope_item_id")}
+
+    ctx = {"apis": apis, "cds_views": cds_views, "badis": badis,
+           "scope_items": scope_items, "retired_scope_items": retired_items}
+
+    typed_edges: list[dict]      = []
     ext_nodes:   dict[str, dict] = {}
     seen: set = set()
+
+    def _register_ext(name: str, kind: str) -> None:
+        """A referenced entity that is NOT a released-object catalog entry.
+
+        Kept out of `nodes` deliberately: that keeps stats.nodes at the released-object
+        count the freshness checks compare against, and means none of these can ever be
+        listed by get_area_map as though they were released.
+        """
+        if name in nodes or name in ext_nodes:
+            return
+        meta = {"type": kind, "catalog_object": False}
+        if kind == "classical_table":
+            # The one kind where release state is the point: forbidden on Public Cloud.
+            meta["released"] = False
+        elif kind == "scope_item":
+            src = scope_by_id.get(name) or retired_by_id.get(name)
+            meta["retired"] = name in retired_by_id
+            if src and src.get("description"):
+                meta["description"] = src["description"]
+            if not src:
+                # Referenced by a dependency but absent from both lists — say so rather
+                # than implying it is active.
+                meta["known"] = False
+        ext_nodes[name] = meta
+
     for source_fn in EDGE_SOURCES:
-        for e in source_fn(apis, cds_views, badis):
+        for e in source_fn(ctx):
             key = (e["from"], e["to"], e["rel"])
             if key in seen:
                 continue
             seen.add(key)
             kind = e.pop("target_kind", "")
-            # A referenced entity that is not a catalog object is an ext_node: known
-            # to exist, explicitly NOT released, and never counted as a graph node.
-            if kind and e["to"] not in nodes:
-                ext_nodes.setdefault(e["to"], {"type": kind, "released": False})
+            if kind:
+                _register_ext(e["to"], kind)
+            # Scope items are edge SOURCES too, so register the origin as well or a
+            # graph query on a scope item id would resolve to nothing.
+            if e["from"] not in nodes and e["from"] in scope_by_id:
+                _register_ext(e["from"], "scope_item")
             typed_edges.append(e)
 
-    by_rel = {}
+    by_rel, by_kind = {}, {}
     for e in typed_edges:
         by_rel[e["rel"]] = by_rel.get(e["rel"], 0) + 1
+    for meta in ext_nodes.values():
+        k = meta.get("type", "?")
+        by_kind[k] = by_kind.get(k, 0) + 1
 
     stats = {
         # `nodes` stays released-objects-only. ext_nodes are counted separately, so
@@ -321,9 +447,11 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
         "areas":    len(areas_clean),
         "by_type":  {t: sum(1 for n in nodes.values() if n["type"] == t)
                      for t in ("api", "cds_view", "badi")},
-        "typed_edges":  len(typed_edges),
-        "typed_by_rel": by_rel,
-        "ext_nodes":    len(ext_nodes),
+        "typed_edges":   len(typed_edges),
+        "typed_by_rel":  by_rel,
+        "ext_nodes":     len(ext_nodes),
+        "ext_by_kind":   by_kind,
+        "scope_items_loaded": len(scope_items),
     }
 
     return {
@@ -509,23 +637,50 @@ def get_object_graph(object_name: str, depth: int = 1,
                             ext_id = k
                             break
                 if ext_id:
-                    inbound = _filter_typed(typed.get(ext_id, {}).get("in", []),
-                                            rel_types, min_confidence)
-                    return {
-                        "object":   ext_id,
-                        "type":     ext.get(ext_id, {}).get("type", "external"),
-                        "released": False,
-                        "note": ("Not a released object — it is referenced by the catalog, "
-                                 "not listed in it. Use the replacement(s) below."),
-                        "typed_connections": [
-                            {"name": e["from"], "rel": e["rel"], "direction": "inbound",
+                    emeta = ext.get(ext_id, {})
+                    ekind = emeta.get("type", "external")
+                    t_e   = typed.get(ext_id, {"out": [], "in": []})
+                    outb  = _filter_typed(t_e.get("out", []), rel_types, min_confidence)
+                    inb   = _filter_typed(t_e.get("in", []),  rel_types, min_confidence)
+
+                    def _ext_conn(e, other, direction):
+                        m = nodes.get(other) or ext.get(other) or {}
+                        o = {"name": other, "rel": e["rel"], "direction": direction,
                              "confidence": e["confidence"], "source": e["source"],
-                             "type": nodes.get(e["from"], {}).get("type", ""),
-                             "area": nodes.get(e["from"], {}).get("area", "")}
-                            for e in inbound
-                        ],
-                        "total_typed_connections": len(inbound),
+                             "type": m.get("type", ""),
+                             "catalog_object": m.get("catalog_object", other in nodes)}
+                        for k in ("released", "retired", "known", "description"):
+                            if k in m:
+                                o[k] = m[k]
+                        if e.get("conditional"):
+                            o["conditional"] = True
+                        if other in nodes and nodes[other].get("area"):
+                            o["area"] = nodes[other]["area"]
+                        return o
+
+                    note = ("Not a released-object catalog entry — referenced by the "
+                            "catalog, not listed in it.")
+                    if ekind == "classical_table":
+                        note = ("Classical table — NOT available on Public Cloud. "
+                                "Use the released view(s) below instead.")
+                    elif ekind == "scope_item":
+                        note = ("SAP scope item (business process), not a released "
+                                "object. Its prerequisites are below.")
+
+                    result = {
+                        "object": ext_id,
+                        "type":   ekind,
+                        "catalog_object": False,
+                        "note":   note,
+                        "typed_connections":
+                            [_ext_conn(e, e["to"], "outbound") for e in outb] +
+                            [_ext_conn(e, e["from"], "inbound") for e in inb],
                     }
+                    for k in ("released", "retired", "known", "description"):
+                        if k in emeta:
+                            result[k] = emeta[k]
+                    result["total_typed_connections"] = len(result["typed_connections"])
+                    return result
                 return {
                     "error": "Object '%s' not found in graph." % object_name,
                     "hint":  "Use get_area_map to browse by area, or semantic_search to find object names.",
@@ -587,22 +742,28 @@ def get_object_graph(object_name: str, depth: int = 1,
     t_out    = _filter_typed(t_entry.get("out", []), rel_types, min_confidence)
     t_in     = _filter_typed(t_entry.get("in", []),  rel_types, min_confidence)
 
-    def _meta(n):
-        return nodes.get(n) or ext_all.get(n) or {}
+    def _conn(e, other, direction):
+        """Render one typed edge.
 
-    typed_conns = [
-        {"name": e["to"], "rel": e["rel"], "direction": "outbound",
-         "confidence": e["confidence"], "source": e["source"],
-         "type": _meta(e["to"]).get("type", ""),
-         "released": _meta(e["to"]).get("released", True)}
-        for e in t_out
-    ] + [
-        {"name": e["from"], "rel": e["rel"], "direction": "inbound",
-         "confidence": e["confidence"], "source": e["source"],
-         "type": _meta(e["from"]).get("type", ""),
-         "released": _meta(e["from"]).get("released", True)}
-        for e in t_in
-    ]
+        `released` / `retired` are emitted ONLY when actually known. Defaulting
+        released=True for anything without the key would have quietly asserted release
+        state for scope items and master-data ids, which is the precise mistake the
+        evidence rule in CLAUDE.md exists to prevent.
+        """
+        meta = nodes.get(other) or ext_all.get(other) or {}
+        out = {"name": other, "rel": e["rel"], "direction": direction,
+               "confidence": e["confidence"], "source": e["source"],
+               "type": meta.get("type", ""),
+               "catalog_object": meta.get("catalog_object", other in nodes)}
+        for k in ("released", "retired", "known", "description"):
+            if k in meta:
+                out[k] = meta[k]
+        if e.get("conditional"):
+            out["conditional"] = True
+        return out
+
+    typed_conns = ([_conn(e, e["to"], "outbound") for e in t_out] +
+                   [_conn(e, e["from"], "inbound") for e in t_in])
 
     result = {
         "object":    resolved,
