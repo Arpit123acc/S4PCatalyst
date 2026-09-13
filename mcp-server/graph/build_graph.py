@@ -54,6 +54,10 @@ if __name__ == "__main__":
 
     print("  Nodes: %d  Edges: %d  Areas: %d" % (stats["nodes"], stats["edges"], stats["areas"]))
     print("  By type:", stats["by_type"])
+    print("  Typed edges: %d  (ext nodes: %d)" % (stats.get("typed_edges", 0),
+                                                  stats.get("ext_nodes", 0)))
+    for rel, n in sorted(stats.get("typed_by_rel", {}).items()):
+        print("      %-14s %d  declared" % (rel, n))
     print("Graph written -> %s" % graph_engine.GRAPH_PATH)
 
     # Quick connectivity check — spot-check a few well-known objects

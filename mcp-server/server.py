@@ -1362,7 +1362,12 @@ def tool_get_object_graph(args):
     if ge is None:
         return {"error": "Layer 1 unavailable (%s). Run: python mcp-server/graph/build_graph.py" % err}
     depth = int(args.get("depth") or 1)
-    result = ge.get_object_graph(object_name, depth=depth)
+    rel_types = args.get("rel_types") or None
+    if isinstance(rel_types, str):
+        rel_types = [r for r in re.split(r"[,\s]+", rel_types) if r]
+    result = ge.get_object_graph(object_name, depth=depth,
+                                 rel_types=rel_types,
+                                 min_confidence=(args.get("min_confidence") or ""))
     if "error" not in result:
         result["verified"] = False
         result["source"]   = "S4PC Live Object Graph (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
@@ -1637,12 +1642,23 @@ TOOLS = {
                         "or BAdI), return all directly related objects across types — e.g. the CDS views and "
                         "BAdIs that share the same business concept as an API. Uses name-fragment matching; "
                         "falls back to area-mates when no name-match edges exist. Use to discover the full "
-                        "released-object landscape around a requirement before coding."),
+                        "released-object landscape around a requirement before coding. "
+                        "`connections` are NAME-SIMILARITY guesses. `typed_connections` are relations the SAP "
+                        "catalog DECLARES (replaces / exposes) and each carries its source — prefer those when "
+                        "you need to defend a statement. Also accepts a classical table name (e.g. EKKO) and "
+                        "answers with the released views that replace it."),
         "schema": {"type": "object", "properties": {
             "object_name": {"type": "string",
-                            "description": "A released object name, e.g. I_PurchaseOrder or API_BUSINESS_PARTNER"},
+                            "description": "A released object name, e.g. I_PurchaseOrder or API_BUSINESS_PARTNER. "
+                                           "A classical table name (EKKO, VBAK) returns its replacements."},
             "depth":       {"type": "integer",
-                            "description": "BFS hop depth (1=direct neighbours, 2=neighbours of neighbours; default 1)"}},
+                            "description": "BFS hop depth (1=direct neighbours, 2=neighbours of neighbours; default 1)"},
+            "rel_types":   {"type": "array", "items": {"type": "string"},
+                            "description": "Filter typed_connections to these relations: replaces, exposes. "
+                                           "Omit for all. Does not affect `connections`."},
+            "min_confidence": {"type": "string", "enum": ["declared", "observed", "heuristic"],
+                            "description": "Minimum provenance tier for typed_connections. 'declared' = stated by "
+                                           "SAP catalog metadata and citable."}},
             "required": ["object_name"]},
         "handler": tool_get_object_graph,
     },

@@ -100,6 +100,100 @@ def _names_are_related(toks_a: frozenset, toks_b: frozenset,
     return False
 
 
+# ── typed edges: the ontology layer ──────────────────────────────────────────────
+#
+# WHY THIS EXISTS ALONGSIDE THE NAME HEURISTIC
+#     Every edge in `edges` means exactly one thing: two object names share a >=3-char
+#     token prefix (_names_are_related). That is a useful guess for "show me the
+#     neighbourhood", but it cannot express HOW two objects relate, and — the part that
+#     matters — a guess and a fact are indistinguishable to a caller.
+#
+#     These sources emit edges that SAP's own catalog metadata declares, carrying the
+#     relation AND its provenance, so a caller can ask for only what it can defend.
+#
+# CONFIDENCE TIERS — the same discipline as verdict/evidence in CLAUDE.md
+#     declared   catalog metadata states the relation outright. Citable.
+#     observed   inferred from our corpus (co-occurrence). Precedent, never a contract.
+#     heuristic  the name-prefix match in `edges`. Navigation only.
+#
+#     The existing 137,843 edges are all `heuristic` and CANNOT be retro-typed — a
+#     relation is not recoverable from a prefix match. The graph improves by adding
+#     declared sources, not by upgrading what is already there.
+
+REL_TYPES  = ("replaces", "exposes", "requires", "extends", "belongs_to")
+CONFIDENCE = ("declared", "observed", "heuristic")
+_CONF_RANK = {"heuristic": 1, "observed": 2, "declared": 3}
+
+
+def _edge(frm: str, to: str, rel: str, source: str,
+          confidence: str, target_kind: str = "") -> dict:
+    e = {"from": frm, "to": to, "rel": rel, "source": source, "confidence": confidence}
+    if target_kind:
+        e["target_kind"] = target_kind
+    return e
+
+
+def replaces_edges(apis: list, cds_views: list, badis: list):
+    """cds_view --replaces--> classical_table, from views[].replaces.
+
+    The clean-core query in both directions: "what replaced EKKO" and "what is
+    I_PurchaseOrder the successor to". 167 edges over 119 distinct tables today.
+
+    The target is a classical table, which is NOT a released object — it is the thing
+    the platform rules forbid. Targets land in `ext_nodes`, never in `nodes`, so they
+    can never be listed by get_area_map or counted as catalog objects. See build_graph.
+    """
+    for v in cds_views:
+        name = (v.get("name") or "").strip()
+        if not name:
+            continue
+        rep = v.get("replaces") or []
+        if isinstance(rep, str):
+            rep = [rep]
+        for tbl in rep:
+            tbl = (tbl or "").strip()
+            if tbl:
+                yield _edge(name, tbl, "replaces",
+                            "catalog:released_cds_views.replaces",
+                            "declared", target_kind="classical_table")
+
+
+def exposes_edges(apis: list, cds_views: list, badis: list):
+    """api --exposes--> cds_view, from apis[].key_entities.
+
+    OData entity sets are named A_<Concept>; the released view behind one is
+    I_<Concept>. Only emitted when that view actually exists in the catalog — about
+    60% of key_entities resolve today. An entity that does not resolve is SKIPPED,
+    never invented: emitting a link to a view we cannot find would be exactly the
+    naming_heuristic_only mistake this layer exists to avoid.
+    """
+    by_lower = {(v.get("name") or "").lower(): (v.get("name") or "")
+                for v in cds_views if v.get("name")}
+    for a in apis:
+        name = (a.get("name") or "").strip()
+        if not name:
+            continue
+        for ent in a.get("key_entities") or []:
+            ent = (ent or "").strip()
+            if not ent:
+                continue
+            stem   = ent[2:] if ent[:2].upper() == "A_" else ent
+            target = by_lower.get(("i_" + stem).lower())
+            if target:
+                yield _edge(name, target, "exposes",
+                            "catalog:released_apis.key_entities", "declared")
+
+
+# Registry. Adding a relation is adding a generator here — no schema migration, and
+# no change to any consumer, because typed edges are carried alongside the adjacency
+# rather than replacing it. Still to land: requires (communication_scenario, 74),
+# extends (badis[].business_context, 46), belongs_to + requires (scope items, 3,116).
+EDGE_SOURCES = (
+    replaces_edges,
+    exposes_edges,
+)
+
+
 # ── graph builder ────────────────────────────────────────────────────────────────
 
 def build_graph(apis: list, cds_views: list, badis: list) -> dict:
@@ -193,19 +287,52 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
     # ── deduplicate area lists ────────────────────────────────────────────────────
     areas_clean = {k: sorted(set(v)) for k, v in areas.items() if k}
 
+    # ── typed edges (ontology layer) ──────────────────────────────────────────────
+    # Deliberately NOT merged into `edges`: that adjacency is what get_area_map,
+    # briefs_for_names, the BFS in get_object_graph and freshness._l1 all read, and
+    # mixing declared relations into it would change every existing caller's results
+    # and the L1 node/edge counts the freshness checks compare against.
+    typed_edges: list[dict]    = []
+    ext_nodes:   dict[str, dict] = {}
+    seen: set = set()
+    for source_fn in EDGE_SOURCES:
+        for e in source_fn(apis, cds_views, badis):
+            key = (e["from"], e["to"], e["rel"])
+            if key in seen:
+                continue
+            seen.add(key)
+            kind = e.pop("target_kind", "")
+            # A referenced entity that is not a catalog object is an ext_node: known
+            # to exist, explicitly NOT released, and never counted as a graph node.
+            if kind and e["to"] not in nodes:
+                ext_nodes.setdefault(e["to"], {"type": kind, "released": False})
+            typed_edges.append(e)
+
+    by_rel = {}
+    for e in typed_edges:
+        by_rel[e["rel"]] = by_rel.get(e["rel"], 0) + 1
+
     stats = {
+        # `nodes` stays released-objects-only. ext_nodes are counted separately, so
+        # freshness.py's L1_objects_in_L2 check (L1 nodes vs L2 api+cds+badi docs)
+        # keeps tying out at 10,736 instead of going falsely STALE.
         "nodes":    len(nodes),
         "edges":    edge_count,
         "areas":    len(areas_clean),
         "by_type":  {t: sum(1 for n in nodes.values() if n["type"] == t)
                      for t in ("api", "cds_view", "badi")},
+        "typed_edges":  len(typed_edges),
+        "typed_by_rel": by_rel,
+        "ext_nodes":    len(ext_nodes),
     }
 
     return {
-        "nodes":  nodes,
-        "edges":  {k: sorted(v) for k, v in edges.items()},
-        "areas":  areas_clean,
-        "stats":  stats,
+        "nodes":       nodes,
+        "edges":       {k: sorted(v) for k, v in edges.items()},
+        "areas":       areas_clean,
+        "typed_edges": typed_edges,
+        "ext_nodes":   ext_nodes,
+        "stats":       stats,
     }
 
 
@@ -227,7 +354,7 @@ def save_graph(graph_data: dict) -> dict:
 # are picked up automatically: a plain lru_cache here would serve the pre-rebuild graph
 # until the process restarted, which is precisely the class of silent staleness
 # freshness.py exists to catch.
-_CACHE: dict = {"mtime": None, "graph": None, "lower": None}
+_CACHE: dict = {"mtime": None, "graph": None, "lower": None, "typed": None}
 
 
 def _load() -> tuple:
@@ -244,10 +371,42 @@ def _load() -> tuple:
         return None, "Graph not built — run: python mcp-server/graph/build_graph.py"
     except Exception as exc:
         return None, "Graph load error: %s" % exc
-    # `lower` is dropped with the graph it indexed: a rebuilt graph renames nodes, and
-    # a stale lowercase map would resolve a name to a node that no longer exists.
-    _CACHE.update(mtime=mtime, graph=graph, lower=None)
+    # `lower` and `typed` are dropped with the graph they indexed: a rebuilt graph
+    # renames nodes and re-derives relations, and a stale index would resolve a name to
+    # a node that no longer exists or hand back edges the rebuild has already dropped.
+    _CACHE.update(mtime=mtime, graph=graph, lower=None, typed=None)
     return graph, None
+
+
+def _typed_index(graph: dict) -> dict:
+    """{name: {"out": [edge, ...], "in": [edge, ...]}}, built once per graph load.
+
+    Both directions are indexed because the useful clean-core question is the inbound
+    one — "what replaced EKKO" — and EKKO is only ever an edge TARGET.
+    """
+    idx = _CACHE.get("typed")
+    if idx is not None:
+        return idx
+    built: dict[str, dict] = {}
+    for e in graph.get("typed_edges") or []:
+        built.setdefault(e["from"], {"out": [], "in": []})["out"].append(e)
+        built.setdefault(e["to"],   {"out": [], "in": []})["in"].append(e)
+    _CACHE["typed"] = built
+    return built
+
+
+def _filter_typed(edges: list, rel_types=None, min_confidence: str = "") -> list:
+    """Apply the per-agent projection: which relations, and how defensible."""
+    floor = _CONF_RANK.get(min_confidence or "", 0)
+    wanted = {r.strip().lower() for r in (rel_types or []) if str(r or "").strip()}
+    out = []
+    for e in edges:
+        if wanted and e.get("rel", "").lower() not in wanted:
+            continue
+        if _CONF_RANK.get(e.get("confidence", ""), 0) < floor:
+            continue
+        out.append(e)
+    return out
 
 
 def briefs_for_names(names) -> dict:
@@ -300,10 +459,17 @@ def briefs_for_names(names) -> dict:
 
 # ── query API ────────────────────────────────────────────────────────────────────
 
-def get_object_graph(object_name: str, depth: int = 1) -> dict:
+def get_object_graph(object_name: str, depth: int = 1,
+                     rel_types=None, min_confidence: str = "") -> dict:
     """
     Return an object and its connected neighbours up to `depth` hops.
     Falls back to area-mates when the object has no name-match edges.
+
+    `rel_types` / `min_confidence` filter the TYPED edges only — this is where a
+    per-agent projection lives. One store, many views: a RICEFW agent asks for
+    replaces/exposes/extends, a functional agent for requires/belongs_to, an
+    architect for min_confidence="declared" and nothing else. The heuristic
+    adjacency in `connections` is unaffected by either.
     """
     graph, err = _load()
     if graph is None:
@@ -312,6 +478,7 @@ def get_object_graph(object_name: str, depth: int = 1) -> dict:
     nodes = graph["nodes"]
     edges = graph["edges"]
     areas = graph["areas"]
+    typed = _typed_index(graph)
 
     # ── case-insensitive lookup ───────────────────────────────────────────────────
     resolved = object_name
@@ -329,6 +496,36 @@ def get_object_graph(object_name: str, depth: int = 1) -> dict:
             if starts:
                 resolved = starts[0]
             else:
+                # 3. ext_node — a referenced entity that is NOT a released object,
+                #    e.g. the classical table EKKO. It has no adjacency and no area,
+                #    so there is nothing to BFS; what it has is inbound typed edges,
+                #    and those answer the question actually being asked: what am I
+                #    allowed to use instead?
+                ext = (graph.get("ext_nodes") or {})
+                ext_id = ext.get(object_name) and object_name
+                if not ext_id:
+                    for k in ext:
+                        if k.lower() == lo:
+                            ext_id = k
+                            break
+                if ext_id:
+                    inbound = _filter_typed(typed.get(ext_id, {}).get("in", []),
+                                            rel_types, min_confidence)
+                    return {
+                        "object":   ext_id,
+                        "type":     ext.get(ext_id, {}).get("type", "external"),
+                        "released": False,
+                        "note": ("Not a released object — it is referenced by the catalog, "
+                                 "not listed in it. Use the replacement(s) below."),
+                        "typed_connections": [
+                            {"name": e["from"], "rel": e["rel"], "direction": "inbound",
+                             "confidence": e["confidence"], "source": e["source"],
+                             "type": nodes.get(e["from"], {}).get("type", ""),
+                             "area": nodes.get(e["from"], {}).get("area", "")}
+                            for e in inbound
+                        ],
+                        "total_typed_connections": len(inbound),
+                    }
                 return {
                     "error": "Object '%s' not found in graph." % object_name,
                     "hint":  "Use get_area_map to browse by area, or semantic_search to find object names.",
@@ -381,6 +578,32 @@ def get_object_graph(object_name: str, depth: int = 1) -> dict:
             entry["replaces"]    = meta.get("replaces", [])
         grouped.setdefault(t, []).append(entry)
 
+    # ── typed connections (ontology layer) ────────────────────────────────────────
+    # Reported separately from `connections`, never merged into it: these carry a
+    # relation and a provenance tier, and flattening them into the heuristic
+    # adjacency would destroy exactly the distinction they exist to make.
+    ext_all  = graph.get("ext_nodes") or {}
+    t_entry  = typed.get(resolved, {"out": [], "in": []})
+    t_out    = _filter_typed(t_entry.get("out", []), rel_types, min_confidence)
+    t_in     = _filter_typed(t_entry.get("in", []),  rel_types, min_confidence)
+
+    def _meta(n):
+        return nodes.get(n) or ext_all.get(n) or {}
+
+    typed_conns = [
+        {"name": e["to"], "rel": e["rel"], "direction": "outbound",
+         "confidence": e["confidence"], "source": e["source"],
+         "type": _meta(e["to"]).get("type", ""),
+         "released": _meta(e["to"]).get("released", True)}
+        for e in t_out
+    ] + [
+        {"name": e["from"], "rel": e["rel"], "direction": "inbound",
+         "confidence": e["confidence"], "source": e["source"],
+         "type": _meta(e["from"]).get("type", ""),
+         "released": _meta(e["from"]).get("released", True)}
+        for e in t_in
+    ]
+
     result = {
         "object":    resolved,
         "type":      root_meta.get("type", ""),
@@ -390,6 +613,8 @@ def get_object_graph(object_name: str, depth: int = 1) -> dict:
         "edge_mode": "area_fallback" if area_fallback else "name_match",
         "connections": grouped,
         "total_connections": len(connected),
+        "typed_connections": typed_conns,
+        "total_typed_connections": len(typed_conns),
     }
     # surface useful fields for the root
     if root_meta.get("type") == "api":
