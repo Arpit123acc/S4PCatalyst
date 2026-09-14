@@ -674,16 +674,26 @@ def briefs_for_names(names) -> dict:
 # ── query API ────────────────────────────────────────────────────────────────────
 
 def get_object_graph(object_name: str, depth: int = 1,
-                     rel_types=None, min_confidence: str = "") -> dict:
+                     rel_types=None, min_confidence: str = "",
+                     l2_neighbors=None) -> dict:
     """
     Return an object and its connected neighbours up to `depth` hops.
-    Falls back to area-mates when the object has no name-match edges.
+    Falls back to L2 semantic neighbours, then to area-mates, when the object has
+    no name-match edges.
 
     `rel_types` / `min_confidence` filter the TYPED edges only — this is where a
     per-agent projection lives. One store, many views: a RICEFW agent asks for
     replaces/exposes/extends, a functional agent for requires/belongs_to, an
     architect for min_confidence="declared" and nothing else. The heuristic
     adjacency in `connections` is unaffected by either.
+
+    `l2_neighbors` is an OPTIONAL callable (name, top_k) -> [{"name", "score"}, ...],
+    injected by the caller rather than imported. L2 lives behind sentence-transformers
+    / Bedrock; importing it here would make the graph engine — which is deliberately
+    pure stdlib and must work offline — fail to load whenever that backend is absent.
+    Injection keeps L1 standalone and lets the server wire the two layers together
+    when both happen to be up. Any exception from the callable falls through to the
+    area bucket, so a broken L2 degrades the answer instead of breaking the call.
     """
     graph, err = _load()
     if graph is None:
@@ -791,8 +801,43 @@ def get_object_graph(object_name: str, depth: int = 1,
 
     connected = visited - {resolved}
 
-    # ── area fallback when no edges ───────────────────────────────────────────────
+    # ── fallback when no name-match edges ─────────────────────────────────────────
+    # ORDER MATTERS. The area bucket is a blunt instrument: an isolated Finance object
+    # returns every other Finance object, hundreds of them, ranked by nothing. L2 knows
+    # which objects are actually about the same thing, so it is tried FIRST and the area
+    # bucket becomes the last resort it always should have been.
     area_fallback = False
+    l2_fallback   = False
+    l2_scores: dict[str, float] = {}
+    if not connected and l2_neighbors is not None:
+        try:
+            # Query on the object's own words, not its name — the name is exactly what
+            # failed to match anything, and embedding it again would repeat that failure.
+            # NO similarity floor, deliberately. Measured on API_GLACCOUNTMASTER_SRV:
+            # I_GLAccount (the obviously correct neighbour) scores 0.4423 while
+            # I_Supplier (noise) scores 0.4566 -- a cut anywhere between them removes
+            # the signal and keeps the noise. MiniLM on short catalog text does not
+            # rank cleanly enough for a threshold to mean anything, so every hit is
+            # returned WITH its score and the caller judges. Do not add a constant here
+            # without first showing it separates on real objects.
+            hits = l2_neighbors(resolved, 15) or []
+            picked = set()
+            for h in hits:
+                nm = (h.get("name") if isinstance(h, dict) else str(h) or "").strip()
+                # Only catalog nodes: L2 also indexes deliveries and lessons, and those
+                # are not objects this graph can describe.
+                if nm and nm != resolved and nm in nodes:
+                    picked.add(nm)
+                    if isinstance(h, dict) and h.get("score") is not None:
+                        try:
+                            l2_scores[nm] = round(float(h["score"]), 4)
+                        except (TypeError, ValueError):
+                            pass
+            if picked:
+                connected   = picked
+                l2_fallback = True
+        except Exception:
+            pass                       # a broken L2 degrades the answer, never the call
     if not connected:
         area_name = root_meta.get("area", "")
         if area_name:
@@ -809,6 +854,10 @@ def get_object_graph(object_name: str, depth: int = 1,
             "area":  meta.get("area", ""),
             "title": meta.get("title") or meta.get("use_case", ""),
         }
+        if nb in l2_scores:
+            # Present ONLY on the l2_similarity path. A caller that sees this knows the
+            # neighbour came from meaning, not from an edge, and can weigh it as such.
+            entry["similarity"] = l2_scores[nb]
         if t == "api":
             entry["protocol"]    = meta.get("protocol", "")
             entry["hub_url"]     = meta.get("hub_url", "")
@@ -857,12 +906,27 @@ def get_object_graph(object_name: str, depth: int = 1,
         "area":      root_meta.get("area", ""),
         "title":     root_meta.get("title") or root_meta.get("use_case", ""),
         "depth":     depth,
-        "edge_mode": "area_fallback" if area_fallback else "name_match",
+        "edge_mode": ("area_fallback" if area_fallback else
+                      "l2_similarity" if l2_fallback else "name_match"),
         "connections": grouped,
         "total_connections": len(connected),
         "typed_connections": typed_conns,
         "total_typed_connections": len(typed_conns),
     }
+    # Say what the neighbours ARE, at the moment they are handed over. The three modes
+    # carry very different weight and the field name alone does not convey that.
+    if l2_fallback:
+        result["edge_mode_note"] = (
+            "This object has NO name-match edges. Neighbours below come from L2 semantic "
+            "similarity over the object's catalog text, with a `similarity` score each — "
+            "they are about the same SUBJECT, which is not the same as a declared "
+            "relation. Read typed_connections for relations the catalog actually states.")
+    elif area_fallback:
+        result["edge_mode_note"] = (
+            "This object has no name-match edges and L2 was unavailable or returned "
+            "nothing, so neighbours are every other object in the same business area — "
+            "co-location only, NOT evidence of a relationship. Treat as a browse list.")
+
     # surface useful fields for the root
     if root_meta.get("type") == "api":
         result["protocol"]    = root_meta.get("protocol", "")

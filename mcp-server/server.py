@@ -1307,14 +1307,37 @@ def _attach_graph_context(hits):
             return
         nodes = graph.get("nodes") or {}
         edges = graph.get("edges") or {}
+        ext   = graph.get("ext_nodes") or {}
+        typed = ge._typed_index(graph)
     except Exception:
         return                                       # additive context; never fatal
     for h in catalog:
         node = nodes.get(h["id"])
         if not node:
             continue
+        # The adjacency count says how BUSY a node is; the typed edges say what it
+        # actually IS to its neighbours. Search was returning only the former, so an
+        # agent discovering a name here could not see that it exposes a specific view
+        # or replaces a classical table without a second get_object_graph call -- and
+        # the whole reason this enrichment exists is that the second call is not made.
+        t = typed.get(h["id"]) or {"out": [], "in": []}
+        tc = []
+        for e in t.get("out", []):
+            m = nodes.get(e["to"]) or ext.get(e["to"]) or {}
+            tc.append({"name": e["to"], "rel": e["rel"], "direction": "outbound",
+                       "confidence": e["confidence"], "source": e["source"],
+                       "type": m.get("type", ""),
+                       "catalog_object": m.get("catalog_object", e["to"] in nodes)})
+        for e in t.get("in", []):
+            m = nodes.get(e["from"]) or ext.get(e["from"]) or {}
+            tc.append({"name": e["from"], "rel": e["rel"], "direction": "inbound",
+                       "confidence": e["confidence"], "source": e["source"],
+                       "type": m.get("type", ""),
+                       "catalog_object": m.get("catalog_object", e["from"] in nodes)})
         h["graph"] = {"area": node.get("area") or None,
-                      "connections": len(edges.get(h["id"]) or [])}
+                      "connections": len(edges.get(h["id"]) or []),
+                      "typed_connections": tc,
+                      "total_typed_connections": len(tc)}
 
 
 def _attach_prior_usage(hits):
@@ -1354,6 +1377,36 @@ def _attach_prior_usage(hits):
     return attached
 
 
+def _l2_neighbors(name, top_k=15):
+    """L1 -> L2: what is this object ABOUT, for objects the name heuristic cannot place.
+
+    The inverse of _attach_graph_context, and the half of the L1/L2 coupling that was
+    missing. Passed into get_object_graph as a callable so Layer 1 keeps working with no
+    vector backend installed -- L2 needs sentence-transformers or Bedrock, L1 needs
+    nothing, and that asymmetry is why the graph engine must not import this.
+
+    Queries on the object's TITLE, not its name. The name is what failed to match any
+    edge in the first place, so re-embedding it would reproduce the same miss; the title
+    is the business description and is what makes an isolated object findable.
+    """
+    eng, _err = _load_vector_engine()
+    if eng is None:
+        return []
+    ge, _gerr = _load_graph_engine()
+    if ge is None:
+        return []
+    graph, _e = ge._load()
+    if not graph:
+        return []
+    meta = (graph.get("nodes") or {}).get(name) or {}
+    query = (meta.get("title") or meta.get("use_case") or "").strip() or name
+    hits = eng.search(query, top_k=top_k)
+    if isinstance(hits, dict):                       # engine returns {"error": ...}
+        return []
+    return [{"name": h.get("id"), "score": h.get("score")}
+            for h in (hits or []) if isinstance(h, dict) and h.get("id")]
+
+
 def tool_get_object_graph(args):
     object_name = (args.get("object_name") or "").strip()
     if not object_name:
@@ -1367,7 +1420,8 @@ def tool_get_object_graph(args):
         rel_types = [r for r in re.split(r"[,\s]+", rel_types) if r]
     result = ge.get_object_graph(object_name, depth=depth,
                                  rel_types=rel_types,
-                                 min_confidence=(args.get("min_confidence") or ""))
+                                 min_confidence=(args.get("min_confidence") or ""),
+                                 l2_neighbors=_l2_neighbors)
     if "error" not in result:
         result["verified"] = False
         result["source"]   = "S4PC Live Object Graph (catalog seed). Confirm on SAP Business Accelerator Hub / Custom Logic app / ADT."
@@ -1640,13 +1694,19 @@ TOOLS = {
     "get_object_graph": {
         "description": ("Layer 1 — Live Object Graph: given a single released SAP object name (API, CDS view, "
                         "or BAdI), return all directly related objects across types — e.g. the CDS views and "
-                        "BAdIs that share the same business concept as an API. Uses name-fragment matching; "
-                        "falls back to area-mates when no name-match edges exist. Use to discover the full "
+                        "BAdIs that share the same business concept as an API. Use to discover the full "
                         "released-object landscape around a requirement before coding. "
-                        "`connections` are NAME-SIMILARITY guesses. `typed_connections` are relations the SAP "
-                        "catalog DECLARES (replaces / exposes) and each carries its source — prefer those when "
-                        "you need to defend a statement. Also accepts a classical table name (e.g. EKKO) and "
-                        "answers with the released views that replace it."),
+                        "ALWAYS READ `edge_mode` — it says how the neighbours were found and they are NOT "
+                        "equally trustworthy: 'name_match' = names share a business-concept fragment; "
+                        "'l2_similarity' = no name edges existed, so neighbours come from Layer 2 semantic "
+                        "similarity over the catalog text and each carries a `similarity` score; "
+                        "'area_fallback' = no name edges and L2 was unavailable, so these are merely every "
+                        "other object in the same business area — co-location, not relationship. "
+                        "`connections` are SIMILARITY guesses in all three modes. `typed_connections` are "
+                        "relations the SAP catalog DECLARES (replaces / exposes / requires / belongs_to / "
+                        "covers) and each carries its source and confidence — prefer those when you need to "
+                        "defend a statement. Also accepts a classical table name (e.g. EKKO) and answers with "
+                        "the released views that replace it, or a 3-char scope item ID (e.g. J59)."),
         "schema": {"type": "object", "properties": {
             "object_name": {"type": "string",
                             "description": "A released object name, e.g. I_PurchaseOrder or API_BUSINESS_PARTNER. "
@@ -1654,8 +1714,9 @@ TOOLS = {
             "depth":       {"type": "integer",
                             "description": "BFS hop depth (1=direct neighbours, 2=neighbours of neighbours; default 1)"},
             "rel_types":   {"type": "array", "items": {"type": "string"},
-                            "description": "Filter typed_connections to these relations: replaces, exposes. "
-                                           "Omit for all. Does not affect `connections`."},
+                            "description": "Filter typed_connections to these relations: replaces, exposes, "
+                                           "requires, extends, belongs_to, covers. Omit for all. Does not "
+                                           "affect `connections`."},
             "min_confidence": {"type": "string", "enum": ["declared", "observed", "heuristic"],
                             "description": "Minimum provenance tier for typed_connections. 'declared' = stated by "
                                            "SAP catalog metadata and citable."}},
