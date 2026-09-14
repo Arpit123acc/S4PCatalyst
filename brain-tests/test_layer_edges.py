@@ -129,6 +129,32 @@ if have_l4:
          "relative_path present" if pathed
          else "no relative_path — rerun keyword_index.py to add the column")
 
+    # L4 -> L3. Derived like the other annotation edges: collect every object this
+    # page names, ask the lesson store which of them a lesson actually mentions, and
+    # require exactly those to carry `lessons`. A document naming objects no lesson
+    # discusses is the common case, and must not read as a broken edge.
+    _names = [o.get("name") for h in hits
+              for o in (h.get("objects_mentioned") or [])
+              if isinstance(o, dict) and o.get("name")]
+    try:
+        import object_usage                                    # noqa: PLC0415
+        _want = set(object_usage.lessons_for_objects(
+            _names, server._exp_store.load_experience().get("entries", [])))
+    except Exception as exc:                                   # noqa: BLE001
+        _want = set()
+        print("      (lesson lookup unavailable: %s)" % exc)
+    _have_l = {o.get("name") for h in hits
+               for o in (h.get("objects_mentioned") or [])
+               if isinstance(o, dict) and o.get("lessons")}
+    if not _want:
+        edge("lessons", "L4", "L3", True,
+             "no object named on this page is discussed by any lesson — verified "
+             "against the lesson store, not assumed")
+    else:
+        edge("lessons", "L4", "L3", _have_l >= _want,
+             "%d of %d lesson-bearing mention(s) annotated (%s)"
+             % (len(_have_l & _want), len(_want), ", ".join(sorted(_want))[:60]))
+
 
 # ── L2 -> L1 and L2 -> L4 ────────────────────────────────────────────────────
 print("\nL2 catalog hits carry graph position and prior delivery usage")
@@ -176,6 +202,64 @@ else:
     edge("prior_usage", "L2", "L4", True, "L4 absent, edge not applicable")
 
 
+# ── L2 -> L3 ─────────────────────────────────────────────────────────────────
+# Derived the same way as prior_usage above, and for the same reason: a dead edge and
+# a result set naming no object any lesson mentions produce identical output. Ask the
+# lesson store which of THESE hits ought to carry lessons, then require exactly those.
+try:
+    import object_usage                                        # noqa: PLC0415
+    _entries = server._exp_store.load_experience().get("entries", [])
+    _ids = [h["id"] for h in res
+            if isinstance(h, dict) and h.get("id")
+            and h.get("type") in ("api", "cds_view", "badi")]
+    _should = set(object_usage.lessons_for_objects(_ids, _entries))
+except Exception as exc:                                       # noqa: BLE001
+    _should = set()
+    print("      (lesson lookup unavailable: %s)" % exc)
+_got = {h["id"] for h in res if isinstance(h, dict) and h.get("lessons")}
+if not _should:
+    edge("lessons", "L2", "L3", True,
+         "no object in this result set is named by any lesson, so there is nothing "
+         "to annotate — verified against the lesson store, not assumed")
+else:
+    edge("lessons", "L2", "L3", _got >= _should,
+         "%d of %d lesson-bearing hit(s) annotated (%s)"
+         % (len(_got & _should), len(_should), ", ".join(sorted(_should))[:60]))
+
+
+# ── L1 -> L2 ─────────────────────────────────────────────────────────────────
+# The fallback for an object the name heuristic cannot place. 1,152 nodes are both
+# isolated and arealess, so before this edge existed they returned an empty result
+# with no explanation. Derived: pick a REAL isolated node from the graph rather than
+# naming one, because the catalog is resynced monthly and a hardcoded name would
+# eventually test nothing.
+print("\nan object with no name-match edges still reaches neighbours by meaning")
+try:
+    import graph_engine as _ge                                 # noqa: PLC0415
+    _g, _ = _ge._load()
+    _iso = next((n for n, m in (_g or {}).get("nodes", {}).items()
+                 if not (_g.get("edges") or {}).get(n)
+                 and not (m.get("area") or "").strip()), None)
+except Exception:                                              # noqa: BLE001
+    _iso = None
+if not _iso:
+    edge("l2_fallback", "L1", "L2", True,
+         "no isolated+arealess node in this graph — nothing for the fallback to do")
+else:
+    payload, err = _call("get_object_graph", {"object_name": _iso})
+    mode = (payload or {}).get("edge_mode")
+    # area_fallback is impossible here (the node has no area), so anything other than
+    # l2_similarity means the vector engine did not answer — which is the failure this
+    # check exists for, EXCEPT when L2 is genuinely unavailable on the host.
+    _l2_up = not isinstance(server._load_vector_engine()[0], type(None))
+    edge("l2_fallback", "L1", "L2",
+         mode == "l2_similarity" or not _l2_up,
+         "%s -> %s, %d neighbour(s)" % (_iso, mode, (payload or {}).get("total_connections", 0))
+         if mode == "l2_similarity" else
+         ("L2 unavailable on this host, edge not applicable" if not _l2_up
+          else "%s fell through to %r — _l2_neighbors did not answer" % (_iso, mode)))
+
+
 # ── L1 -> L4 + L3 ────────────────────────────────────────────────────────────
 print("\nL1 objects reach the documents and lessons that name them")
 payload, err = _call("get_object_graph", {"object_name": "I_MaterialStock"})
@@ -214,6 +298,35 @@ edge("evidence", "L3", "L4", bool(rd) or not have_l4,
      if rd else ("L4 absent, edge not applicable" if not have_l4
                  else "no lesson reached a shared-object document — measured coverage "
                       "is 1/32, so this is expected on most pages"))
+
+# L3 -> L2. Derived rather than probed with a query known to work: `related_lessons`
+# only appears when meaning and keywords DISAGREE, so a query whose words already hit
+# the right lesson correctly yields nothing, and asserting on a hand-picked phrase
+# would test the phrase rather than the wiring. Recompute what the handler should
+# have found — the same floored vector search, minus whatever the keyword scan
+# already returned — and require the payload to match it.
+_qx = "api"
+try:
+    _veng, _ = server._load_vector_engine()
+    if _veng is None:
+        _expect_rel = None                                     # L2 down; not applicable
+    else:
+        _sem = _veng.search(_qx, top_k=3, filter_type="experience", min_score=0.30)
+        _kw  = {l.get("id") for l in lessons}
+        _expect_rel = {s.get("id") for s in (_sem or [])
+                       if not isinstance(_sem, dict) and s.get("id")} - _kw
+except Exception:                                              # noqa: BLE001
+    _expect_rel = None
+_got_rel = {x.get("id") for x in ((payload or {}).get("related_lessons") or [])}
+if _expect_rel is None:
+    edge("related", "L3", "L2", True, "L2 unavailable on this host, edge not applicable")
+elif not _expect_rel:
+    edge("related", "L3", "L2", True,
+         "the keyword scan already returned every lesson within 0.30 of this query, "
+         "so there is nothing for meaning to add — recomputed, not assumed")
+else:
+    edge("related", "L3", "L2", _got_rel == _expect_rel,
+         "expected %s, got %s" % (sorted(_expect_rel) or "none", sorted(_got_rel) or "none"))
 
 fr = _first(lessons, lambda l: l.get("from_run"))
 edge("run_evidence", "L3", "runs", bool(fr),
