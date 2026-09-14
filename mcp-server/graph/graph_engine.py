@@ -1058,14 +1058,29 @@ def get_area_map(area: str) -> dict:
     if subs:
         result["included_subareas"] = subs
     if derived_members:
+        # Quote the precision ONLY if this host's embedding backend is the one it was
+        # measured on. Cosine thresholds do not transfer between models — the same
+        # floor that kept 770 objects under MiniLM/384d keeps 287 under Titan/1024d —
+        # so carrying the number across would be asserting a measurement never taken.
+        p = (graph.get("stats") or {}).get("areas_derive_params") or {}
+        same = p.get("backend") and p.get("backend") == p.get("measured_on")
+        if same:
+            claim = ("Measured %.1f%% precise on held-out curated objects, so roughly "
+                     "1 in %d is wrong" % (100.0 * p["measured_precision"],
+                                           round(1.0 / max(1e-9, 1 - p["measured_precision"]))))
+        else:
+            claim = ("Precision is UNMEASURED on this host's embedding backend (%s; the "
+                     "97.8%% figure was taken on %s and cosine thresholds do not transfer "
+                     "between models). Run `python mcp-server/graph/derive_areas.py "
+                     "--measure` to calibrate here"
+                     % (p.get("backend") or "unknown", p.get("measured_on") or "another"))
         result["derived_members"] = derived_members
         result["derived_note"] = (
             "Area PROPAGATED from the curated seed via L2 embedding similarity, not "
-            "stated by SAP or by a human. Measured 97.8%% precise on held-out curated "
-            "objects, so roughly 1 in 45 is wrong — good enough to navigate by, not to "
-            "cite. `confidence` is cosine to the nearest curated neighbour. Release "
-            "state is unaffected: check_object_release_state remains the only source "
-            "for that.")
+            "stated by SAP or by a human. %s — good enough to navigate by, not to cite. "
+            "`confidence` is cosine to the nearest curated neighbour. Release state is "
+            "unaffected: check_object_release_state remains the only source for that."
+            % claim)
     return result
 
 

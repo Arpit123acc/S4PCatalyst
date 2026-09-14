@@ -90,6 +90,65 @@ def _fail(msg):
     sys.exit(1)
 
 
+def measure(np, lab_mat, lab_area, unl_mat, n_nodes, n_lab):
+    """Leave-one-out precision vs coverage, for THIS host's embedding backend.
+
+    WHY THIS IS A FLAG AND NOT A NUMBER IN A COMMENT
+        The first version hardcoded 0.55 and a 97.8% precision claim measured on a
+        laptop running MiniLM at 384 dims. The delivery host runs Bedrock Titan at
+        1024 dims, where the same floor declined 11,167 of 11,454 objects instead of
+        9,695 of 10,465 — and the precision figure travelled with it, unmeasured.
+
+        semantic_search already warns that thresholds are NOT comparable across
+        backends. The calibration therefore belongs with the code, runnable wherever
+        the index actually lives, rather than as a constant someone once measured
+        somewhere else.
+
+    Run:  python mcp-server/graph/derive_areas.py --measure
+    """
+    sim_ll = lab_mat @ lab_mat.T
+    np.fill_diagonal(sim_ll, -1.0)
+    top_ll = np.argsort(sim_ll, axis=1)[:, ::-1][:, :K]
+    sim_ul = unl_mat @ lab_mat.T
+    top_ul = np.argsort(sim_ul, axis=1)[:, ::-1][:, :K]
+
+    print("  %-7s %-9s %-11s %-7s %-9s %s"
+          % ("floor", "unanim", "precision", "sample", "derived", "coverage"))
+    print("  " + "-" * 62)
+    rows = []
+    for floor in (0.40, 0.45, 0.50, 0.55, 0.60, 0.65):
+        for unan in (True, False):
+            ok = tot = 0
+            for r in range(lab_mat.shape[0]):
+                c = top_ll[r]
+                votes = Counter(lab_area[j] for j in c)
+                pred, nv = votes.most_common(1)[0]
+                if sim_ll[r][c[0]] < floor or (unan and nv != K):
+                    continue
+                tot += 1
+                ok += (pred == lab_area[r])
+            d = 0
+            for r in range(unl_mat.shape[0]):
+                c = top_ul[r]
+                nv = Counter(lab_area[j] for j in c).most_common(1)[0][1]
+                if sim_ul[r][c[0]] < floor or (unan and nv != K):
+                    continue
+                d += 1
+            prec = (100.0 * ok / tot) if tot else None
+            rows.append((floor, unan, prec, tot, d))
+            print("  %-7.2f %-9s %-11s %-7d %-9d %.1f%%"
+                  % (floor, "yes" if unan else "no",
+                     ("%.1f%%" % prec) if prec is not None else "n/a",
+                     tot, d, 100.0 * (n_lab + d) / n_nodes))
+
+    print()
+    print("  READ IT LIKE THIS: a floor whose `sample` does not change as you lower it")
+    print("  is INACTIVE over that range, not safe — its flat precision is measuring")
+    print("  nothing. Pick the lowest floor at which `sample` is still moving, and")
+    print("  prefer unanimity: on every backend so far it is worth ~15 points and the")
+    print("  floor is worth none.")
+
+
 def main():
     try:
         import numpy as np
@@ -140,6 +199,13 @@ def main():
         print("  nothing to derive."); return
 
     lab_mat = matrix[np.array(lab_rows)]               # rows are already L2-normalised
+
+    backend = "%s/%dd" % (index.get("engine") or "?", matrix.shape[1])
+    if "--measure" in sys.argv:
+        print("\n  calibration for THIS backend: %s\n" % backend)
+        measure(np, lab_mat, lab_area, matrix[np.array(unl_rows)], len(nodes), len(lab_rows))
+        return
+
     derived, declined = {}, 0
     by_area = Counter()
 
@@ -177,9 +243,15 @@ def main():
     stats["areas_derived"]        = len(derived)
     stats["areas_curated_objects"] = len(lab_rows)
     stats["areas_declined"]       = declined
+    # The backend is recorded because the precision figure only means anything on the
+    # one it was measured on. 0.978 came from MiniLM/384d; on Titan/1024d it is
+    # unverified until someone runs --measure here. get_area_map reads this and says
+    # "unmeasured on this backend" rather than quoting a number from another machine.
     stats["areas_derive_params"]  = {"k": K, "min_similarity": MIN_SIM,
                                      "unanimous": UNANIMOUS,
-                                     "measured_precision": 0.978}
+                                     "backend": backend,
+                                     "measured_precision": 0.978,
+                                     "measured_on": "dense/384d"}
 
     with open(GRAPH_PATH, "w", encoding="utf-8") as fh:
         json.dump(graph, fh, ensure_ascii=False, separators=(",", ":"))
