@@ -57,7 +57,7 @@ if __name__ == "__main__":
     print("  Typed edges: %d  (ext nodes: %d)" % (stats.get("typed_edges", 0),
                                                   stats.get("ext_nodes", 0)))
     for rel, n in sorted(stats.get("typed_by_rel", {}).items()):
-        print("      %-14s %d  declared" % (rel, n))
+        print("      %-14s %d" % (rel, n))
     print("Graph written -> %s" % graph_engine.GRAPH_PATH)
 
     # Quick connectivity check — spot-check a few well-known objects
@@ -77,5 +77,16 @@ if __name__ == "__main__":
             n_conn = result.get("total_connections", 0)
             mode   = result.get("edge_mode", "")
             print("    %-45s → %d connections (%s)" % (name, n_conn, mode))
+
+    # Quick scope-item bridge check
+    declared_covers = sum(1 for e in graph.get("typed_edges", [])
+                          if e["rel"] == "covers" and e["confidence"] == "declared")
+    observed_covers = sum(1 for e in graph.get("typed_edges", [])
+                          if e["rel"] == "covers" and e["confidence"] == "observed")
+    print("\n  Scope→object bridge:")
+    print("    %-30s %d (via scope classifications)" % ("declared covers:", declared_covers))
+    print("    %-30s %d (via output/*/run.json)" % ("observed covers:", observed_covers))
+    if observed_covers == 0:
+        print("    hint: add scope_items:[...] + objects_delivered:[...] to run.json files to grow observed edges")
 
     print("\nDone. MCP tools get_object_graph, get_area_map, and sync_object_graph are now active.")

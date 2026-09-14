@@ -120,7 +120,7 @@ def _names_are_related(toks_a: frozenset, toks_b: frozenset,
 #     relation is not recoverable from a prefix match. The graph improves by adding
 #     declared sources, not by upgrading what is already there.
 
-REL_TYPES  = ("replaces", "exposes", "requires", "extends", "belongs_to")
+REL_TYPES  = ("replaces", "exposes", "requires", "extends", "belongs_to", "covers")
 CONFIDENCE = ("declared", "observed", "heuristic")
 _CONF_RANK = {"heuristic": 1, "observed": 2, "declared": 3}
 
@@ -270,6 +270,81 @@ def scope_taxonomy_edges(ctx: dict):
                             "declared", target_kind=kind)
 
 
+def area_crosswalk_edges(ctx: dict):
+    """scope_item --covers--> graph_area, from scope_items[].classifications.business_area.
+
+    The 3 exact-match areas (Inventory, Production Planning, Quality Management) are the
+    only places scope taxonomy and graph taxonomy share a name today. Those links are the
+    declared bridge — a functional agent can follow scope_item → covers → area and then
+    call get_area_map to reach every released object in that area.
+
+    Exact case-insensitive hit required against the graph's area name set. LoB-level or
+    fuzzy matches are skipped: "Finance" maps to hundreds of objects and says nothing
+    useful without the business_area refinement.
+    """
+    graph_areas = ctx.get("graph_areas") or set()
+    if not graph_areas:
+        return
+    graph_areas_lower = {a.lower(): a for a in graph_areas}
+    for s in ctx["scope_items"]:
+        sid = (s.get("scope_item_id") or "").strip()
+        if not sid:
+            continue
+        seen_areas: set = set()
+        for cls in (s.get("classifications") or []):
+            ba = (cls.get("business_area") or "").strip()
+            if ba and ba.lower() in graph_areas_lower and ba not in seen_areas:
+                seen_areas.add(ba)
+                yield _edge(sid, graph_areas_lower[ba.lower()], "covers",
+                            "catalog:scope_items.classifications.business_area",
+                            "declared", target_kind="graph_area")
+
+
+def run_scope_edges(ctx: dict):
+    """scope_item --covers--> released_object, from output/*/run.json.
+
+    A pipeline run that carries scope_items:[...] and objects_delivered:[{name,...}]
+    becomes observed evidence that those objects serve those scope items. The source
+    field cites the run_id so provenance is traceable: "we built this for J59 and
+    I_MaterialStock was in the delivery".
+
+    A missing output/ dir or runs with no scope_items field produce zero edges silently.
+    The generator only links to names that exist in the catalog (ctx["nodes"]) so a
+    stale run.json referencing a since-retired object cannot introduce phantom nodes.
+    """
+    project_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    output_dir = os.path.join(project_root, "output")
+    if not os.path.isdir(output_dir):
+        return
+    catalog_nodes = ctx.get("nodes") or {}
+
+    for run_dir in sorted(os.listdir(output_dir)):
+        run_json = os.path.join(output_dir, run_dir, "run.json")
+        if not os.path.isfile(run_json):
+            continue
+        try:
+            with open(run_json, "r", encoding="utf-8") as fh:
+                run = json.load(fh)
+        except Exception:
+            continue
+        scope_ids = [str(s).strip() for s in (run.get("scope_items") or []) if s]
+        delivered  = run.get("objects_delivered") or []
+        if not scope_ids or not delivered:
+            continue
+        run_id = (run.get("run_id") or run_dir).strip()
+        for obj in delivered:
+            name = ((obj.get("name") if isinstance(obj, dict) else str(obj)) or "").strip()
+            if not name or name not in catalog_nodes:
+                continue
+            for sid in scope_ids:
+                if sid:
+                    yield _edge(sid, name, "covers",
+                                "run:%s" % run_id,
+                                "observed")
+
+
 # Registry. Adding a relation is adding a generator here — no schema migration, and
 # no change to any consumer, because typed edges are carried alongside the adjacency
 # rather than replacing it. Still to land: requires (communication_scenario, 74) and
@@ -280,6 +355,8 @@ EDGE_SOURCES = (
     scope_dependency_edges,
     scope_master_data_edges,
     scope_taxonomy_edges,
+    area_crosswalk_edges,
+    run_scope_edges,
 )
 
 
@@ -386,7 +463,9 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
     retired_by_id = {s.get("scope_item_id"): s for s in retired_items if s.get("scope_item_id")}
 
     ctx = {"apis": apis, "cds_views": cds_views, "badis": badis,
-           "scope_items": scope_items, "retired_scope_items": retired_items}
+           "scope_items": scope_items, "retired_scope_items": retired_items,
+           "graph_areas": set(areas_clean.keys()),
+           "nodes": nodes}
 
     typed_edges: list[dict]      = []
     ext_nodes:   dict[str, dict] = {}
@@ -414,6 +493,13 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
                 # Referenced by a dependency but absent from both lists — say so rather
                 # than implying it is active.
                 meta["known"] = False
+        elif kind == "graph_area":
+            # A graph area is a grouping of released objects, not an object itself.
+            # Querying get_object_graph on the area name would fail (not in nodes), but
+            # the edge is still useful: a caller can see the area name and call
+            # get_area_map(area) to reach all released objects within it.
+            members = areas_clean.get(name) or []
+            meta["member_count"] = len(members)
         ext_nodes[name] = meta
 
     for source_fn in EDGE_SOURCES:
