@@ -80,6 +80,37 @@ def lessons_mentioning(object_name, entries, limit=10):
     return out
 
 
+def lessons_for_objects(object_names, entries, per_object=3):
+    """L2 -> L3, batched: {object_name: [{id, category, topic}, ...]}.
+
+    The batched form of lessons_mentioning. A search returns a page of hits, and
+    calling the single-object form per hit would re-scan the entire lesson store once
+    per result; this builds each lesson's haystack once and tests the whole page
+    against it. Same reasoning as usage_counts vs usage_brief.
+
+    Topic only, never the lesson body. This rides along on a search result and a
+    paragraph per hit would bury the result itself -- the id is the handle for
+    query_experience when the reader wants the full text.
+    """
+    names = [str(n).strip() for n in (object_names or []) if str(n or "").strip()]
+    if not names or not entries:
+        return {}
+    rxs = [(n, re.compile(r"\b%s\b" % re.escape(n), re.IGNORECASE)) for n in names]
+    out = {}
+    for e in entries:
+        hay = " ".join([e.get("topic") or "", e.get("lesson") or "",
+                        e.get("impact") or "",
+                        " ".join(str(t) for t in (e.get("tags") or []))])
+        if not hay.strip():
+            continue
+        for n, rx in rxs:
+            bucket = out.setdefault(n, [])
+            if len(bucket) < per_object and rx.search(hay):
+                bucket.append({"id": e.get("id"), "category": e.get("category"),
+                               "topic": e.get("topic")})
+    return {k: v for k, v in out.items() if v}
+
+
 def find_usage(object_name, entries=None, limit=10, source_system=None):
     """Combined reverse lookup across the corpus (L4) and recorded lessons (L3)."""
     name = (object_name or "").strip()

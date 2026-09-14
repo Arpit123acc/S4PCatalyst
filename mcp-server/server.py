@@ -1184,7 +1184,8 @@ def tool_semantic_search(args):
                 "hint": "Run: python mcp-server/vector/build_index.py to build the index."}
     meta, label = _vector_provenance(eng)
     _attach_graph_context(results)
-    had_usage = _attach_prior_usage(results)
+    had_usage   = _attach_prior_usage(results)
+    had_lessons = _attach_lessons(results)
     payload = {
         "verified": False,
         "source":   "S4PC semantic index over the released-object catalog (%d docs), built with %s. "
@@ -1207,6 +1208,13 @@ def tool_semantic_search(args):
             "deliveries and be unreleased or since deprecated; the verdict comes from "
             "check_object_release_state. Call get_object_usage for the documents and the "
             "recorded lessons behind these counts.")
+    if had_lessons:
+        payload["lessons_note"] = (
+            "`lessons` are THIS TEAM's recorded experience naming the object — read them "
+            "before designing around it, because they are usually why not to do the "
+            "obvious thing. Topic only; call query_experience with the id for the full "
+            "lesson. Like prior_usage this is history, NOT a release contract: a lesson "
+            "says what happened to us, never whether SAP still releases the object.")
     return payload
 
 def tool_find_similar_delivery(args):
@@ -1222,7 +1230,33 @@ def tool_find_similar_delivery(args):
         return {"error": results["error"],
                 "hint": "Run: python mcp-server/vector/build_index.py. No delivery history yet if output/ is empty."}
     meta, label = _vector_provenance(eng)
-    return {
+    # L3 -> L1, on the objects a past run USED. These hits are deliveries, not catalog
+    # entries, so _attach_graph_context does not apply -- but objects_used is a list of
+    # names the run committed to at the time, and the reader is about to copy that
+    # approach. A run from six months ago can name an object the catalog has since
+    # dropped, and nothing here said so.
+    stale_note = False
+    try:
+        ge, _gerr = _load_graph_engine()
+        for h in (results or []):
+            if not isinstance(h, dict):
+                continue
+            used = ((h.get("metadata") or {}).get("objects_used")) or []
+            if isinstance(used, str):
+                used = [used]
+            names = [str(n).strip() for n in used if str(n or "").strip()]
+            if not names or ge is None:
+                continue
+            briefs = ge.briefs_for_names(names) or {}
+            h["objects_used_now"] = [
+                {"name": n, "in_catalog": n in briefs,
+                 "area": (briefs.get(n) or {}).get("area")}
+                for n in names]
+            if any(n not in briefs for n in names):
+                stale_note = True
+    except Exception:
+        pass                                         # additive context; never fatal
+    payload = {
         "verified": True,
         "source":   "S4PC Experience Graph (output/<RUN-ID>/run.json files)",
         "description": description,
@@ -1234,6 +1268,14 @@ def tool_find_similar_delivery(args):
                      "lessons present when it was last built, so a recent run is invisible here "
                      "until rebuild_vector_index runs." % label),
     }
+    if stale_note:
+        payload["objects_used_note"] = (
+            "`objects_used_now` re-checks each object the past run used against TODAY's "
+            "catalog. An entry with in_catalog=false is NOT proof the object is gone — it "
+            "may predate a catalog refresh or never have been a catalog entry — but it is "
+            "the one thing worth confirming before reusing that run's approach. Take the "
+            "verdict from check_object_release_state, not from this flag.")
+    return payload
 
 def tool_rebuild_vector_index(args):
     global _VEC_ENG
@@ -1374,6 +1416,39 @@ def _attach_prior_usage(hits):
         h["prior_usage"] = {"documents": rec["documents"],
                             "mentions": rec["mentions"]}
         attached = True
+    return attached
+
+
+def _attach_lessons(hits):
+    """L2 -> L3: the recorded lesson that says why NOT to use what search just found.
+
+    _attach_prior_usage closed half of this and its own docstring named the other
+    half -- "three of its own FDs already use it AND ONE RECORDED LESSON SAYS WHY NOT
+    TO". The count shipped; the warning did not, so discovery told an agent how much
+    precedent existed and never what that precedent had cost.
+
+    That is the wrong half to have. A usage count invites reuse; the lesson is the
+    thing that stops a repeat, and search is where an object name enters a design.
+
+    Batched in one pass over the lesson store, and topic-only -- see
+    object_usage.lessons_for_objects. Returns True if anything attached.
+    """
+    catalog = [h for h in (hits or []) if isinstance(h, dict) and h.get("id")
+               and h.get("type") in ("api", "cds_view", "badi")]
+    if not catalog:
+        return False
+    try:
+        import object_usage                                  # noqa: PLC0415
+        entries = _exp_store.load_experience().get("entries", [])
+        found = object_usage.lessons_for_objects([h["id"] for h in catalog], entries)
+    except Exception:
+        return False                                 # additive context; never fatal
+    attached = False
+    for h in catalog:
+        hit = found.get(h["id"])
+        if hit:
+            h["lessons"] = hit
+            attached = True
     return attached
 
 
