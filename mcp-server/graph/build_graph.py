@@ -89,4 +89,10 @@ if __name__ == "__main__":
     if observed_covers == 0:
         print("    hint: add scope_items:[...] + objects_delivered:[...] to run.json files to grow observed edges")
 
+    # This rewrite drops any areas_derived block, and nothing else would mention it:
+    # get_area_map simply stops returning derived_members, which reads as "this area
+    # has none" rather than as "the step was not re-run".
+    print("\n  Derived areas were discarded by this rebuild (graph.json is rewritten).")
+    print("    Re-run after build_index.py:  python mcp-server/graph/derive_areas.py")
+
     print("\nDone. MCP tools get_object_graph, get_area_map, and sync_object_graph are now active.")

@@ -1013,7 +1013,20 @@ def get_area_map(area: str) -> dict:
             entry["use_case"] = meta.get("use_case", "")
         by_type.setdefault(t, []).append(entry)
 
+    # Derived members, kept OUT of the lists above. A propagated area is ~98% precise
+    # and a curated one is a human's decision; merging them would make the second
+    # indistinguishable from the first at every call site, which is the same mistake
+    # as folding typed edges into the heuristic adjacency.
+    wanted = {matched}.union(subs)
+    derived_members = sorted(
+        ({"name": n, "area": d.get("area"), "confidence": d.get("confidence"),
+          "type": (nodes.get(n) or {}).get("type", "")}
+         for n, d in (graph.get("areas_derived") or {}).items()
+         if d.get("area") in wanted),
+        key=lambda e: -(e.get("confidence") or 0))
+
     classified = sum(len(v) for v in areas.values())
+    n_derived  = len(graph.get("areas_derived") or {})
     total      = len(nodes)
     result = {
         "area":       matched,
@@ -1027,18 +1040,32 @@ def get_area_map(area: str) -> dict:
         # catalog is unclassified. Without saying so, a short list reads as "this area
         # has few objects" when it means "few objects have been given an area".
         "coverage": {
-            "objects_with_area": classified,
-            "objects_total":     total,
-            "percent":           round(100.0 * classified / total, 1) if total else 0.0,
-            "note": ("Only %d of %d catalog objects carry a business area — the Hub sync "
-                     "does not supply one, so area exists mainly on the curated seed. An "
-                     "object's ABSENCE from this list is therefore not evidence it is "
-                     "unrelated to the area. Use semantic_search or get_object_graph to "
-                     "find unclassified objects." % (classified, total)),
+            "objects_with_area":    classified,
+            "objects_with_derived": n_derived,
+            "objects_total":        total,
+            "percent":              round(100.0 * classified / total, 1) if total else 0.0,
+            "percent_incl_derived": round(100.0 * (classified + n_derived) / total, 1)
+                                    if total else 0.0,
+            "note": ("%d of %d catalog objects carry a CURATED business area; a further "
+                     "%d have one DERIVED by nearest-neighbour propagation from the "
+                     "curated set (~98%% precise, listed separately under "
+                     "derived_members and never merged above). The Hub's generic sync "
+                     "supplies no area, so the remainder are unclassified — an object's "
+                     "absence is not evidence it is unrelated to this area."
+                     % (classified, total, n_derived)),
         },
     }
     if subs:
         result["included_subareas"] = subs
+    if derived_members:
+        result["derived_members"] = derived_members
+        result["derived_note"] = (
+            "Area PROPAGATED from the curated seed via L2 embedding similarity, not "
+            "stated by SAP or by a human. Measured 97.8%% precise on held-out curated "
+            "objects, so roughly 1 in 45 is wrong — good enough to navigate by, not to "
+            "cite. `confidence` is cosine to the nearest curated neighbour. Release "
+            "state is unaffected: check_object_release_state remains the only source "
+            "for that.")
     return result
 
 
