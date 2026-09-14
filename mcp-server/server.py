@@ -759,20 +759,55 @@ def tool_layer_health(args):
     return freshness.report(deep=bool(args.get("deep")))
 
 
+# Function words that carry no topic signal. Needed because the token test below is a
+# PREFIX match: "the" would otherwise hit "there"/"then", and every lesson contains one.
+_EXP_STOP = frozenset((
+    "the", "and", "for", "with", "that", "this", "not", "but", "you", "are", "was",
+    "how", "why", "when", "what", "which", "from", "into", "its", "use", "used",
+    "using", "can", "does", "did", "has", "have", "all", "any",
+))
+
+
+def _exp_tokens(query):
+    """Query -> the tokens worth matching on. Empty means 'no filter', not 'no match'."""
+    return [t for t in re.findall(r"[a-z0-9_]+", query)
+            if len(t) >= 3 and t not in _EXP_STOP]
+
+
 def tool_query_experience(args):
     query = (args.get("query") or "").strip().lower()
     category = (args.get("category") or "").strip().lower()
-    hits = []
+    # WHY THIS IS NOT `tok in hay`
+    #     It was, and it meant the filter did not filter. A bare substring test makes
+    #     "at" match inside "data" and "in" inside "using", so ANY query containing a
+    #     short word matched nearly every lesson: "stock totals at header level"
+    #     returned 32 of 35, "apostrophe in a filter" returned all 35. Precise
+    #     one-word queries looked fine, which is why it survived — the failure only
+    #     appears when someone types a sentence, and it returns MORE rather than
+    #     erroring, so it reads as a thorough search rather than a broken one.
+    #
+    #     Word-boundary prefix match + stopwords takes those two to 2 and 7 while
+    #     leaving "stock" (2), "badi validation" (7), "btp cost" (5) and
+    #     "classification" (1) exactly as they were.
+    toks = _exp_tokens(query)
+    rxs  = [re.compile(r"\b%s" % re.escape(t)) for t in toks]
+    scored = []
     for e in (EXPERIENCE.get("entries") or []):
         if category and (e.get("category") or "") != category:
             continue
         # `or ""`/`or []` (not .get defaults): a stored null bypasses the default and breaks join()
         hay = " ".join([e.get("topic") or "", e.get("lesson") or "", e.get("category") or "",
                         " ".join(str(t) for t in (e.get("tags") or []))]).lower()
-        if not query or any(tok in hay for tok in query.split()):
+        n = sum(1 for r in rxs if r.search(hay))
+        if not rxs or n:
             # COPY, never the stored dict: the annotation below would otherwise mutate
             # the in-memory experience DB and could be persisted by a later save.
-            hits.append(dict(e))
+            scored.append((n, dict(e)))
+    # Most query terms matched first. The match is still OR, so a broad query can
+    # legitimately return many lessons — ordering is what makes that readable instead
+    # of a dump in storage order.
+    scored.sort(key=lambda p: -p[0])
+    hits = [e for _n, e in scored]
     stale = _experience_index_lag()
     result = {
         "verified": True,
@@ -784,6 +819,63 @@ def tool_query_experience(args):
                                  "record_experience if the run taught anything non-obvious."),
         "reference_links": REFERENCE_LINKS,
     }
+    # L3 -> L2: lessons ABOUT the question that share none of its words.
+    # The scan above is lexical — a substring test per token — so a lesson phrased
+    # "aggregate at item level, never the header" is invisible to a query about "stock
+    # totals" even though it is precisely the warning being sought. L2 already embeds
+    # every lesson (type="experience"), so the capability was there; query_experience
+    # simply never reached for it, and a lesson you cannot phrase your way to is a
+    # lesson you do not have.
+    #
+    # SEPARATE field, deliberately not merged into results: `results` has always meant
+    # "matched your words", and folding semantic neighbours in would change what
+    # `count` counts and quietly turn a match into a resemblance.
+    if query:
+        try:
+            _veng, _verr = _load_vector_engine()
+            if _veng is not None:
+                _have = {h.get("id") for h in hits}
+                # 0.30, and unlike the L1->L2 object fallback this floor IS justified.
+                # There, signal and noise interleaved (the right neighbour scored below
+                # a wrong one) so any cut removed signal. Lessons are prose, not
+                # identifiers, and they separate: "the totals are wrong when grouped"
+                # reaches EXP-023 at 0.324 sharing no word with it, while a query no
+                # lesson answers tops out at 0.267 of pure noise. The cut sits in that
+                # gap. Measured on 5 probe queries against 35 lessons — a small sample,
+                # so re-measure if the store grows substantially.
+                #
+                # Passed as min_score rather than filtered afterwards because
+                # _search_matrix BREAKS on the threshold before applying filter_type,
+                # so a lower floor would not merely add weak hits, it would let the
+                # walk terminate among the 10.7k catalog docs and return nothing.
+                _sem = _veng.search(query, top_k=3, filter_type="experience",
+                                    min_score=0.30)
+                _by_id = {e.get("id"): e for e in (EXPERIENCE.get("entries") or [])}
+                related = []
+                if not isinstance(_sem, dict):               # dict == {"error": ...}
+                    for s in _sem or []:
+                        lid = s.get("id")
+                        e   = _by_id.get(lid)
+                        if not lid or lid in _have or not e:
+                            continue
+                        # The category filter is a caller constraint, not a ranking
+                        # preference — it must bind here too or this field would
+                        # smuggle back the rows results just excluded.
+                        if category and (e.get("category") or "").lower() != category:
+                            continue
+                        related.append({"id": lid, "category": e.get("category"),
+                                        "topic": e.get("topic"), "score": s.get("score")})
+                if related:
+                    result["related_lessons"] = related
+                    result["related_lessons_note"] = (
+                        "Semantically near your query but matching none of its words, so "
+                        "they are NOT in `results` or `count`. Ranked by meaning, which "
+                        "makes them a prompt to read, not an answer — open one with "
+                        "query_experience by id. If this list is empty it may also mean "
+                        "L2 has not indexed the newest lessons; check layer_health.")
+        except Exception:
+            pass                                             # additive; never fatal
+
     # L3 -> L1: a lesson written in 2024 that names API_X says nothing about whether
     # API_X is released today — the same staleness the brain hits have, and the same
     # fix. Cheap here because the memo collapses repeated names across lessons.
@@ -2630,6 +2722,30 @@ try:
                         if b:
                             m["area"] = b["area"]
                             m["graph_connections"] = b["connections"]
+            # L4 -> L3: a lesson we recorded about an object this document names.
+            # The document says what we did then and the verdict says whether the
+            # object is legal now, but neither says what the object COST us. Reading a
+            # past FD is the moment that matters most: the reader is deciding whether
+            # to follow it, and a lesson is usually the record of why the obvious
+            # reading of that FD was wrong.
+            try:
+                import object_usage                          # noqa: PLC0415
+                by_obj = object_usage.lessons_for_objects(
+                    all_names, _exp_store.load_experience().get("entries", []))
+            except Exception:
+                by_obj = {}
+            if by_obj:
+                for hit in payload["results"]:
+                    for m in (hit.get("objects_mentioned") or []):
+                        found = by_obj.get(m.get("name")) if isinstance(m, dict) else None
+                        if found:
+                            m["lessons"] = found
+                payload["lessons_note"] = (
+                    "`lessons` on a mentioned object is THIS TEAM's recorded experience "
+                    "naming it — read it before following this document's approach, since "
+                    "a lesson is often the record of why the obvious reading was wrong. "
+                    "Topic only; query_experience with the id gives the full text. Like "
+                    "the document itself it is history, never a release contract.")
             payload["objects_note"] = (
                 "objects_mentioned lists SAP object names found IN the retrieved text, each "
                 "with its verdict from the live catalog as of now — not as of when the "
