@@ -174,6 +174,11 @@ assume approval; never continue on silence.
 
 1. **Intake** — read the FD, restate scope in ≤10 lines, classify RICEFW type, list open
    questions (unanswered questions go to the human at Checkpoint 1, not silently answered).
+   Call `lookup_scope_item` on the FD's stated process area to identify the SAP scope item IDs
+   that this delivery falls under and write them to `run.json` as `scope_items: [...]`. If the
+   FD does not name a scope item and lookup returns nothing useful, leave the field as `[]` —
+   do not guess. This field feeds the scope→object bridge: the graph learns which released
+   objects serve which scope items from every completed run.
 2. **Solution proposal** — capability decomposition + per-capability mode (mixed allowed),
    object inventory (released APIs/CDS/BAdIs only, each with its Business Accelerator Hub
    link), the **Feasibility/Approach/Cost rating table** for all options considered (BTP costs
@@ -284,6 +289,13 @@ assume approval; never continue on silence.
     one `record_experience` call if the run taught anything non-obvious, then
     ✋ **CHECKPOINT 3 — Acceptance.** Human accepts the package or sends specific items back
     (record rework rounds in `run.json`).
+    Also write `objects_delivered` to `run.json` — an array of every released object whose
+    release verdict was established in this run: `[{"name": "I_PurchaseOrder", "verdict":
+    "RELEASED", "evidence": "catalog_hit"}, ...]`. This is the same list as the Step 3
+    release-verdicts table; you already have it. Only include objects with verdict RELEASED
+    (catalog_hit or catalog_hit-confirmed) — skip heuristic-only and NOT_VERIFIED objects.
+    This field, combined with `scope_items` from Step 1, is what the graph uses to build
+    observed scope→object edges automatically on the next rebuild.
 
 **Gate discipline (independent review).** At GATE 1, 2 and 3, do not rubber-stamp your own work.
 Re-open the actual deliverable with fresh eyes — as a reviewer who did not write it and does not
@@ -406,8 +418,13 @@ progress (or one waiting on a human) is visible in the Workflow Explorer UI. Sch
   "created": "2026-07-18",
   "fd_name": "FD-MM-EXT-0001",
   "requirement_summary": "Block PO release when the custom priority field is empty.",
+  "scope_items": ["J59", "BKJ"],
   "approved_approach": "Key user: custom field + released BAdI custom logic",
   "objects_used": ["I_PurchaseOrder", "MM_PUR_S4_PO_CHECK", "YY1_Priority_PDH"],
+  "objects_delivered": [
+    {"name": "I_PurchaseOrder",    "verdict": "RELEASED", "evidence": "catalog_hit"},
+    {"name": "MM_PUR_S4_PO_CHECK", "verdict": "RELEASED", "evidence": "catalog_hit"}
+  ],
   "summary": "Key-user custom field + BAdI validation; no transport. Reuse the FLCL pattern.",
   "status": "completed",
   "quality_score": 81,
@@ -447,6 +464,13 @@ findings (a gate that FAILED, was fixed, then re-passed ends as PASS/CONDITIONAL
 `summary`) are what `build_index.py` indexes past runs on** — a run that leaves them empty is invisible
 to `find_similar_delivery` and teaches the pipeline nothing. Write `requirement_summary` at intake,
 `approved_approach` at solution approval, and `objects_used` + `summary` at package time.
+
+**Scope→object bridge fields** — write `scope_items` at intake (Step 1) and `objects_delivered` at
+package (Step 12). Together they let the graph engine emit observed `scope_item --covers-->
+released_object` edges on every rebuild, so future agents can answer "which scope items does
+I_MaterialStock serve?" without a corpus search. `scope_items` is an array of 3-char SAP scope item
+IDs (from `lookup_scope_item`); `objects_delivered` mirrors the Step 3 release-verdicts table
+restricted to confirmed `catalog_hit` objects.
 
 `mode_override` (present only when the human selected a **non-recommended** approach at CP1, e.g. a
 client-mandated BTP build over a RAP recommendation) = `{original_recommendation, original_mode,
