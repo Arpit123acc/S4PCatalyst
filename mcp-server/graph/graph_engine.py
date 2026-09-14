@@ -360,6 +360,30 @@ EDGE_SOURCES = (
 )
 
 
+# ── area vocabulary ──────────────────────────────────────────────────────────────
+#
+# The seed catalog was hand-written over time and the same business area was spelled
+# more than one way, which does not look like a bug in the data -- it looks like two
+# smaller areas. get_area_map("Human Capital Management") returned 3 objects while 4
+# more sat under "HCM", and nothing anywhere said so.
+#
+# ONLY TRUE SYNONYMS belong here. "Finance / Tax" is NOT folded into "Finance": that
+# is a hierarchy, and collapsing it would destroy a distinction someone chose to make.
+# The parent/child relationship is handled at QUERY time by get_area_map instead, so
+# the granularity survives and the rollup is still available.
+_AREA_ALIASES = {
+    "hcm":             "Human Capital Management",
+    "finance / aa":    "Finance / Asset Accounting",
+    "finance / ar":    "Finance / Accounts Receivable",
+    "treasury":        "Finance / Treasury",
+}
+
+
+def _canon_area(area: str) -> str:
+    a = (area or "").strip()
+    return _AREA_ALIASES.get(a.lower(), a)
+
+
 # ── graph builder ────────────────────────────────────────────────────────────────
 
 def build_graph(apis: list, cds_views: list, badis: list) -> dict:
@@ -384,7 +408,7 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
         name = obj.get("name", "")
         if not name:
             continue
-        area = obj.get("area", "")
+        area = _canon_area(obj.get("area", ""))
         nodes[name] = {
             "type":     "api",
             "area":     area,
@@ -402,7 +426,7 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
         name = obj.get("name", "")
         if not name:
             continue
-        area = obj.get("area", "")
+        area = _canon_area(obj.get("area", ""))
         replaces = obj.get("replaces") or []
         if isinstance(replaces, str):
             replaces = [replaces]
@@ -419,7 +443,7 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
         name = obj.get("name", "")
         if not name:
             continue
-        area = obj.get("area", "")
+        area = _canon_area(obj.get("area", ""))
         nodes[name] = {
             "type":               "badi",
             "area":               area,
@@ -961,14 +985,27 @@ def get_area_map(area: str) -> dict:
             "available_areas": sorted(areas.keys()),
         }
 
+    # Roll the children up into the parent. "Finance" naming 15 objects while 16 more
+    # sat in "Finance / Tax", "Finance / AP" and seven other children was not a useful
+    # answer to "show me Finance" -- and the caller had no way to know the children
+    # existed. Done at query time rather than by merging the areas, so asking for
+    # "Finance / Tax" still gets exactly that.
+    subs = sorted(a for a in areas
+                  if a.lower().startswith(matched.lower() + " / "))
+    member_names = list(areas[matched])
+    for s in subs:
+        member_names.extend(areas[s])
+
     by_type: dict[str, list] = {"api": [], "cds_view": [], "badi": []}
-    for name in areas[matched]:
+    for name in member_names:
         meta = nodes.get(name, {})
         t    = meta.get("type", "other")
         entry = {
             "name":  name,
             "title": meta.get("title") or meta.get("use_case", ""),
         }
+        if (nodes.get(name, {}).get("area") or "") != matched:
+            entry["subarea"] = nodes.get(name, {}).get("area")
         if t == "api":
             entry["protocol"] = meta.get("protocol", "")
             entry["hub_url"]  = meta.get("hub_url", "")
@@ -976,14 +1013,33 @@ def get_area_map(area: str) -> dict:
             entry["use_case"] = meta.get("use_case", "")
         by_type.setdefault(t, []).append(entry)
 
-    return {
+    classified = sum(len(v) for v in areas.values())
+    total      = len(nodes)
+    result = {
         "area":       matched,
         "apis":       by_type.get("api", []),
         "cds_views":  by_type.get("cds_view", []),
         "badis":      by_type.get("badi", []),
-        "total":      len(areas[matched]),
+        "total":      len(member_names),
         "note":       "Objects are catalog seeds — confirm release state on SAP Business Accelerator Hub / Custom Logic app / ADT.",
+        # THE NUMBER THAT STOPS THIS LIST BEING MISREAD. Area is populated only on the
+        # hand-curated seed; the Hub sync supplies no area field at all, so ~97% of the
+        # catalog is unclassified. Without saying so, a short list reads as "this area
+        # has few objects" when it means "few objects have been given an area".
+        "coverage": {
+            "objects_with_area": classified,
+            "objects_total":     total,
+            "percent":           round(100.0 * classified / total, 1) if total else 0.0,
+            "note": ("Only %d of %d catalog objects carry a business area — the Hub sync "
+                     "does not supply one, so area exists mainly on the curated seed. An "
+                     "object's ABSENCE from this list is therefore not evidence it is "
+                     "unrelated to the area. Use semantic_search or get_object_graph to "
+                     "find unclassified objects." % (classified, total)),
+        },
     }
+    if subs:
+        result["included_subareas"] = subs
+    return result
 
 
 def list_areas(graph_data: dict | None = None) -> dict:
@@ -1003,4 +1059,20 @@ def list_areas(graph_data: dict | None = None) -> dict:
             t = nodes.get(n, {}).get("type", "other")
             counts[t] = counts.get(t, 0) + 1
         summary[area] = counts
-    return {"areas": summary, "total_areas": len(summary)}
+    classified = sum(len(v) for v in areas.values())
+    total      = len(nodes)
+    return {
+        "areas":       summary,
+        "total_areas": len(summary),
+        # Same disclosure as get_area_map: without it this reads as the catalog's
+        # taxonomy rather than as the slice of it that has ever been classified.
+        "coverage": {
+            "objects_with_area": classified,
+            "objects_total":     total,
+            "percent":           round(100.0 * classified / total, 1) if total else 0.0,
+            "note": ("These areas cover %d of %d catalog objects. The Hub sync supplies "
+                     "no area, so the remaining %d are unclassified — this is a view of "
+                     "the curated seed, not a complete taxonomy of the catalog."
+                     % (classified, total, total - classified)),
+        },
+    }
