@@ -1379,11 +1379,17 @@ def _phase_a_prompt(fd_path, rid):
         "    standards, prior specs). Note any document that informs scope and cite it by source name.\n"
         "    If a deliverable_type-filtered call returns nothing, retry unfiltered (the corpus may not be\n"
         "    tagged by type). If the brain is unavailable (offline host), say so in one line and continue.\n"
+        "  • SCOPE ITEMS: call lookup_scope_item on the FD's process area to identify the SAP scope\n"
+        "    item(s) this delivery sits under. If the FD names none and lookup returns nothing useful,\n"
+        "    use [] — do NOT guess a 3-char id.\n"
         "  • List open questions for the human (do NOT silently answer them).\n"
         "Write output/%(rid)s/01-discovery.md\n"
         "Update run.json: step 1 → PASS, 'type' → classified type, and — REQUIRED, this is what makes\n"
         "  the run reusable by future runs via the Experience Graph —\n"
-        "  'requirement_summary' → one sentence (≤200 chars) capturing what this delivery does.\n\n"
+        "  'requirement_summary' → one sentence (≤200 chars) capturing what this delivery does,\n"
+        "  and 'scope_items' → the array of scope item ids from above (or []). That field is what\n"
+        "  the object graph turns into observed scope→object edges at the next rebuild; a run that\n"
+        "  omits it teaches the graph nothing.\n\n"
         "── STEP 2 · SOLUTION PROPOSAL (Extensibility Architect) ─────────────────────\n"
         "Set step 2 → RUNNING. Then:\n"
         "  • Call query_experience for similar past runs (cite EXP-ids in the proposal).\n"
@@ -2189,6 +2195,12 @@ def _phase_d_prompt(rid, fd_path, decision, notes, cp3_slug, selected_is_btp=Fal
         "  (find_similar_delivery); a run that omits them teaches the pipeline nothing:\n"
         "    'objects_used'  → flat array of every released SAP object consumed + every custom object\n"
         "                      created (exact technical names, e.g. ['I_Product','API_...','Z_LOTTI']).\n"
+        "    'objects_delivered' → array of {name, verdict, evidence} for the RELEASED objects whose\n"
+        "                      state you established in step 3, restricted to verdict RELEASED with\n"
+        "                      evidence catalog_hit. Skip heuristic-only and NOT_VERIFIED objects, and\n"
+        "                      skip custom Z/Y objects — they are not catalog entries. Combined with\n"
+        "                      'scope_items' from step 1, this is what the object graph turns into\n"
+        "                      observed scope→object edges; omit either and that half stays empty.\n"
         "    'summary'       → 2-3 sentences: what was built, in which extensibility mode, and the one\n"
         "                      thing a future run should reuse or avoid.\n"
         "    'requirement_summary' / 'approved_approach' → fill if still empty.\n\n"
@@ -3453,6 +3465,11 @@ def _seed_run_skeleton(fd_path):
         # here; approved_approach is filled at CP1; the rest are written by the agent (intake/package).
         "fd_name": os.path.splitext(os.path.basename(fd_path))[0] if fd_path else title,
         "requirement_summary": None, "approved_approach": None, "objects_used": [], "summary": None,
+        # Scope→object bridge (Layer 1). scope_items is written at intake, objects_delivered at
+        # package; graph_engine.run_scope_edges reads BOTH and emits observed scope→object edges on
+        # the next graph rebuild. Seeded empty so the keys always exist — an absent key and a
+        # deliberate [] are the same to a reader, and only one of them means "asked and found none".
+        "scope_items": [], "objects_delivered": [],
         # Extensibility field contract (taxonomy Section 3) — filled by the architect at step 2.
         "extensibility_approach": None, "key_user_components": [], "developer_components": [],
         "btp_components": [], "clean_core_validated": None, "transport_type": None,

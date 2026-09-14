@@ -63,4 +63,7 @@ for p in 3002 8321; do
 done
 echo
 echo "Done. Confirm Bedrock routing with:"
-echo "  claude -p 'Reply with exactly: BEDROCK_OK' --strict-mcp-config --mcp-config /dev/null"
+# --mcp-config takes a PATH OR INLINE JSON, and /dev/null is neither: it reads as an
+# empty string and fails "MCP config is not a valid JSON" before Bedrock is ever reached,
+# so the check looked like a routing failure when nothing had been tested at all.
+echo "  claude -p 'Reply with exactly: BEDROCK_OK' --strict-mcp-config --mcp-config '{\"mcpServers\":{}}'"
