@@ -44,6 +44,17 @@ L4_KEYWORD = os.path.join(REPO_DIR, "brain", "index", "keyword.db")
 L4_VECTORS = os.path.join(REPO_DIR, "brain", "index", "metadata.json")
 L4_FAISS   = os.path.join(REPO_DIR, "brain", "index", "faiss.index")
 
+CATALOG_DIR = os.path.join(BASE_DIR, "catalog")
+OUTPUT_DIR  = os.path.join(REPO_DIR, "output")
+
+# Every file build_graph.py reads. A graph older than any of them is describing a
+# catalog that no longer exists -- and scope_items.json in particular changes L1 in a
+# way NO count check can see, because scope items become ext_nodes and are deliberately
+# excluded from stats.nodes to keep L1_objects_in_L2 honest. mtime is the only signal
+# that catches an edit to it.
+_L1_SOURCES = ("released_apis.json", "released_cds_views.json",
+               "released_badis.json", "scope_items.json")
+
 # L2 indexes these three object types out of L1. Kept as a constant because the
 # L1<->L2 comparison is only meaningful over the types L2 actually ingests.
 _L1_TYPES_IN_L2 = ("api", "cds_view", "badi")
@@ -55,6 +66,46 @@ def _stamp(path):
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(os.path.getmtime(path)))
     except OSError:
         return None
+
+
+def _mtime(path):
+    """Raw mtime as a float, or None. Compared numerically rather than via _stamp:
+    ISO strings are second-resolution, and a rebuild that finishes in the same second
+    as the edit that triggered it would compare equal and read as fresh."""
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
+
+
+# The fields build_index.py joins into a delivery doc's text. A run with none of them
+# produces empty text and is SKIPPED by the builder (build_index.py:184) -- correctly,
+# there is nothing to match on. Counting those as "should be indexed" would report a
+# staleness that rebuild_vector_index can never clear, which is the exact failure that
+# made L3_lessons_in_L2 useless. Mirror the builder, not the directory listing.
+_L2_RUN_FIELDS = ("fd_name", "requirement_summary", "approved_approach",
+                  "extensibility_mode", "summary", "objects_used")
+
+
+def _count_run_files():
+    """How many run.json files build_index.py would actually index, or None if no output/."""
+    try:
+        names = os.listdir(OUTPUT_DIR)
+    except OSError:
+        return None
+    n = 0
+    for d in names:
+        data, _err = _read_json(os.path.join(OUTPUT_DIR, d, "run.json"))
+        if not isinstance(data, dict):
+            continue
+        for f in _L2_RUN_FIELDS:
+            v = data.get(f)
+            if isinstance(v, list):
+                v = " ".join(str(x) for x in v)
+            if (v or "") if isinstance(v, str) else v:
+                n += 1
+                break
+    return n
 
 
 def _read_json(path):
@@ -72,10 +123,45 @@ def _l1():
     if data is None:
         return {"present": False, "error": err, "built_at": _stamp(L1_PATH)}
     stats = data.get("stats") or {}
-    return {"present": True, "built_at": _stamp(L1_PATH),
-            "nodes": stats.get("nodes") or len(data.get("nodes") or {}),
-            "edges": stats.get("edges"), "areas": stats.get("areas"),
-            "by_type": stats.get("by_type") or {}}
+    out = {"present": True, "built_at": _stamp(L1_PATH),
+           "nodes": stats.get("nodes") or len(data.get("nodes") or {}),
+           "edges": stats.get("edges"), "areas": stats.get("areas"),
+           "by_type": stats.get("by_type") or {},
+           # The ontology layer was invisible here: an L1 that had lost every typed
+           # edge reported exactly the same nodes/edges/areas as a healthy one.
+           "typed_edges": stats.get("typed_edges"),
+           "ext_nodes": stats.get("ext_nodes"),
+           "scope_items_loaded": stats.get("scope_items_loaded")}
+    # Which pipeline runs actually contributed observed scope->object edges. Cheap: a
+    # scan of ~4.8k typed edges, already parsed.
+    runs = set()
+    for e in data.get("typed_edges") or []:
+        src = e.get("source") or ""
+        if src.startswith("run:"):
+            runs.add(src[4:])
+    out["runs_in_graph"] = sorted(runs)
+    return out
+
+
+def _runs_on_disk():
+    """Run ids whose run.json carries BOTH fields the scope bridge needs.
+
+    A run missing either one contributes nothing and is correctly absent from the graph,
+    so counting every run.json would report permanent staleness -- the same false alarm
+    that made L3_lessons_in_L2 unusable.
+    """
+    out = []
+    try:
+        names = os.listdir(OUTPUT_DIR)
+    except OSError:
+        return out
+    for d in sorted(names):
+        data, _err = _read_json(os.path.join(OUTPUT_DIR, d, "run.json"))
+        if not isinstance(data, dict):
+            continue
+        if (data.get("scope_items") or []) and (data.get("objects_delivered") or []):
+            out.append((data.get("run_id") or d).strip())
+    return out
 
 
 def _l2():
@@ -215,6 +301,57 @@ def consistency(layers):
             "find_similar_delivery cannot see the %d newest lesson(s)"
             % abs(actual - indexed)))
 
+    # catalog -> L1. The only check that sees a scope_items.json edit at all: scope
+    # items land in ext_nodes and are excluded from stats.nodes on purpose, so every
+    # count-based check stays green while the graph describes a stale catalog.
+    if l1.get("present"):
+        graph_t = _mtime(L1_PATH)
+        newer = [f for f in _L1_SOURCES
+                 if (_mtime(os.path.join(CATALOG_DIR, f)) or 0) > (graph_t or 0)]
+        checks.append(_check(
+            "L1_graph_vs_catalog",
+            "OK" if not newer else "STALE",
+            "graph built %s; catalog sources newer: %s"
+            % (l1.get("built_at"), ", ".join(newer) if newer else "none"),
+            None if not newer else
+            "catalog file(s) changed after the graph was built — run "
+            "python mcp-server/graph/build_graph.py"))
+
+    # scope_items.json -> L1. _load_scope_items() swallows a parse error and returns
+    # ([], []), which drops every scope edge while the graph still builds and every
+    # other check still passes -- failing by returning less, exactly the mode this
+    # module exists for. Counts catch that; the mtime check above cannot.
+    if l1.get("present") and l1.get("scope_items_loaded") is not None:
+        data, _e = _read_json(os.path.join(CATALOG_DIR, "scope_items.json"))
+        on_disk = len((data or {}).get("scope_items") or []) if data else None
+        if on_disk is not None:
+            loaded = l1.get("scope_items_loaded") or 0
+            checks.append(_check(
+                "L1_scope_items_loaded",
+                "OK" if loaded == on_disk else "STALE",
+                "graph loaded %d scope item(s); scope_items.json holds %d"
+                % (loaded, on_disk),
+                None if loaded == on_disk else
+                "scope_items.json changed or failed to parse — run "
+                "python mcp-server/graph/build_graph.py and check its scope-bridge line"))
+
+    # runs -> L1. The observed half of the scope->object bridge is derived from
+    # output/*/run.json at BUILD time, so a completed run contributes nothing until the
+    # graph is rebuilt -- and outside the webapp nothing triggers that rebuild.
+    if l1.get("present"):
+        on_disk = _runs_on_disk()
+        in_graph = set(l1.get("runs_in_graph") or [])
+        missing = [r for r in on_disk if r not in in_graph]
+        checks.append(_check(
+            "L1_runs_in_graph",
+            "OK" if not missing else "STALE",
+            "%d run(s) carry scope_items + objects_delivered; %d reflected in the graph"
+            % (len(on_disk), len(on_disk) - len(missing)),
+            None if not missing else
+            "run(s) %s completed after the graph was built — run "
+            "python mcp-server/graph/build_graph.py to add their observed "
+            "scope->object edges" % ", ".join(missing[:5])))
+
     # L1 -> L2.
     if l2.get("present") and l1.get("present"):
         in_l2 = sum(l2["by_type"].get(t, 0) for t in _L1_TYPES_IN_L2)
@@ -227,6 +364,21 @@ def consistency(layers):
             "the catalog changed under one of them — rebuild both: "
             "python mcp-server/graph/build_graph.py && "
             "python mcp-server/vector/build_index.py"))
+
+    # runs -> L2. find_similar_delivery reads these; a run completed outside the webapp
+    # never triggers the rebuild that would index it.
+    if l2.get("present"):
+        indexed = l2["by_type"].get("delivery", 0)
+        n_runs  = _count_run_files()
+        if n_runs is not None:
+            checks.append(_check(
+                "L2_runs_indexed",
+                "OK" if indexed >= n_runs else "STALE",
+                "L2 indexed %d delivery doc(s); output/ holds %d run.json"
+                % (indexed, n_runs),
+                None if indexed >= n_runs else
+                "rebuild_vector_index — until then find_similar_delivery cannot see "
+                "the %d newest run(s)" % (n_runs - indexed)))
 
     # L4's two halves must describe the same corpus: they are joined on chunk id at
     # query time, so a keyword index older than the vectors yields hits with no score.
