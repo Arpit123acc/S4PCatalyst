@@ -61,7 +61,7 @@ INDEX_PATH = os.path.join(BASE_DIR, "vector", "index.json")
 
 CATALOG_TYPES = ("api", "cds_view", "badi")
 
-# UNANIMITY IS THE PRECISION LEVER. MIN_SIM IS NOT — READ BEFORE TUNING.
+# UNANIMITY IS THE PRECISION LEVER. THE SIMILARITY FLOOR IS NOT — READ BEFORE TUNING.
 #
 #   thresh  unanimous  LOO precision  LOO n  derived  coverage
 #   0.40    yes        97.8%          137    2065     21.8%
@@ -289,7 +289,7 @@ def main():
     cov_before = 100.0 * len(lab_rows) / total
     cov_after  = 100.0 * (len(lab_rows) + len(derived)) / total
     print("  derived: %d    declined: %d (below %.2f similarity, or neighbours disagreed)"
-          % (len(derived), declined, MIN_SIM))
+          % (len(derived), declined, min_sim))
     print("  coverage: %.1f%% -> %.1f%%" % (cov_before, cov_after))
     print("\n  Top derived areas:")
     for area, n in by_area.most_common(10):
