@@ -81,8 +81,29 @@ CATALOG_TYPES = ("api", "cds_view", "badi")
 #
 # Raise coverage by labelling more seed objects, not by loosening this.
 K          = 3
-MIN_SIM    = 0.55      # cosine to the NEAREST labelled neighbour
 UNANIMOUS  = True      # all K neighbours must name the same area — the real guard
+
+# PER BACKEND, because a cosine floor is not portable between embedding models and
+# the two measure differently in kind, not just in value:
+#
+#   dense/384d (MiniLM)   sample 137 at 0.40, 0.45, 0.50 AND 0.55 — frozen. The floor
+#                         is INACTIVE across that range, so its flat 97.8% is measuring
+#                         nothing there. Lowering it would ship ~1,295 objects from a
+#                         band the sweep never sampled. Stay at 0.55.
+#   bedrock/1024d (Titan) sample 115/113/109/107 across the same floors — active, and
+#                         precision holds at 98.3/98.2/98.2/98.1. 0.40 is therefore
+#                         evidenced, and derives 1,129 instead of 287 (11.9% vs 4.8%).
+#
+# Same table, opposite conclusion, because what matters is whether the sample moves.
+# An unlisted backend gets the conservative floor and NO precision claim — see
+# get_area_map, which refuses to quote a figure measured elsewhere.
+#
+# (min_similarity, measured_precision, leave-one-out sample size)
+CALIBRATION = {
+    "bedrock/1024d": (0.40, 0.983, 115),
+    "dense/384d":    (0.55, 0.978, 137),
+}
+DEFAULT_CALIBRATION = (0.55, None, 0)
 
 
 def _fail(msg):
@@ -206,6 +227,15 @@ def main():
         measure(np, lab_mat, lab_area, matrix[np.array(unl_rows)], len(nodes), len(lab_rows))
         return
 
+    min_sim, precision, sample = CALIBRATION.get(backend, DEFAULT_CALIBRATION)
+    if backend in CALIBRATION:
+        print("  backend: %s   floor %.2f (measured %.1f%% on n=%d)"
+              % (backend, min_sim, 100.0 * precision, sample))
+    else:
+        print("  backend: %s   floor %.2f — NOT CALIBRATED for this backend, using the"
+              % (backend, min_sim))
+        print("           conservative default. Run --measure to calibrate it.")
+
     derived, declined = {}, 0
     by_area = Counter()
 
@@ -223,7 +253,7 @@ def main():
             best  = float(sims[r][cand[0]])
             votes = Counter(areas)
             area, n = votes.most_common(1)[0]
-            if best < MIN_SIM:
+            if best < min_sim:
                 declined += 1
                 continue
             if UNANIMOUS and n != K:
@@ -243,15 +273,14 @@ def main():
     stats["areas_derived"]        = len(derived)
     stats["areas_curated_objects"] = len(lab_rows)
     stats["areas_declined"]       = declined
-    # The backend is recorded because the precision figure only means anything on the
-    # one it was measured on. 0.978 came from MiniLM/384d; on Titan/1024d it is
-    # unverified until someone runs --measure here. get_area_map reads this and says
-    # "unmeasured on this backend" rather than quoting a number from another machine.
-    stats["areas_derive_params"]  = {"k": K, "min_similarity": MIN_SIM,
+    # measured_precision is None on an uncalibrated backend, and get_area_map then
+    # refuses to quote a figure rather than borrowing one from a machine that measured
+    # a different embedding model.
+    stats["areas_derive_params"]  = {"k": K, "min_similarity": min_sim,
                                      "unanimous": UNANIMOUS,
                                      "backend": backend,
-                                     "measured_precision": 0.978,
-                                     "measured_on": "dense/384d"}
+                                     "measured_precision": precision,
+                                     "measured_sample": sample}
 
     with open(GRAPH_PATH, "w", encoding="utf-8") as fh:
         json.dump(graph, fh, ensure_ascii=False, separators=(",", ":"))
