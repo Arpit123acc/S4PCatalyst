@@ -38,7 +38,8 @@ REPO_DIR = os.path.dirname(BASE_DIR)
 L1_PATH   = os.path.join(BASE_DIR, "graph", "graph.json")
 L2_PATH   = os.path.join(BASE_DIR, "vector", "index.json")
 L2_EMB    = os.path.join(BASE_DIR, "vector", "index.npy")
-L3_PATH   = os.path.join(BASE_DIR, "catalog", "experience_db.json")
+L3_PATH   = os.path.join(BASE_DIR, "catalog", "experience_db.json")   # git seed
+L3_STORE  = os.path.join(BASE_DIR, "catalog", "catalog.db")           # what is served
 L4_KEYWORD = os.path.join(REPO_DIR, "brain", "index", "keyword.db")
 L4_VECTORS = os.path.join(REPO_DIR, "brain", "index", "metadata.json")
 L4_FAISS   = os.path.join(REPO_DIR, "brain", "index", "faiss.index")
@@ -95,11 +96,29 @@ def _l2():
 
 
 def _l3():
+    """L3 has TWO stores and they are not the same number.
+
+    experience_db.json is the git-tracked SEED (what teammates share); catalog.db is the
+    STORE the server actually queries and build_index.py actually indexes. Reporting only
+    the seed made every downstream check compare the wrong pair -- see consistency().
+    """
     data, err = _read_json(L3_PATH)
     if data is None:
         return {"present": False, "error": err, "built_at": _stamp(L3_PATH)}
     entries = data.get("entries") or []
-    return {"present": True, "built_at": _stamp(L3_PATH), "lessons": len(entries)}
+    out = {"present": True, "built_at": _stamp(L3_PATH),
+           "lessons": len(entries), "seed_lessons": len(entries)}
+    try:
+        import sqlite3
+        con = sqlite3.connect("file:%s?mode=ro" % L3_STORE, uri=True)
+        out["store_lessons"] = con.execute("SELECT count(*) FROM experience").fetchone()[0]
+        con.close()
+        # What the server serves and what build_index indexes is the STORE, so that is
+        # the number every consistency check must reason about.
+        out["lessons"] = out["store_lessons"]
+    except Exception as exc:
+        out["store_error"] = str(exc)
+    return out
 
 
 def _l4(deep=False):
@@ -169,13 +188,28 @@ def consistency(layers):
     l1, l2, l3, l4 = (layers["L1_object_graph"], layers["L2_semantic_index"],
                       layers["L3_experience"], layers["L4_brain"])
 
-    # L3 -> L2. The one that was already silently wrong.
+    # seed -> store. Split out from the check below, which used to compare the SEED
+    # against L2 and so answered neither question: it fired whenever a git pull brought
+    # in a lesson, and named a fix (rebuild_vector_index) that reads the store and could
+    # never clear it. Two sources of divergence, two checks, two different fixes.
+    if l3.get("present") and l3.get("store_lessons") is not None:
+        seed, store = l3.get("seed_lessons", 0), l3["store_lessons"]
+        checks.append(_check(
+            "L3_seed_in_store",
+            "OK" if seed <= store else "STALE",
+            "store holds %d lesson(s); git seed holds %d" % (store, seed),
+            None if seed <= store else
+            "call query_experience (or any tool that loads lessons) — the seed is "
+            "imported automatically on next load; %d lesson(s) from git are not yet "
+            "in the store and are invisible to every tool" % (seed - store)))
+
+    # store -> L2.
     if l2.get("present") and l3.get("present"):
         indexed, actual = l2["by_type"].get("experience", 0), l3["lessons"]
         checks.append(_check(
             "L3_lessons_in_L2",
             "OK" if indexed == actual else "STALE",
-            "L2 indexed %d lesson(s); L3 holds %d" % (indexed, actual),
+            "L2 indexed %d lesson(s); L3 store holds %d" % (indexed, actual),
             None if indexed == actual else
             "rebuild_vector_index — until then semantic_search and "
             "find_similar_delivery cannot see the %d newest lesson(s)"

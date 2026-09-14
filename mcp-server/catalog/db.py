@@ -243,6 +243,7 @@ def load_experience():
     """Returns {"_meta": {...}, "entries": [...]}  (mirrors experience_db.json)."""
     con = get_conn()
     try:
+        _reconcile_seed(con)
         rows = con.execute("SELECT * FROM experience ORDER BY id").fetchall()
         meta = _get_meta(con, "_meta_experience") or {}
         return {"_meta": meta, "entries": [_exp_row(r) for r in rows]}
@@ -293,6 +294,71 @@ def _seed_safe(entry):
         digest = hashlib.sha256(src.encode("utf-8")).hexdigest()[:8]
         safe["source"] = "pipeline run %s" % digest
     return safe
+
+
+_SEED_MTIME = {"experience": None}
+
+
+def sync_experience_from_seed(con=None):
+    """seed -> store: import lessons in the git seed that are missing from the store.
+
+    The counterpart to sync_experience_to_seed, and the direction that did not exist.
+    The seed WAS imported -- once, by the migration that creates the database. After
+    that experience_db.json keeps growing on every git pull and nothing re-read it, so
+    a teammate's recorded lesson reached your checkout and stopped there.
+
+    That gap was invisible in the worst way: freshness._l3 counts the SEED while
+    build_index.py indexes the STORE, so layer_health reported the difference as
+    "L3_lessons_in_L2: STALE" and named rebuild_vector_index as the fix -- a command
+    that re-reads the store and therefore could never close it. Six lessons sat in git,
+    unreachable by query_experience or semantic_search, behind a permanently red check
+    that trained everyone to ignore it.
+
+    INSERT OR IGNORE: a lesson recorded locally always wins over a copy of the same id
+    in the seed. Importing can add history, never rewrite it.
+
+    Returns the number of entries imported.
+    """
+    own = con is None
+    try:
+        data = _load_json_file(_JSON_EXPERIENCE, {"entries": [], "_meta": {}})
+        rows = [e for e in data.get("entries", []) if e.get("id")]
+        if not rows:
+            return 0
+        if own:
+            con = get_conn()
+        before = con.execute("SELECT count(*) FROM experience").fetchone()[0]
+        for e in rows:
+            con.execute(
+                "INSERT OR IGNORE INTO experience(id,category,topic,lesson,impact,tags,added,source)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (e.get("id"), e.get("category"), e.get("topic"), e.get("lesson"),
+                 e.get("impact"), _jdump(e.get("tags")), e.get("added"), e.get("source"))
+            )
+        con.commit()
+        return con.execute("SELECT count(*) FROM experience").fetchone()[0] - before
+    except Exception:
+        return 0                      # a read-only checkout must still serve lessons
+    finally:
+        if own and con is not None:
+            con.close()
+
+
+def _reconcile_seed(con):
+    """Import the seed when it has moved since we last looked.
+
+    Keyed on mtime so the common case -- seed unchanged -- costs one stat() instead of a
+    parse and 35 no-op inserts, which matters because load_experience is on the
+    query_experience hot path.
+    """
+    try:
+        m = os.path.getmtime(_JSON_EXPERIENCE)
+    except OSError:
+        return
+    if _SEED_MTIME["experience"] == m:
+        return
+    sync_experience_from_seed(con)
+    _SEED_MTIME["experience"] = m
 
 
 def sync_experience_to_seed(entry):
