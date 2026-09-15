@@ -426,6 +426,15 @@ def _find_gate2_review(run_dir):
         pass
     return None
 
+# A finding is settled three ways, and they are not interchangeable in the audit trail:
+# Resolved (it was fixed), Accepted (the risk is knowingly carried), Verified (a tenant
+# fact it asked about was confirmed). Confirming a fact is not accepting a risk, so
+# verification gets its own verb rather than borrowing one that misreports what happened.
+# One constant because this set was written out at six call sites and the UI had a
+# seventh, which is how "Accepted" came to count as closed in Python and open on screen.
+CLOSED_STATUSES = frozenset({"resolved", "accepted", "closed", "verified"})
+
+
 def _derive_findings_review(data):
     """CP3 panel entries built from findings[], for a checkpoint that omitted them.
 
@@ -447,7 +456,7 @@ def _derive_findings_review(data):
     for f in (data.get("findings") or []):
         if (f.get("severity") or "").strip().lower() not in ("critical", "major"):
             continue
-        if (f.get("status") or "").strip().lower() in ("resolved", "accepted", "closed"):
+        if (f.get("status") or "").strip().lower() in CLOSED_STATUSES:
             continue
         # A tenant confirmation is not a decision anyone can take at a checkpoint — it is
         # settled by opening ADT or the tenant, and it lives in the Tenant Verification
@@ -530,6 +539,43 @@ def _findings_panel_for(data, checkpoint):
             if order.get(f.get("owner_cp") or "CP3", 3) <= rank]
 
 
+def _verification_panel_for(data, checkpoint):
+    """Tenant confirmations this checkpoint can record. Never gates.
+
+    These are kept out of the findings panel and the CP3 gate because neither "fix" nor
+    "accept the risk" describes confirming a fact in a tenant, and a gate demanding an
+    answer its own screen cannot collect is unsatisfiable. Excluding them, though, left
+    them with no resolution path anywhere: they read Open forever, including after the
+    developer had gone and checked. This is that path. It records; it does not block.
+    """
+    m = re.search(r"CP\s*(\d+)", str(checkpoint or ""), re.I)
+    if not m:
+        return []
+    order = {"CP1": 1, "CP2": 2, "CP3": 3}
+    rank = order.get("CP" + m.group(1), 3)
+    out = []
+    for f in (data.get("findings") or []):
+        if (f.get("kind") or "defect").strip().lower() != "verification":
+            continue
+        if (f.get("status") or "Open").strip().lower() in CLOSED_STATUSES:
+            continue
+        if order.get(_owning_checkpoint(f.get("source")) or "CP3", 3) > rank:
+            continue
+        out.append({
+            "id": f.get("id"),
+            "severity": f.get("severity") or "",
+            "what_is_wrong": (f.get("what_is_wrong") or f.get("description")
+                              or f.get("title") or f.get("finding") or ""),
+            "what_to_do": (f.get("what_to_do") or f.get("recommendation")
+                           or f.get("resolution") or ""),
+            "how_to_verify": f.get("how_to_verify") or f.get("verify") or "",
+            "source": f.get("source") or "",
+            "action": f.get("action"),
+            "notes": f.get("notes") or "",
+        })
+    return out
+
+
 def _owning_checkpoint(source):
     """Which checkpoint should settle a finding raised by `source` ('Step 3', 'Gate 2', …).
 
@@ -576,7 +622,7 @@ def _autoresolve_config_findings(data):
     for f in (data.get("findings") or []):
         if (f.get("kind") or "").strip().lower() != "config":
             continue
-        if (f.get("status") or "Open").strip().lower() in ("resolved", "accepted", "closed"):
+        if (f.get("status") or "Open").strip().lower() in CLOSED_STATUSES:
             continue
         refs = {("CFG-" + g) for g in _CFG_REF_RE.findall(
             "%s %s" % (f.get("resolution") or "", f.get("description") or ""))}
@@ -690,6 +736,14 @@ def list_runs():
                 if _normalized != _published:
                     _cp = dict(_cp)
                     _cp["findings_review"] = _normalized
+                    data["checkpoint_request"] = _cp
+            # The tenant confirmations both paths above filter out, offered back as a
+            # section that records without gating — otherwise they have nowhere to land.
+            if _cp:
+                _verif = _verification_panel_for(data, _cp.get("checkpoint"))
+                if _verif != (_cp.get("verification_review") or []):
+                    _cp = dict(_cp)
+                    _cp["verification_review"] = _verif
                     data["checkpoint_request"] = _cp
             # Same idea at CP2: the approval gate knows which objects lack a verdict, so say
             # which CARD each one sits on. Without this the panel gives no clue where to act
@@ -2072,7 +2126,7 @@ def _cp3_pending_fixes(rid):
     for f in (data.get("findings") or []):
         if (f.get("action") or "").strip().lower() != "fix":
             continue
-        if (f.get("status") or "").strip().lower() in ("resolved", "accepted", "closed"):
+        if (f.get("status") or "").strip().lower() in CLOSED_STATUSES:
             continue
         out.append(f)
     return out
@@ -3749,8 +3803,9 @@ def _attach_comments_to_findings(data, file_comments, when):
     return linked
 
 def pipeline_findings_review(run_id, findings_actions):
-    """Persist developer choices (fix/accept) for each finding in the findings_review checkpoint,
-    similar to pipeline_checklist. Does NOT approve — that is a separate step."""
+    """Persist developer choices for each finding at a checkpoint: fix/accept on the gated
+    findings_review, verified/not_verified on the non-gating verification_review.
+    Similar to pipeline_checklist. Does NOT approve — that is a separate step."""
     if not SAFE_NAME.match(run_id or ""):
         return {"error": "Invalid run id"}, 400
     manifest = os.path.join(ROOT_DIR, "output", run_id, "run.json")
@@ -3759,31 +3814,37 @@ def pipeline_findings_review(run_id, findings_actions):
     data = read_json(manifest) or {}
     cp = data.get("checkpoint_request") or {}
     fr = cp.get("findings_review") or []
+    # Tenant confirmations post through this same endpoint but live in their own list,
+    # because they must never gate — and a run can have those and no gated findings at
+    # all, which must still be savable rather than 409.
+    vr = cp.get("verification_review") or _verification_panel_for(data, cp.get("checkpoint"))
     if not fr:
         # list_runs() derives the panel for DISPLAY when the checkpoint omitted it, but the
         # stored run.json still has none — so a POST of those decisions would 409 against an
         # array the developer could plainly see. Derive here too, and persist it, so the
         # decisions have somewhere to land and the next read is authoritative.
         fr = _derive_findings_review(data)
-        if not fr:
+        if not fr and not vr:
             return {"error": "No findings review on this run"}, 409
         cp["findings_review"] = fr
         data["checkpoint_request"] = cp
     findings_actions = findings_actions or []
     actions_map = {a.get("id"): a for a in findings_actions if a.get("id")}
-    for item in fr:
+    _every = list(fr) + list(vr)
+    for item in _every:
         if item.get("id") in actions_map:
             act = actions_map[item["id"]]
-            if act.get("action") in ("fix", "accept"):
+            if act.get("action") in ("fix", "accept", "verified", "not_verified"):
                 item["action"] = act["action"]
             if act.get("notes"):
                 item["notes"] = str(act["notes"])[:2000]
     cp["findings_review"] = fr
+    cp["verification_review"] = vr
     # Sync action decisions → run.json findings[] status so Findings Inventory reflects CP3 choices
     _action_map = {item.get("id"): item.get("action")
-                   for item in fr if item.get("id") and item.get("action")}
+                   for item in _every if item.get("id") and item.get("action")}
     _notes_map = {item.get("id"): item.get("notes")
-                  for item in fr if item.get("id") and item.get("notes")}
+                  for item in _every if item.get("id") and item.get("notes")}
     for finding in (data.get("findings") or []):
         fid = finding.get("id")
         if fid in _action_map:
@@ -3791,6 +3852,12 @@ def pipeline_findings_review(run_id, findings_actions):
                 finding["status"] = "Accepted"
             elif _action_map[fid] == "fix":
                 finding["status"] = "Pending Fix"
+            elif _action_map[fid] == "verified":
+                # Its own status, not "Accepted": the audit trail should say the tenant
+                # fact was confirmed, not that somebody carried a risk knowingly.
+                finding["status"] = "Verified"
+            elif _action_map[fid] == "not_verified":
+                finding["status"] = "Open"
             # The DECISION is persisted onto the finding, not only onto the checkpoint.
             # Approval clears checkpoint_request, so a decision recorded only there
             # disappears at the moment it becomes binding — the audit trail would show a
@@ -3812,7 +3879,6 @@ def pipeline_findings_review(run_id, findings_actions):
     # question is an input the delivery is waiting on, not a flaw in it, and scoring them
     # identically means the number drops for doing the governance properly. Findings written
     # before 'kind' existed default to defect and score exactly as they did.
-    _resolved = {"Resolved", "Accepted"}
     _penalty = {("critical", False): 15, ("critical", True): 5,
                 ("major",    False):  8, ("major",    True): 2,
                 ("minor",    False):  3, ("minor",    True): 1}
@@ -3821,15 +3887,17 @@ def pipeline_findings_review(run_id, findings_actions):
         if (_f.get("kind") or "defect").strip().lower() != "defect":
             continue
         _sev = (_f.get("severity") or "").strip().lower()
-        _done = (_f.get("status") or "Open") in _resolved
+        # Case-folded: this compared against a title-case set, so a model writing
+        # "accepted" scored as though the finding were still open.
+        _done = (_f.get("status") or "Open").strip().lower() in CLOSED_STATUSES
         _qs -= _penalty.get((_sev, _done), 0)
     data["quality_score"] = max(0, _qs)
     data["auto_corrections"] = data.get("auto_corrections", 0)  # preserve existing field
     data["checkpoint_request"] = cp
     write_json_atomic(manifest, data)
     return {"ok": True,
-            "actioned": sum(1 for f in fr if f.get("action")),
-            "total": len(fr)}, 200
+            "actioned": sum(1 for f in _every if f.get("action")),
+            "total": len(_every)}, 200
 
 def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=False, selected_approach=""):
     if not SAFE_NAME.match(run_id or "") or decision not in ("approved", "adjusted", "rejected"):
@@ -3937,7 +4005,7 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
             if (_f.get("severity") or "").strip().lower() not in ("critical", "major"):
                 continue                      # Minor/Info are advisory
             _status = (_f.get("status") or "").strip().lower()
-            if _status in ("resolved", "accepted", "closed"):
+            if _status in CLOSED_STATUSES:
                 continue                      # already dealt with — nothing to decide
             # Tenant confirmations are excluded from the panel (nobody can settle them from
             # this screen), so demanding a decision on one here would be unsatisfiable — the
@@ -3994,9 +4062,12 @@ def pipeline_decision(run_id, checkpoint, decision, notes, checklist_confirmed=F
                        if (f.get("severity") or "").strip().lower() == "major"]
         _g2_path = _find_gate2_review(run_dir)
         if _structured:
+            # Gate 2 additionally discounts "pending fix": a Major with a fix already
+            # committed to is not what this count is asking about. That is the one place
+            # the settled set is deliberately wider, so it is spelled out here.
             _open_majors = [f for f in _structured
                             if (f.get("status") or "Open").strip().lower()
-                            not in ("resolved", "accepted", "pending fix")]
+                            not in (CLOSED_STATUSES | {"pending fix"})]
             _g2_major_count = len(_open_majors)
             # Say when the list is truncated. "8 unresolved — F-02, F-03, F-04, F-05, F-06,
             # F-10" reads as a miscount and sends people hunting for the discrepancy.

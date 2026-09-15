@@ -1004,6 +1004,9 @@ async function submitFindingsReview(runId,checkpoint){
     var notesEl=document.getElementById("fr-notes-"+fi);
     return{id:f.id,action:sel?sel.value:null,notes:notesEl?notesEl.value:""};
   });
+  // Fold in any tenant confirmation filled on the same screen, so approving does not
+  // silently discard it. They post to the same endpoint and are matched by id.
+  items=items.concat(collectVerificationActions());
   var msg=document.getElementById("cp-msg");if(msg)msg.textContent="Saving findings actions…";
   await fetch("/api/pipeline/findings-review",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({run:runId,findings:items})}).catch(function(){});
@@ -1013,6 +1016,58 @@ async function submitFindingsReview(runId,checkpoint){
     body:JSON.stringify({run:runId,checkpoint:checkpoint,decision:"approved",notes:withMaterialNote(notes)})}).then(function(x){return x.json();});
   if(msg)msg.textContent=r.ok?"✓ "+(r.message||"resumed"):"✕ "+(r.error||"failed");
   loadJobs();
+}
+// Tenant confirmations. Deliberately outside the gated panel and outside the Submit
+// button's mandatory check: neither "fix" nor "accept the risk" describes confirming a
+// fact in a tenant, and the CP3 gate skips these entirely. Excluding them from the panel
+// was right, and left them with nowhere to be settled — so they read Open even after the
+// developer had gone and looked. This records that; it blocks nothing.
+function collectVerificationActions(){
+  var cp=(EX_RUN||{}).checkpoint_request||{};
+  return (cp.verification_review||[]).map(function(f,vi){
+    var sel=document.querySelector("input[name='vr-action-"+vi+"']:checked");
+    var nt=document.getElementById("vr-notes-"+vi);
+    return{id:f.id,action:sel?sel.value:"",notes:nt?nt.value:""};
+  }).filter(function(x){return x.action||x.notes;});
+}
+async function saveVerifications(runId){
+  var items=collectVerificationActions();
+  var msg=document.getElementById("vr-msg");
+  if(!items.length){if(msg)msg.textContent="Nothing recorded yet.";return;}
+  if(msg)msg.textContent="Saving…";
+  var ok=await fetch("/api/pipeline/findings-review",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({run:runId,findings:items})}).then(function(x){return x.ok;}).catch(function(){return false;});
+  if(msg)msg.textContent=ok?("✓ saved "+items.length+" confirmation"+(items.length===1?"":"s")):"✕ save failed — try again";
+  if(ok)loadJobs();
+}
+function verificationCardsHTML(cp,runId){
+  var vs=cp.verification_review||[];
+  if(!vs.length)return "";
+  var h="<div style='background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin:14px 0 8px;font-size:.8rem;color:var(--ink)'>"+
+    "<b>Tenant confirmations ("+vs.length+") — not required to proceed.</b><br>"+
+    "Facts to check in the tenant or ADT, not defects in the delivery. Record what you "+
+    "found if you have already looked — approval does not wait on these.</div>";
+  h+="<div style='display:flex;flex-direction:column;gap:10px;margin:8px 0'>";
+  vs.forEach(function(f,vi){
+    h+="<div style='border:1.5px solid #bae6fd;border-radius:9px;padding:12px 14px;background:#fff'>"+
+       "<div style='display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap'>"+
+       "<span style='background:#0ea5e9;color:#fff;border-radius:6px;padding:2px 8px;font-size:.68rem;font-weight:700'>Verify in tenant</span>"+
+       "<b style='font-size:.82rem'>"+esc(f.id||("V-"+(vi+1)))+"</b>"+
+       (f.severity?"<span style='font-size:.66rem;color:var(--muted)'>"+esc(f.severity)+"</span>":"")+
+       (f.source?"<span style='font-size:.66rem;color:var(--muted)'>from "+esc(f.source)+"</span>":"")+"</div>"+
+       "<p style='font-size:.78rem;margin-bottom:6px'><b>What to confirm:</b> "+esc(f.what_is_wrong||"")+"</p>"+
+       "<p style='font-size:.78rem;margin-bottom:6px'><b>How to check:</b> "+esc(f.what_to_do||"")+"</p>"+
+       (f.how_to_verify?"<p style='font-size:.72rem;color:var(--muted);margin-bottom:8px'>"+esc(f.how_to_verify)+"</p>":"")+
+       "<div style='display:flex;gap:14px;font-size:.78rem;margin-bottom:6px;flex-wrap:wrap'>"+
+       "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='vr-action-"+vi+"' value='verified'"+(f.action==="verified"?" checked":"")+"> Verified in tenant</label>"+
+       "<label style='display:flex;gap:6px;align-items:center'><input type='radio' name='vr-action-"+vi+"' value='not_verified'"+(f.action==="not_verified"?" checked":"")+"> Not yet verified</label>"+
+       "</div>"+
+       "<input type='text' id='vr-notes-"+vi+"' placeholder='What you found — entity set, field, BAdI signature…' style='font-size:.78rem;padding:5px 8px;width:100%' value='"+esc(f.notes||"")+"'>"+
+       "</div>";
+  });
+  return h+"</div><div style='display:flex;gap:10px;align-items:center;margin-bottom:6px'>"+
+     "<button class='btn' onclick='saveVerifications(\""+esc(runId)+"\")'>Save tenant confirmations</button>"+
+     "<span id='vr-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
 }
 // The finding cards, without the surrounding chrome, so CP1 and CP2 can show the questions
 // their own steps raised instead of every one of them landing on CP3 at once. `blocking` is
@@ -1173,6 +1228,10 @@ function checkpointHtml(r,cp){
        "<textarea id='cp-notes' style='min-height:60px' placeholder='Notes — required for adjust/reject; e.g. change capability 2 to developer extensibility'></textarea>"+
        "<div style='margin-top:10px;display:flex;gap:10px;align-items:center'><button class='btn' onclick='submitDecision(\""+esc(r.id)+"\")'>Submit decision & resume pipeline</button><span id='cp-msg' style='font-size:.78rem;color:var(--muted)'></span></div>";
   }
+  // Appended under whichever branch ran, not inside one: a run whose only remaining
+  // items are tenant confirmations has an empty findings_review and falls through to
+  // the generic approve branch, where they would otherwise never be recordable.
+  h+=verificationCardsHTML(cp,r.id);
   return h+"</div>";
 }
 // Only submitCodeReview() collects .code-comment boxes. The naming / checklist / findings
@@ -1729,7 +1788,7 @@ function selectRun(id){
 // (total - Open) is equally deliberate: "Pending Fix" belongs in neither set, and the
 // subtraction form once reported 5 resolved as "17 resolved" on SMART-SEARCH-FD-R2,
 // hiding 2 Critical and 7 Major behind a reassuring number. Mirrors the Python set.
-const FINDING_CLOSED=["Resolved","Accepted","Closed"];
+const FINDING_CLOSED=["Resolved","Accepted","Closed","Verified"];
 function normalizeFinding(f){
   // Severity code → label mapping (handles any variant Claude may write)
   var SEV_MAP={
@@ -1789,7 +1848,7 @@ function renderFindings(){
     var yours=raw.developer_input?"<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #7c3aed;padding-left:6px;color:var(--ink)'><b>Your input</b>"+
       (raw.developer_input_file?" <span style='color:var(--muted)'>("+esc(raw.developer_input_file)+")</span>":"")+": "+esc(raw.developer_input)+"</div>":"";
     var applied=raw.resolution_applied?"<div style='font-size:.68rem;margin-top:4px;border-left:3px solid var(--green,#16a34a);padding-left:6px;color:var(--ink)'><b>Applied</b>: "+esc(raw.resolution_applied)+"</div>":"";
-    var stChip=f.status==="Resolved"?"green":(f.status==="Accepted"?"blue":"amber");
+    var stChip=(f.status==="Resolved"||f.status==="Verified")?"green":(f.status==="Accepted"?"blue":"amber");
     var k=KIND[f.kind];
     var kindChip=k?"<div style='margin-top:4px'><span title='"+esc(k[2])+"' style='background:"+k[1]+
       ";color:#fff;border-radius:4px;padding:1px 6px;font-size:.6rem;font-weight:700;white-space:nowrap'>"+
