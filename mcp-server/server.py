@@ -1386,7 +1386,16 @@ def tool_rebuild_vector_index(args):
         eng, err = _load_vector_engine()
         if eng is None:
             return {"error": "engine import failed: " + str(err)}
-        count   = eng.build_and_save(docs)
+        try:
+            count = eng.build_and_save(docs)
+        except eng.DowngradeRefused as exc:
+            # The guard working, not a crash. This tool is what layer_health names as
+            # the fix for a stale L2, so an agent calls it on advice — and a traceback
+            # would read as "the brain is broken" when the truth is "this process has
+            # no S4PC_VECTOR_BACKEND and would have published keyword overlap".
+            return {"error": str(exc), "refused_downgrade": True,
+                    "live_index": eng.index_meta(),
+                    "would_have_built": eng.backend()}
         _VEC_ENG = None  # force reload on next search so new index is picked up
         by_type: dict = {}
         for d in docs:

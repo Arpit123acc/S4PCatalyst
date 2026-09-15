@@ -383,13 +383,67 @@ def _publish(matrix, header):
 
 # ── public API ─────────────────────────────────────────────────────────────────
 
-def build_and_save(documents):
+class DowngradeRefused(RuntimeError):
+    """A rebuild would have replaced the live index with a weaker backend."""
+
+
+# Retrieval quality, worst to best. A rebuild must never move the LIVE index down
+# this list by accident.
+_BACKEND_RANK = {"tfidf": 0, "dense": 1, "bedrock": 2}
+
+
+def guard_downgrade(new_backend, allow=False):
+    """Refuse to replace a stronger index with a weaker one. Raises DowngradeRefused.
+
+    backend() reports what THIS HOST is configured for; the live index carries the
+    backend it was actually BUILT with, and the two diverge easily -- an index built
+    where boto3 was reachable, rebuilt in a process missing S4PC_VECTOR_BACKEND,
+    silently becomes keyword overlap. Nothing fails: the build reports success,
+    semantic_search keeps answering, and every paraphrased query quietly stops matching.
+
+    This lives beside build_and_save rather than in a CLI because that is exactly what
+    went wrong. The guard was in build_index.py's main(), and tool_rebuild_vector_index
+    calls build_and_save directly -- so the tool layer_health RECOMMENDS for a stale L2
+    routed around it and downgraded the index it was asked to repair. Measured
+    2026-09-15: engine=tfidf published 07:20, keyword overlap served until 08:52, and
+    the only thing that noticed was derive_areas.py comparing index.json to index.npy.
+    A guard one caller can skip is not a guard.
+    """
+    if allow:
+        return
+    meta = index_meta()
+    if not meta.get("present"):
+        return                      # no live index — a first build cannot downgrade
+    live = meta.get("engine")       # RAW: None means the header never declared one
+    hint = ("Fix the host and re-run: on a Bedrock host set S4PC_VECTOR_BACKEND=bedrock "
+            "(no install needed); otherwise pip install sentence-transformers. Override "
+            "with --allow-downgrade (CLI) or allow_downgrade=True only if a weaker index "
+            "is genuinely intended. Nothing was written.")
+    # An UNDECLARED engine is not evidence of a weak index -- it is an old header, and
+    # index_meta's display default would read it as 'tfidf' and conclude there is
+    # nothing to protect. Refuse instead of guessing: this guard exists precisely for
+    # the case where we cannot see what we are about to overwrite.
+    if live is None:
+        raise DowngradeRefused(
+            "REFUSING to rebuild: the live index (%d docs) does not declare which "
+            "backend built it, so a downgrade cannot be ruled out. This host is "
+            "configured for '%s'. %s" % (meta.get("docs", 0), new_backend, hint))
+    if _BACKEND_RANK.get(new_backend, -1) < _BACKEND_RANK.get(live, -1):
+        raise DowngradeRefused(
+            "REFUSING to rebuild: the live index was built with '%s' but this process "
+            "is configured for '%s', which is weaker. Publishing it would silently "
+            "downgrade semantic_search to keyword overlap -- no error, just worse "
+            "answers. %s" % (live, new_backend, hint))
+
+
+def build_and_save(documents, allow_downgrade=False):
     """Build the index with the selected backend. Returns document count.
 
     A requested backend that cannot run is a hard error, not a silent downgrade to
     tfidf: an index that quietly loses semantic search looks identical to a good one.
     """
     want = backend()
+    guard_downgrade(want, allow_downgrade)
     if want == "bedrock":
         return _build_bedrock(documents)          # raises if boto3/creds missing
     if want == "dense":

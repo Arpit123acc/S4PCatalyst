@@ -202,60 +202,21 @@ def build_documents():
     return docs
 
 
-# Retrieval quality, worst to best. A rebuild must never move the LIVE index down
-# this list by accident.
-_BACKEND_RANK = {"tfidf": 0, "dense": 1, "bedrock": 2}
-
-
-def _guard_downgrade(new_backend, allow):
-    """Refuse to replace a stronger index with a weaker one.
-
-    engine.backend() reports what THIS HOST is configured for; the live index carries
-    the backend it was actually BUILT with, and the two diverge easily -- an index
-    built where sentence-transformers or boto3 was installed, rebuilt somewhere it is
-    not, silently becomes TF-IDF keyword overlap. Nothing would fail: the build prints
-    success, semantic_search keeps answering, and every paraphrased query quietly
-    stops matching.
-
-    Same posture as embed_chunks' shrink guard and keyword_index's row-count check:
-    a derived index may only be replaced by something at least as good, unless a
-    human says otherwise.
-    """
-    if allow:
-        return
-    meta = engine.index_meta()
-    if not meta.get("present"):
-        return                      # no live index — a first build cannot downgrade
-    live = meta.get("engine")       # RAW: None means the header never declared one
-    hint = ("  Fix the host and re-run: on a Bedrock host set S4PC_VECTOR_BACKEND=bedrock "
-            "(no install needed); otherwise pip install sentence-transformers.\n"
-            "  Pass --allow-downgrade only if a weaker index is genuinely intended.\n"
-            "  Nothing was written.")
-    # An UNDECLARED engine is not evidence of a weak index — it is an old header, and
-    # index_meta's display default would read it as 'tfidf' and conclude there is
-    # nothing to protect. Refuse instead of guessing: this guard exists precisely for
-    # the case where we cannot see what we are about to overwrite.
-    if live is None:
-        sys.exit(
-            "REFUSING to rebuild: the live index (%d docs) does not declare which "
-            "backend built it, so a downgrade cannot be ruled out.\n"
-            "  This host is configured for '%s'.\n%s"
-            % (meta.get("docs", 0), new_backend, hint))
-    if _BACKEND_RANK.get(new_backend, -1) < _BACKEND_RANK.get(live, -1):
-        sys.exit(
-            "REFUSING to rebuild: the live index was built with '%s' but this host is "
-            "configured for '%s', which is weaker.\n"
-            "  Publishing it would silently downgrade semantic_search to keyword "
-            "overlap — no error, just worse answers.\n%s" % (live, new_backend, hint))
-
-
 if __name__ == "__main__":
     allow_downgrade = "--allow-downgrade" in sys.argv
     be = engine.backend()
     print("S4PC Digital Brain — building semantic search index  [backend: %s]" % be)
     if be == "tfidf":
         print("  Tip: pip install sentence-transformers  for dense semantic embeddings")
-    _guard_downgrade(be, allow_downgrade)
+    # The guard itself lives in engine.guard_downgrade, at the chokepoint every caller
+    # goes through — it used to live here, and tool_rebuild_vector_index reaches
+    # build_and_save without passing through this main(), so the MCP tool bypassed it
+    # entirely. Called early as well so the refusal lands before document collection
+    # rather than after; build_and_save checks again and that repetition is deliberate.
+    try:
+        engine.guard_downgrade(be, allow_downgrade)
+    except engine.DowngradeRefused as exc:
+        sys.exit(str(exc))
 
     docs = build_documents()
 
@@ -268,7 +229,7 @@ if __name__ == "__main__":
         print("    %-15s %d" % (t, n))
     print("  Total: %d" % len(docs))
 
-    count = engine.build_and_save(docs)
+    count = engine.build_and_save(docs, allow_downgrade=allow_downgrade)
     print("Index written: %d documents -> %s" % (count, engine.INDEX_PATH))
     if be == "dense":
         print("  Embedding matrix: %s" % engine.EMBED_PATH)
