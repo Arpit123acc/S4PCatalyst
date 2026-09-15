@@ -577,7 +577,18 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
 # ── graph I/O ─────────────────────────────────────────────────────────────────────
 
 def save_graph(graph_data: dict) -> dict:
+    """Write graph.json. Any areas_derived block is dropped — mark that it is OWED.
+
+    A rebuild rewrites this file and the derived areas go with it. Without a marker,
+    the result is indistinguishable from a derivation that ran and found nothing:
+    get_area_map reports no derived members either way, which reads as "this area has
+    none" rather than "the step never ran". That is exactly how a webapp restart on
+    2026-09-15 silently took coverage from 11.9% back to 2.3%. derive_areas.py clears
+    the flag when it writes its block.
+    """
     os.makedirs(os.path.dirname(GRAPH_PATH), exist_ok=True)
+    graph_data.pop("areas_derived", None)
+    graph_data.setdefault("stats", {})["areas_derivation_pending"] = True
     with open(GRAPH_PATH, "w", encoding="utf-8") as fh:
         json.dump(graph_data, fh, ensure_ascii=False, separators=(",", ":"))
     return graph_data["stats"]
@@ -1107,6 +1118,15 @@ def get_area_map(area: str) -> dict:
                      % (classified, total, n_derived)),
         },
     }
+    # Zero derived areas has two very different causes and they must not read alike:
+    # the propagation genuinely reached nothing, or it has not been run since the last
+    # graph rebuild — which drops the block. Say which.
+    if (graph.get("stats") or {}).get("areas_derivation_pending"):
+        result["coverage"]["derivation_pending"] = True
+        result["coverage"]["note"] += (
+            " WARNING: the graph has been rebuilt since areas were last derived, so the "
+            "derived count above is 0 because the step is OWED, not because propagation "
+            "found nothing. Run: python mcp-server/graph/derive_areas.py")
     if subs:
         result["included_subareas"] = subs
     if derived_members:

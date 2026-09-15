@@ -270,6 +270,10 @@ def main():
     # would make a guess indistinguishable from a human's decision at every call site.
     graph["areas_derived"] = derived
     stats = graph.setdefault("stats", {})
+    # save_graph sets this on every rebuild, because a rebuild drops the block below.
+    # Clearing it here is what makes "no derived areas" distinguishable from "the
+    # derivation has not run since the graph was last rebuilt".
+    stats.pop("areas_derivation_pending", None)
     stats["areas_derived"]        = len(derived)
     stats["areas_curated_objects"] = len(lab_rows)
     stats["areas_declined"]       = declined

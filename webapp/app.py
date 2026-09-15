@@ -4528,10 +4528,29 @@ def _rebuild_graph_bg(reason=""):
                 [sys.executable, build_script],
                 cwd=ROOT_DIR, capture_output=True, text=True, timeout=300
             )
-            if result.returncode == 0:
-                print("[brain] Object graph rebuilt%s" % (" (%s)" % reason if reason else ""))
-            else:
+            if result.returncode != 0:
                 print("[brain] Graph rebuild failed: %s" % (result.stderr or "")[:200])
+                return
+            print("[brain] Object graph rebuilt%s" % (" (%s)" % reason if reason else ""))
+            # build_graph.py REWRITES graph.json, and the areas_derived block goes with
+            # it -- its own output says so. Re-deriving is not optional housekeeping:
+            # without it coverage silently drops 11.9% -> 2.3% and get_area_map reports
+            # no derived members, which reads as "this area has none" rather than "the
+            # step never ran". Measured 2026-09-15: a webapp restart at 09:47 wiped all
+            # 1,129 derived areas and nothing said so.
+            derive = os.path.join(MCP_DIR, "graph", "derive_areas.py")
+            if not os.path.isfile(derive):
+                return
+            d = subprocess.run([sys.executable, derive],
+                               cwd=ROOT_DIR, capture_output=True, text=True, timeout=600)
+            if d.returncode == 0:
+                last = [ln for ln in (d.stdout or "").splitlines() if "coverage:" in ln]
+                print("[brain] Areas re-derived%s" % ((" — " + last[-1].strip()) if last else ""))
+            else:
+                # Loud, because the graph is now live WITHOUT derived areas.
+                print("[brain] Area derivation FAILED after graph rebuild — coverage is "
+                      "back to curated-only until this is re-run: %s"
+                      % (d.stderr or d.stdout or "")[-200:])
         except Exception as exc:
             print("[brain] Graph rebuild error: %s" % exc)
         finally:
