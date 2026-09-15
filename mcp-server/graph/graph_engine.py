@@ -697,6 +697,24 @@ def briefs_for_names(names) -> dict:
 
 # ── query API ────────────────────────────────────────────────────────────────────
 
+def _derived_area(graph: dict, name: str):
+    """The k-NN derived area for a node as {area, confidence}, or None.
+
+    Returned as its own object and NEVER written into `area`. derive_areas.py keeps
+    `areas_derived` out of `areas` for the same reason typed edges stay out of
+    `connections`: a value inferred from embedding similarity must not become
+    indistinguishable from one a human curated. A caller that wants to trust it can;
+    one that does not can ignore the field entirely.
+    """
+    d = (graph.get("areas_derived") or {}).get(name)
+    if not isinstance(d, dict):
+        return None
+    area = _canon_area(d.get("area", ""))
+    if not area:
+        return None
+    return {"area": area, "confidence": d.get("confidence"), "basis": "l2_knn"}
+
+
 def get_object_graph(object_name: str, depth: int = 1,
                      rel_types=None, min_confidence: str = "",
                      l2_neighbors=None) -> dict:
@@ -862,11 +880,25 @@ def get_object_graph(object_name: str, depth: int = 1,
                 l2_fallback = True
         except Exception:
             pass                       # a broken L2 degrades the answer, never the call
+    derived_fallback = False
     if not connected:
         area_name = root_meta.get("area", "")
         if area_name:
             area_fallback = True
             connected = set(areas.get(area_name, [])) - {resolved}
+        else:
+            # 88% of the graph has no CURATED area, so this last resort used to be
+            # unreachable for exactly the isolated objects that needed it -- the
+            # derivation that fixed area coverage was only ever read by get_area_map.
+            # Bucket members stay the curated ones: the derived area is already an
+            # inference, and filling it with other inferred members would stack a
+            # guess on a guess for no gain in signal.
+            da = _derived_area(graph, resolved)
+            if da:
+                members = set(areas.get(da["area"], [])) - {resolved}
+                if members:
+                    area_fallback = derived_fallback = True
+                    connected = members
 
     # ── group by type ─────────────────────────────────────────────────────────────
     grouped: dict[str, list] = {}
@@ -878,6 +910,10 @@ def get_object_graph(object_name: str, depth: int = 1,
             "area":  meta.get("area", ""),
             "title": meta.get("title") or meta.get("use_case", ""),
         }
+        if not entry["area"]:
+            nb_da = _derived_area(graph, nb)
+            if nb_da:
+                entry["area_derived"] = nb_da
         if nb in l2_scores:
             # Present ONLY on the l2_similarity path. A caller that sees this knows the
             # neighbour came from meaning, not from an edge, and can weigh it as such.
@@ -930,14 +966,22 @@ def get_object_graph(object_name: str, depth: int = 1,
         "area":      root_meta.get("area", ""),
         "title":     root_meta.get("title") or root_meta.get("use_case", ""),
         "depth":     depth,
-        "edge_mode": ("area_fallback" if area_fallback else
+        "edge_mode": ("area_fallback_derived" if derived_fallback else
+                      "area_fallback" if area_fallback else
                       "l2_similarity" if l2_fallback else "name_match"),
         "connections": grouped,
         "total_connections": len(connected),
         "typed_connections": typed_conns,
         "total_typed_connections": len(typed_conns),
     }
-    # Say what the neighbours ARE, at the moment they are handed over. The three modes
+    # Only when there is no curated area to state — a derived value is an alternative
+    # to having none, never a second opinion alongside one.
+    if not result["area"]:
+        root_da = _derived_area(graph, resolved)
+        if root_da:
+            result["area_derived"] = root_da
+
+    # Say what the neighbours ARE, at the moment they are handed over. The four modes
     # carry very different weight and the field name alone does not convey that.
     if l2_fallback:
         result["edge_mode_note"] = (
@@ -945,6 +989,14 @@ def get_object_graph(object_name: str, depth: int = 1,
             "similarity over the object's catalog text, with a `similarity` score each — "
             "they are about the same SUBJECT, which is not the same as a declared "
             "relation. Read typed_connections for relations the catalog actually states.")
+    elif derived_fallback:
+        result["edge_mode_note"] = (
+            "This object has no name-match edges, no curated business area, and L2 "
+            "returned nothing. Its area was DERIVED from nearest neighbours in the "
+            "semantic index, and neighbours below are the curated members of that "
+            "area — an inferred grouping, then co-location within it. Two steps from "
+            "evidence: the weakest answer this tool gives. Read `area_derived` for the "
+            "confidence, and typed_connections for relations the catalog states.")
     elif area_fallback:
         result["edge_mode_note"] = (
             "This object has no name-match edges and L2 was unavailable or returned "
