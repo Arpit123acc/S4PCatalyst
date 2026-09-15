@@ -131,6 +131,19 @@ run "object graph rebuild (L1)" $PY mcp-server/graph/build_graph.py || true
 #     --allow-downgrade in an unattended job.
 run "semantic index rebuild (L2)" $PY mcp-server/vector/build_index.py || true
 
+# 1d. Area derivation — propagates business area from the curated objects to the rest by
+#     L2 similarity, and must run AFTER both steps above. After 1b because the graph
+#     rebuild rewrites graph.json and drops the areas_derived block with it; after 1c
+#     because it reads the index, and a month-old one has no embedding for anything the
+#     catalog sync just added, so those objects would silently get no area.
+#
+#     Skipping it fails quietly in the worst way: get_area_map simply reports no
+#     derived_members, which reads as "this area has none" rather than "the step never
+#     ran". Needs no backend pinning -- it takes the backend from index.json's own
+#     `engine` field, so the floor follows the index that actually exists, and an
+#     uncalibrated backend gets the conservative floor and no precision claim.
+run "area derivation (L1)" $PY mcp-server/graph/derive_areas.py || true
+
 # 2. Vendor documentation (CAP / Node over HTTP, UI5 + Fiori Elements from GitHub).
 #    Exits non-zero if it stored nothing, which is a real failure, not a no-op.
 run "developer-doc harvest" $PY scripts/webdocs_ingest.py || true
