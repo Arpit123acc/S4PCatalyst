@@ -474,6 +474,43 @@ def _derive_findings_review(data):
     return out
 
 
+def _normalize_findings_review(entries, data):
+    """A published findings_review, made renderable and satisfiable.
+
+    Publishing its own panel routed a checkpoint around _derive_findings_review, and with
+    it around both the prose fallbacks and the verification filter. Measured on
+    SMART-SEARCH-FD-R2 (2026-09-15): every card rendered "What is wrong:" with nothing
+    after it, because the entries carry no what_is_wrong and nothing filled it from the
+    finding -- whose `description` the Findings Inventory was displaying on the same
+    screen. Two tenant confirmations sat at ACTION REQUIRED disabling Submit, while the
+    CP3 gate skipped those same two, so the decision the panel demanded was one nothing
+    would ever read.
+
+    Matching is by id and so is pipeline_findings_review, so dropping an entry here
+    removes it from the panel without stranding a decision.
+    """
+    by_id = {str(f.get("id")): f for f in (data.get("findings") or []) if f.get("id")}
+    out = []
+    for e in (entries or []):
+        src = by_id.get(str(e.get("id") or "")) or {}
+        kind = (e.get("kind") or src.get("kind") or "defect").strip().lower()
+        if kind == "verification":
+            continue
+        merged = dict(e)
+        merged["kind"] = kind
+        merged["what_is_wrong"] = (e.get("what_is_wrong") or src.get("what_is_wrong")
+                                   or src.get("description") or src.get("title")
+                                   or src.get("finding") or "")
+        merged["what_to_do"] = (e.get("what_to_do") or src.get("what_to_do")
+                                or src.get("recommendation") or src.get("resolution") or "")
+        merged["how_to_verify"] = (e.get("how_to_verify") or src.get("how_to_verify")
+                                   or src.get("verify") or "")
+        merged["severity"] = e.get("severity") or src.get("severity") or ""
+        merged["source"] = e.get("source") or src.get("source") or ""
+        out.append(merged)
+    return out
+
+
 def _findings_panel_for(data, checkpoint):
     """The findings this checkpoint should put in front of the developer.
 
@@ -644,6 +681,15 @@ def list_runs():
                     _cp = dict(_cp)
                     _cp["findings_review"] = _derived
                     _cp["findings_review_derived"] = True   # so the UI can say where it came from
+                    data["checkpoint_request"] = _cp
+            elif _cp:
+                # A published panel used to be taken verbatim, which is how it reached the
+                # developer with empty prose and with tenant confirmations the gate ignores.
+                _published = _cp.get("findings_review") or []
+                _normalized = _normalize_findings_review(_published, data)
+                if _normalized != _published:
+                    _cp = dict(_cp)
+                    _cp["findings_review"] = _normalized
                     data["checkpoint_request"] = _cp
             # Same idea at CP2: the approval gate knows which objects lack a verdict, so say
             # which CARD each one sits on. Without this the panel gives no clue where to act
