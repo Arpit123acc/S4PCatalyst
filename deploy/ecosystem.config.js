@@ -52,6 +52,16 @@ module.exports = {
         // That happened on 2026-09-11. app.py now refuses to start in that state.
         S4PC_UI_HOST: '0.0.0.0',
         S4PC_ACCESS_PASSWORD: process.env.S4PC_ACCESS_PASSWORD,
+        // app.py spawns build_index.py on startup and on every run completion
+        // (_rebuild_index_bg) with no env= argument, so the child inherits THIS block.
+        // Without the backend pinned it resolves to tfidf on a host with no
+        // sentence-transformers, and the downgrade guard then refuses -- correctly, but
+        // every time. Measured in s4pc-webapp-out.log: nine consecutive
+        // "REFUSING to rebuild" from 2026-09-11 to 2026-09-15, which is the whole
+        // reason layer_health kept reporting L2_runs_indexed stale with no way to clear
+        // it. The pipeline never picked up a completed run. Must match s4pc-mcp's value.
+        S4PC_VECTOR_BACKEND: 'bedrock',
+        AWS_REGION: 'us-east-1',   // Titan embeddings for the index the line above builds
       },
       autorestart: true,
       max_restarts: 10,
