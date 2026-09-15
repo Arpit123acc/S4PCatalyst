@@ -539,6 +539,51 @@ def _findings_panel_for(data, checkpoint):
             if order.get(f.get("owner_cp") or "CP3", 3) <= rank]
 
 
+def _merge_findings_panel(data, cp):
+    """The gated panel: membership derived, prose published.
+
+    Membership comes from findings[] through the same filters the CP3 gate applies, so
+    the panel and the gate cannot disagree about what needs a decision. Taking the
+    reviewer's array as the membership meant it could under-publish: nine of eleven open
+    Critical/Majors published gave a panel of nine while the gate still demanded eleven,
+    and the missing two blocked approval with no card on screen to satisfy them. The
+    reviewer no longer decides who is on this list.
+
+    What publishing is genuinely better at is prose. what_is_wrong / what_to_do /
+    how_to_verify written for the developer at the checkpoint read better than
+    description / resolution recycled from the inventory, so a published entry's own
+    wording wins wherever the ids match -- and a decision already recorded on it is
+    carried over rather than reset.
+    """
+    derived = _findings_panel_for(data, cp.get("checkpoint"))
+    by_id = {str(e.get("id")): e
+             for e in (cp.get("findings_review") or [])
+             if isinstance(e, dict) and e.get("id")}
+    out = []
+    for entry in derived:
+        pub = by_id.pop(str(entry.get("id") or ""), None)
+        if not pub:
+            out.append(entry)
+            continue
+        merged = dict(entry)
+        for field in ("what_is_wrong", "what_to_do", "how_to_verify"):
+            if pub.get(field):
+                merged[field] = pub[field]
+        for field in ("action", "notes"):
+            if pub.get(field) and not merged.get(field):
+                merged[field] = pub[field]
+        out.append(merged)
+    # Minor/Info are published deliberately -- the step-11 prompt asks for them as
+    # advisory -- and the derived set is Critical/Major only, so they are kept. Anything
+    # else left over is dropped on purpose: a tenant confirmation has its own section
+    # now, a closed finding is settled, one owned by a later checkpoint is not this
+    # screen's business, and an entry with no id can never be matched to a decision.
+    advisory = [e for e in by_id.values()
+                if (e.get("severity") or "").strip().lower() in ("minor", "info")]
+    out.extend(_normalize_findings_review(advisory, data))
+    return out
+
+
 def _verification_panel_for(data, checkpoint):
     """Tenant confirmations this checkpoint can record. Never gates.
 
@@ -721,21 +766,18 @@ def list_runs():
             # derived a panel, so a scope question raised at Step 1 first reached the
             # developer after the code was written — too late to act on cheaply — and every
             # earlier finding piled up there at once.
-            if _cp and not (_cp.get("findings_review") or []):
-                _derived = _findings_panel_for(data, _cp.get("checkpoint"))
-                if _derived:
+            if _cp:
+                # Membership derived, prose published — a published panel used to be
+                # taken verbatim, which is how it reached the developer with empty prose,
+                # with tenant confirmations the gate ignores, and able to omit a finding
+                # the gate would still demand.
+                _was_published = bool(_cp.get("findings_review") or [])
+                _panel = _merge_findings_panel(data, _cp)
+                if _panel != (_cp.get("findings_review") or []):
                     _cp = dict(_cp)
-                    _cp["findings_review"] = _derived
-                    _cp["findings_review_derived"] = True   # so the UI can say where it came from
-                    data["checkpoint_request"] = _cp
-            elif _cp:
-                # A published panel used to be taken verbatim, which is how it reached the
-                # developer with empty prose and with tenant confirmations the gate ignores.
-                _published = _cp.get("findings_review") or []
-                _normalized = _normalize_findings_review(_published, data)
-                if _normalized != _published:
-                    _cp = dict(_cp)
-                    _cp["findings_review"] = _normalized
+                    _cp["findings_review"] = _panel
+                    # run_status.sh reads this as "the reviewer published none".
+                    _cp["findings_review_derived"] = not _was_published
                     data["checkpoint_request"] = _cp
             # The tenant confirmations both paths above filter out, offered back as a
             # section that records without gating — otherwise they have nowhere to land.
@@ -3813,21 +3855,20 @@ def pipeline_findings_review(run_id, findings_actions):
         return {"error": "Run not found"}, 404
     data = read_json(manifest) or {}
     cp = data.get("checkpoint_request") or {}
-    fr = cp.get("findings_review") or []
+    # The same merge list_runs renders, so every id the developer could see has somewhere
+    # to land. Reading the reviewer's published array here instead would silently discard
+    # a decision on any finding the reviewer under-published — the panel showed it, the
+    # developer answered it, and this loop would not find it. The bare derive is kept as
+    # the fallback for a run with no checkpoint_request to scope the merge by.
+    fr = _merge_findings_panel(data, cp) or _derive_findings_review(data)
     # Tenant confirmations post through this same endpoint but live in their own list,
     # because they must never gate — and a run can have those and no gated findings at
     # all, which must still be savable rather than 409.
     vr = cp.get("verification_review") or _verification_panel_for(data, cp.get("checkpoint"))
-    if not fr:
-        # list_runs() derives the panel for DISPLAY when the checkpoint omitted it, but the
-        # stored run.json still has none — so a POST of those decisions would 409 against an
-        # array the developer could plainly see. Derive here too, and persist it, so the
-        # decisions have somewhere to land and the next read is authoritative.
-        fr = _derive_findings_review(data)
-        if not fr and not vr:
-            return {"error": "No findings review on this run"}, 409
-        cp["findings_review"] = fr
-        data["checkpoint_request"] = cp
+    if not fr and not vr:
+        return {"error": "No findings review on this run"}, 409
+    cp["findings_review"] = fr
+    data["checkpoint_request"] = cp
     findings_actions = findings_actions or []
     actions_map = {a.get("id"): a for a in findings_actions if a.get("id")}
     _every = list(fr) + list(vr)
