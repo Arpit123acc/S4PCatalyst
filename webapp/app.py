@@ -3559,6 +3559,47 @@ PIPELINE_STEPS = [
 # appends them to run.json only when the solution's mode split includes a side-by-side (BTP)
 # capability, so the deploy stage appears only for BTP solutions.
 
+def _catalogue():
+    """The agent catalogue, with every derivable field resolved server-side.
+
+    An agent whose `steps_source` is PIPELINE_STEPS gets the real 13 rows injected here
+    rather than restating them in JSON. That is deliberate: a registry that copies the
+    step list is a second source which drifts, and each of the panel, closed-set and
+    downgrade-guard defects fixed on 2026-09-15 was exactly that shape -- a copy trusted
+    in place of the thing it copied. The UI reads only this endpoint, so a card, a start
+    form and a run view cannot disagree about what an agent does.
+
+    Checkpoint controls stay declared, not derived: which control a checkpoint needs is
+    a UI fact the step list does not carry, and it is what lets one CheckpointPanel
+    serve every agent instead of one component each.
+    """
+    cat = read_json(os.path.join(APP_DIR, "data", "agent-catalogue.json"),
+                    {"version": 1, "phases": [], "agents": []})
+    cp_step = re.compile(r"Checkpoint\s*(\d+)", re.I)
+    for agent in cat.get("agents") or []:
+        if agent.pop("steps_source", None) != "PIPELINE_STEPS":
+            continue
+        controls = agent.get("checkpoint_controls") or {}
+        steps = []
+        for (n, name, role, gate) in PIPELINE_STEPS:
+            step = {"id": n, "name": name, "role": role, "gate": bool(gate)}
+            m = cp_step.search(name)
+            if m:
+                cp_id = "CP" + m.group(1)
+                step["checkpoint"] = {"id": cp_id, "control": controls.get(cp_id, "decision")}
+            steps.append(step)
+        agent["steps"] = steps
+        agent["step_count"] = len(steps)
+        # Declared controls that match no step are a registry typo, and silence here
+        # would show the developer a checkpoint with the wrong control at CP-time.
+        found = {s["checkpoint"]["id"] for s in steps if s.get("checkpoint")}
+        unused = sorted(set(controls) - found)
+        if unused:
+            agent["registry_warning"] = ("checkpoint_controls names %s, which no step "
+                                         "declares" % ", ".join(unused))
+    return cat
+
+
 def _run_base_and_version(fd_path):
     """Compute the run id for a (re-)run. Every run of an FD is preserved: the first run
     uses the base id; each subsequent run gets a new '-R<n>' version so previous runs and
@@ -4916,7 +4957,11 @@ class Handler(BaseHTTPRequestHandler):
             "/api/skills": lambda: {"skills": list_skills()},
             "/api/workflows": lambda: {"workflows": list_workflows()},
             "/api/mcp": mcp_inventory,
+            # Two different things, deliberately on two paths: /api/agents is the six
+            # pipeline ROLES (an org chart for one agent, consumed by the Agents page),
+            # /api/catalogue is the agent catalogue the new cards are built from.
             "/api/agents": lambda: read_json(os.path.join(APP_DIR, "data", "agents.json"), {"agents": []}),
+            "/api/catalogue": _catalogue,
             "/api/admin": admin_data,
             "/api/settings": settings_data,
             "/api/btp/connections": btp_connections_get,
