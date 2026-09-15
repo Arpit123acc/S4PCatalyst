@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_HERE, "catalog.db")
@@ -81,14 +82,93 @@ CREATE TABLE IF NOT EXISTS meta (
 
 # ── Connection ────────────────────────────────────────────────────────────────
 
+# Artifact tables the Hub sync owns, and which can therefore be retired by it.
+RETIREABLE_TABLES = ("apis", "cds_views", "badis")
+
+
+def _ensure_retired_columns(con):
+    """Add `retired` / `retired_at` to the artifact tables. Idempotent.
+
+    Deliberately NOT part of _do_migrate: that runs exactly once, guarded by the
+    _migrated flag, so any catalog that already exists would never gain the column.
+    CREATE TABLE IF NOT EXISTS runs on every connection for the same reason.
+
+    Table names come from RETIREABLE_TABLES, not from a caller, so interpolating them
+    into DDL is safe — SQLite takes no parameters in ALTER TABLE.
+    """
+    for table in RETIREABLE_TABLES:
+        cols = {r[1] for r in con.execute("PRAGMA table_info(%s)" % table)}
+        if "retired" not in cols:
+            con.execute("ALTER TABLE %s ADD COLUMN retired INTEGER DEFAULT 0" % table)
+        if "retired_at" not in cols:
+            con.execute("ALTER TABLE %s ADD COLUMN retired_at TEXT" % table)
+
+
 def get_conn():
     """Open catalog.db, create schema, auto-migrate from JSON on first run."""
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(_SCHEMA)
+    _ensure_retired_columns(con)
     con.commit()
     _auto_migrate(con)
     return con
+
+
+def _col(row, key, default=None):
+    """Read a column that may predate this schema version."""
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return default
+
+
+def retire_absent(table, usable_names):
+    """Flag rows absent from `usable_names` as retired; un-flag any that returned.
+
+    RETIRE, NEVER DELETE. get_object_usage, prior_usage and every past deliverable
+    reference these names, and deleting a row would make a completed delivery's object
+    list unresolvable — the history is evidence even once the object is withdrawn. The
+    row keeps all its data and gains a flag the release verdict honours.
+
+    Why this has to exist: _merge and merge_apis/-cds_views/-badis are purely additive,
+    and USABLE_STATES filters at FETCH time, so a newly-DEPRECATED artifact is simply
+    absent from the fetch rather than marked. Without retirement an object that was
+    ACTIVE when it entered the catalog keeps returning `catalog_hit` — i.e. "released"
+    — forever, which is a false positive in the one gate that must not have them.
+
+    CALLER MUST PASS A COMPLETE SET. A truncated fetch looks identical to mass
+    deprecation, so sync_hub only calls this for a type whose pagination finished
+    cleanly. Returns (retired_now, unretired_now).
+    """
+    if table not in RETIREABLE_TABLES:
+        raise ValueError("not a retireable table: %s" % table)
+    keep = {str(n).upper() for n in (usable_names or []) if n}
+    if not keep:
+        # An empty usable set would retire the entire table. Refuse: a caller with
+        # nothing to keep has failed, not discovered that SAP withdrew everything.
+        raise ValueError("refusing to retire all of %s from an empty usable set" % table)
+    con = get_conn()
+    try:
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        retired = unretired = 0
+        for row in con.execute("SELECT name, retired FROM %s" % table).fetchall():
+            name, flag = row["name"], bool(row["retired"])
+            present = (name or "").upper() in keep
+            if not present and not flag:
+                con.execute("UPDATE %s SET retired=1, retired_at=? WHERE name=?" % table,
+                            (now, name))
+                retired += 1
+            elif present and flag:
+                # SAP does un-deprecate, and an earlier truncated sync may have retired
+                # this wrongly. Returning to the usable set clears the flag.
+                con.execute("UPDATE %s SET retired=0, retired_at=NULL WHERE name=?" % table,
+                            (name,))
+                unretired += 1
+        con.commit()
+        return retired, unretired
+    finally:
+        con.close()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -136,6 +216,11 @@ def _api_row(row):
     }
     if row["source"]:
         d["_source"] = row["source"]
+    # Only present when true, so a live object's payload is unchanged and a retired one
+    # is impossible to read past. See retire_absent.
+    if _col(row, "retired"):
+        d["retired"] = True
+        d["retired_at"] = _col(row, "retired_at")
     return d
 
 
@@ -148,6 +233,11 @@ def _cds_row(row):
     }
     if row["source"]:
         d["_source"] = row["source"]
+    # Only present when true, so a live object's payload is unchanged and a retired one
+    # is impossible to read past. See retire_absent.
+    if _col(row, "retired"):
+        d["retired"] = True
+        d["retired_at"] = _col(row, "retired_at")
     return d
 
 
@@ -163,6 +253,11 @@ def _badi_row(row):
     }
     if row["source"]:
         d["_source"] = row["source"]
+    # Only present when true, so a live object's payload is unchanged and a retired one
+    # is impossible to read past. See retire_absent.
+    if _col(row, "retired"):
+        d["retired"] = True
+        d["retired_at"] = _col(row, "retired_at")
     return d
 
 

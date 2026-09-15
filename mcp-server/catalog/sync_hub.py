@@ -208,6 +208,10 @@ def fetch_type(api_key, artifact_type, dry_run=False):
     print("  %-8s ... " % artifact_type, end="", flush=True)
     all_items, skip = [], 0
     skipped = {}
+    # Whether pagination reached the end cleanly. Only a complete fetch may drive
+    # retirement: a request that failed mid-pagination returns a SHORT list, which is
+    # indistinguishable from SAP having withdrawn everything it omits.
+    complete = True
 
     while True:
         data = _get(ARTIFACT_PATH, api_key, {
@@ -217,6 +221,7 @@ def fetch_type(api_key, artifact_type, dry_run=False):
             "$skip":   skip,
         })
         if data is None:
+            complete = False
             break
         page = _items(data)
         if not page:
@@ -241,21 +246,26 @@ def fetch_type(api_key, artifact_type, dry_run=False):
             time.sleep(0.2)
 
     detail = ", ".join("%s %d" % (k, v) for k, v in sorted(skipped.items()))
-    print("%d usable%s" % (len(all_items), (" (skipped: %s)" % detail) if detail else ""))
+    print("%d usable%s%s" % (len(all_items),
+                             (" (skipped: %s)" % detail) if detail else "",
+                             "" if complete else "  [INCOMPLETE — fetch failed mid-page]"))
     if skipped and not (set(skipped) <= EXCLUDED_STATES):
         # An unfamiliar state means the Hub changed its vocabulary again — say so loudly
         # rather than under-reporting the catalog by an unknown amount.
         print("           WARNING: unrecognised state(s) %s — check whether these are usable"
               % ", ".join(sorted(set(skipped) - EXCLUDED_STATES)))
-    return all_items
+    if not complete:
+        print("           WARNING: this list is partial, so nothing will be retired from it")
+    return all_items, complete
 
 
 def fetch_all(api_key, dry_run=False):
+    """{type: [entries]}, {type: complete_bool}. Completeness gates retirement only."""
     print("Fetching from SAP Business Accelerator Hub (%s) ...\n" % PRODUCT_ID)
-    by_type = {}
+    by_type, complete = {}, {}
     for t in ARTIFACT_TYPES:
-        by_type[t] = fetch_type(api_key, t, dry_run=dry_run)
-    return by_type
+        by_type[t], complete[t] = fetch_type(api_key, t, dry_run=dry_run)
+    return by_type, complete
 
 
 # ── Field helpers (Hub uses PascalCase field names) ───────────────────────────
@@ -446,7 +456,7 @@ def main():
         print("  Mode    : DRY RUN (no writes)")
     print()
 
-    by_type = fetch_all(api_key, dry_run=args.dry_run)
+    by_type, fetch_complete = fetch_all(api_key, dry_run=args.dry_run)
 
     print()
     if args.dry_run:
@@ -485,6 +495,39 @@ def main():
     ex_b, added_b, bf_b = db.merge_badis(hub_badis)
     print("badis     existing=%-5d  new=%-5d  backfilled=%d  total=%d"
           % (ex_b, added_b, bf_b, ex_b + added_b))
+
+    # ── Retire what the Hub no longer serves as usable ─────────────────────────
+    # The merges above only ADD, and USABLE_STATES filters at fetch time, so a
+    # newly-DEPRECATED artifact is absent rather than marked. Without this pass an
+    # object that was ACTIVE when it entered keeps answering `catalog_hit` — "released"
+    # — indefinitely, which is a false positive in the release gate.
+    #
+    # Gated on a COMPLETE fetch per table. The apis table holds API *and* Event
+    # artifacts, so it needs both of those fetches to have finished: retiring from a
+    # union that is missing one half would withdraw every Event.
+    print()
+    retire_plan = (
+        ("apis",      ("API", "Event"), hub_apis),
+        ("cds_views", ("CDSVIEW",),     hub_cds),
+        ("badis",     ("BADI",),        hub_badis),
+    )
+    for table, need_types, usable in retire_plan:
+        missing = [t for t in need_types if not fetch_complete.get(t)]
+        if missing:
+            print("%-9s retirement SKIPPED — %s fetch was incomplete"
+                  % (table, ", ".join(missing)))
+            continue
+        names = [e.get("name") for e in usable if e.get("name")]
+        try:
+            gone, back = db.retire_absent(table, names)
+        except ValueError as exc:
+            print("%-9s retirement SKIPPED — %s" % (table, exc))
+            continue
+        if gone or back:
+            print("%-9s retired=%-5d un-retired=%d  (no longer / again served as usable)"
+                  % (table, gone, back))
+        else:
+            print("%-9s retired=0     (nothing withdrawn since last sync)" % table)
 
     print()
     print("Saved to: %s" % db.DB_PATH)

@@ -29,8 +29,12 @@ governance layer. Use it as follows — these are gates, not suggestions:
 1. **Never name an SAP object from memory.** Before referencing any API/BAdI/table/CDS view, call
    `check_object_release_state`. **Read the `verdict` AND the `evidence` field — a verdict is only
    as good as its evidence.**
-   - `NOT_AVAILABLE` (`evidence: rule` — BAPI, classical table, enhancement point) is the only
-     blocker → redesign.
+   - `NOT_AVAILABLE` is a blocker → redesign. It arrives two ways:
+     `evidence: rule` (BAPI, classical table, enhancement point — a categorical clean-core
+     rule) and **`evidence: catalog_retired`** (the object WAS in the released catalog and
+     the Hub has since stopped serving it as RELEASED/ACTIVE — `retired_at` says when).
+     A retired hit is a catalog match that means the *opposite* of released: never cite it
+     as released, and never treat the match itself as reassurance.
    - `LIKELY_RELEASED` + **`evidence: catalog_hit`** → **released.** Record it as such and add a
      "confirm on the Released CDS Views list / SAP Business Accelerator Hub / ADT" note.
    - `LIKELY_RELEASED` + **`evidence: naming_heuristic_only`** → **NOT established as released.**

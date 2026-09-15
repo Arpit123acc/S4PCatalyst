@@ -194,8 +194,12 @@ assume approval; never continue on silence.
 3. **Object inventory verdicts** — establish the release state of EVERY object (API, CDS view,
    BAdI, table) via `check_object_release_state`, or the read-once catalog method (*Headless* §3)
    when the MCP is blocked. Read the verdict correctly — a seed miss is not a failure:
-   - `NOT_AVAILABLE` → the object is categorically unusable (BAPI, classical table, enhancement
-     point, Smart Form). Redesign with the returned alternative. **Only this verdict blocks.**
+   - `NOT_AVAILABLE` → unusable. Redesign with the returned alternative. **Only this verdict
+     blocks.** Two evidences produce it: `rule` (categorically unusable — BAPI, classical table,
+     enhancement point, Smart Form) and `catalog_retired` (it WAS in the released catalog and
+     the Hub no longer serves it as RELEASED/ACTIVE; `retired_at` says when). A retired hit is a
+     catalog match that means the **opposite** of released — never record it as released, and
+     never read the match itself as reassurance.
    - `LIKELY_RELEASED` + `evidence: catalog_hit` → an exact match in `catalog.db`. Record it as
      **released** and add a one-line "confirm on the Released CDS Views list / SAP Business
      Accelerator Hub / ADT" note — do NOT write it up as "not verified".

@@ -496,7 +496,11 @@ def tool_check_object_release_state(args):
         "verified": False,
         # How the verdict was reached. A verdict is only as good as its evidence:
         #   rule                  — categorical clean-core rule (BAPI, classical table). Certain.
-        #   catalog_hit           — exact match in catalog.db (Hub-synced). Strong.
+        #   catalog_hit           — exact match in catalog.db (Hub-synced), still served as
+        #                           RELEASED/ACTIVE. Strong.
+        #   catalog_retired       — exact match, but the Hub has STOPPED serving it as usable
+        #                           since it entered the catalog. A hit that means the opposite
+        #                           of released; verdict is NOT_AVAILABLE. Never cite as released.
         #   naming_heuristic_only — the NAME matches a released-object pattern and nothing else.
         #                           Zero catalog backing, so it cannot distinguish a real released
         #                           object missing from the catalog from a name that does not exist.
@@ -528,17 +532,43 @@ def tool_check_object_release_state(args):
             reason="Classical SAP table %s is not released for Public Cloud custom code." % name,
             alternative="Use released CDS view(s): %s (confirm C1 on the Released CDS Views list / ADT)." % ", ".join(tmap[name]))
         return result
-    # Seed-catalog hits
+    # Seed-catalog hits. A RETIRED row is a hit that must never read as released: the
+    # object was usable when it entered the catalog and the Hub has since stopped
+    # serving it as RELEASED/ACTIVE. Presence alone used to be the whole basis of
+    # `catalog_hit`, so a deprecated object kept its released verdict indefinitely —
+    # the one false positive this gate cannot afford. See db.retire_absent.
+    def _retired(entry, kind, source):
+        return {
+            "verdict": "NOT_AVAILABLE", "verified": True, "evidence": "catalog_retired",
+            "requires_tenant_confirmation": False,
+            "reason": ("%s was in the released catalog but the SAP Business Accelerator "
+                       "Hub no longer serves it as RELEASED/ACTIVE (withdrawn as of %s). "
+                       "Treat as deprecated and redesign — do NOT cite it as released."
+                       % (name, entry.get("retired_at") or "an earlier sync")),
+            "alternative": "Search %s for a current replacement (search_released_apis / "
+                           "semantic_search on the business keywords, not the name)." % source,
+            "details": entry,
+        }
+
     for api in (CATALOG_APIS.get("apis") or []):
         if (api.get("name") or "").upper() == name:
+            if api.get("retired"):
+                result.update(**_retired(api, "API", "api.sap.com"))
+                return result
             result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released APIs; confirm on the SAP Business Accelerator Hub.", details=api)
             return result
     for badi in (CATALOG_BADIS.get("badis") or []):
         if (badi.get("name") or "").upper() == name:
+            if badi.get("retired"):
+                result.update(**_retired(badi, "BAdI", "the SAP Help List of BAdIs"))
+                return result
             result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released BAdIs — availability still depends on your release/scope; confirm on the List of BAdIs.", details=badi)
             return result
     for view in (CATALOG_CDS.get("views") or []):
         if (view.get("name") or "").upper() == name:
+            if view.get("retired"):
+                result.update(**_retired(view, "CDS view", "the SAP Help Released CDS Views list"))
+                return result
             result.update(verdict="LIKELY_RELEASED", evidence="catalog_hit", reason="Found in seed catalog of released CDS views; confirm C1 on the Released CDS Views list / ADT Released Objects.", details=view)
             return result
     # Naming-convention heuristic — do NOT dead-end standard released VDM views as NOT_VERIFIED.
