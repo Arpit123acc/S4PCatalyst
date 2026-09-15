@@ -208,6 +208,35 @@ def exposes_edges(ctx: dict):
                             "catalog:released_apis.key_entities", "declared")
 
 
+def comm_scenario_edges(ctx: dict):
+    """api --requires--> communication scenario, from apis[].communication_scenario.
+
+    The target is an ext_node, not a released object: SAP_COM_0103 is a tenant
+    configuration artifact a key user creates, so the honest answer to "can I call this
+    API" is "once that arrangement exists" — a CP1 configuration item, not a design
+    decision.
+
+    The forward direction was already available (check_object_release_state reports an
+    API's scenario). What this adds is the REVERSE: 26 scenarios cover these 74 APIs and
+    17 are shared by more than one, so a solution consuming Contract + PurchaseOrder +
+    PurchaseRequisition needs ONE arrangement (SAP_COM_0103), not three. Without the
+    edge the configuration contract has no way to collapse them and overstates key-user
+    effort by counting APIs instead of arrangements.
+
+    Capped at the hand-curated seed on purpose, not by oversight: the Hub's artifacts
+    listing has no communication_scenario field at all (settled 2026-09-15, ~20
+    endpoints probed), so the ~989 synced APIs have nothing to read. An API without one
+    is SKIPPED rather than given a placeholder.
+    """
+    for a in ctx["apis"]:
+        name = (a.get("name") or "").strip()
+        scen = (a.get("communication_scenario") or "").strip()
+        if name and scen:
+            yield _edge(name, scen, "requires",
+                        "catalog:released_apis.communication_scenario",
+                        "declared", target_kind="communication_scenario")
+
+
 def scope_dependency_edges(ctx: dict):
     """scope_item --requires--> scope_item, from scope_items[].required_scope_items.
 
@@ -355,14 +384,14 @@ def run_scope_edges(ctx: dict):
 # no change to any consumer, because typed edges are carried alongside the adjacency
 # rather than replacing it. Add the name to REL_TYPES in the same change, not before.
 #
-# Unbuilt SOURCES, both small. These would add edges to relations that already exist,
-# not new relations — `requires` already has 3,080 edges from scope dependencies, so
-# read this as "another source for it", never as "requires is missing":
-#   requires  <- apis[].communication_scenario   (74 candidates)
-#   extends   <- badis[].business_context        (46 of 1,734 BAdIs, i.e. 2.7%)
-# `extends` has no generator and is deliberately absent from REL_TYPES until it does.
+# One unbuilt SOURCE remains, and it would add edges to a relation that already exists
+# rather than a new one:
+#   extends <- badis[].business_context   (46 of 1,734 BAdIs, i.e. 2.7%)
+# It has no generator and is deliberately absent from REL_TYPES until it gets one —
+# advertising a relation that emits nothing returns a confidently empty answer.
 EDGE_SOURCES = (
     replaces_edges,
+    comm_scenario_edges,
     exposes_edges,
     scope_dependency_edges,
     scope_master_data_edges,
