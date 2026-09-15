@@ -1643,22 +1643,17 @@ function selectRun(id){
   if(cpActive&&cp&&Array.isArray(cp.config_contract)&&cp.config_contract.length)updateConfig(true);
   if(cpActive&&cp&&Array.isArray(cp.code_files)&&cp.code_files.length)updateCodeComments();
   if(cpActive&&cp&&Array.isArray(cp.findings_review)&&cp.findings_review.length)updateFindingsReview();
-  // Findings carry a THREE-valued status — Open, Pending Fix, Resolved — and this used
-  // to count resolved as (total - Open), so every "Pending Fix" was reported as
-  // resolved. On SMART-SEARCH-FD-R2 that turned 5 resolved into "17 resolved" and hid
-  // 2 Critical and 7 Major still awaiting work behind a reassuring number. Count
-  // Resolved explicitly; anything else is outstanding.
   const _f=(r.findings||[]).map(normalizeFinding);
-  const _resolved=_f.filter(f=>f.status==="Resolved").length;
+  const _resolved=_f.filter(f=>FINDING_CLOSED.includes(f.status)).length;
   const _outstanding=_f.length-_resolved;
-  const _sev=s=>_f.filter(f=>f.status!=="Resolved"&&(f.severity||"")===s).length;
+  const _sev=s=>_f.filter(f=>!FINDING_CLOSED.includes(f.status)&&(f.severity||"")===s).length;
   const _blocking=_sev("Critical")+_sev("Major");
   // Outstanding Critical/Major is the number that decides whether this run is shippable,
   // so it leads and it is red — a count of what was fixed is not a safety signal.
   const _fLabel=_outstanding
     ? _outstanding+" open of "+_f.length
       +(_blocking?" · "+_sev("Critical")+" Critical, "+_sev("Major")+" Major":"")
-    : _f.length+" (all resolved)";
+    : _f.length+" (all closed)";
   $("#ex-stats").innerHTML=[
     ["Quality Score",(r.quality_score!=null?r.quality_score+"/100":"—"),r.quality_score>=90?"var(--green)":r.quality_score>=75?"var(--amber)":"var(--red)"],
     ["Gates Passed",r.gates_passed||"—","var(--purple-dark)"],
@@ -1728,6 +1723,13 @@ function selectRun(id){
   $("#ex-files").innerHTML=(r.files||[]).map(f=>"<div class='card click' style='padding:10px 13px;font-size:.76rem' onclick='openRunFile(\""+esc(r.folder)+"\",\""+esc(f)+"\")'>📄 "+esc(f)+"</div>").join("");
   renderRunChips();
 }
+// Accepting a risk settles a finding exactly as fixing it does, and the Python gate has
+// always scored both as closed — a card that counted only "Resolved" reported every
+// accepted finding as still open. Listing the closed states rather than counting
+// (total - Open) is equally deliberate: "Pending Fix" belongs in neither set, and the
+// subtraction form once reported 5 resolved as "17 resolved" on SMART-SEARCH-FD-R2,
+// hiding 2 Critical and 7 Major behind a reassuring number. Mirrors the Python set.
+const FINDING_CLOSED=["Resolved","Accepted","Closed"];
 function normalizeFinding(f){
   // Severity code → label mapping (handles any variant Claude may write)
   var SEV_MAP={
@@ -1765,8 +1767,8 @@ function renderFindings(){
   // Count DEFECTS separately. "28 findings, 24 open" reads as a failing delivery when most of
   // them are tenant confirmations and client questions — which are inputs the delivery is
   // waiting on, not shortcomings in it.
-  const nDef=all.filter(f=>f.kind==="defect"&&f.status!=="Resolved").length;
-  const nOther=all.filter(f=>f.kind!=="defect"&&f.status!=="Resolved").length;
+  const nDef=all.filter(f=>f.kind==="defect"&&!FINDING_CLOSED.includes(f.status)).length;
+  const nOther=all.filter(f=>f.kind!=="defect"&&!FINDING_CLOSED.includes(f.status)).length;
   $("#ex-sev-tabs").innerHTML=sevs.map(s=>{
     const n=s==="All"?all.length:all.filter(f=>f.severity===s).length;
     return "<button class='"+(s===EX_SEV?"on":"")+"' onclick='EX_SEV=\""+s+"\";renderFindings()'>"+s+" ("+n+")</button>"}).join("")
