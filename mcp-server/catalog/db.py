@@ -137,6 +137,15 @@ def retire_absent(table, usable_names):
     ACTIVE when it entered the catalog keeps returning `catalog_hit` — i.e. "released"
     — forever, which is a false positive in the one gate that must not have them.
 
+    SCOPED TO source='hub_sync'. The sync may only retire rows IT created. The
+    hand-curated seed was compiled from SAP Help and ADT, not from the Hub, so its names
+    legitimately never appear in a Hub artifact listing and their absence says nothing
+    about release state. Ignoring that scope on 2026-09-15 wrongly retired 145 seed rows
+    — all 46 seed BAdIs, 63 CDS views, 46 APIs — against 25 genuine Hub withdrawals, and
+    those seed rows are the richest in the catalog (the only ones carrying area,
+    key_entities and communication_scenario). Any retired flag on a non-hub_sync row is
+    therefore cleared here, which makes this pass self-repairing.
+
     CALLER MUST PASS A COMPLETE SET. A truncated fetch looks identical to mass
     deprecation, so sync_hub only calls this for a type whose pagination finished
     cleanly. Returns (retired_now, unretired_now).
@@ -152,7 +161,12 @@ def retire_absent(table, usable_names):
     try:
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         retired = unretired = 0
-        for row in con.execute("SELECT name, retired FROM %s" % table).fetchall():
+        # Repair first: a row this sync does not own must never carry the flag.
+        unretired += con.execute(
+            "UPDATE %s SET retired=0, retired_at=NULL "
+            "WHERE retired=1 AND (source IS NULL OR source != 'hub_sync')" % table).rowcount
+        for row in con.execute(
+                "SELECT name, retired FROM %s WHERE source = 'hub_sync'" % table).fetchall():
             name, flag = row["name"], bool(row["retired"])
             present = (name or "").upper() in keep
             if not present and not flag:
