@@ -1897,7 +1897,7 @@ TOOLS = {
                             "description": "BFS hop depth (1=direct neighbours, 2=neighbours of neighbours; default 1)"},
             "rel_types":   {"type": "array", "items": {"type": "string"},
                             "description": "Filter typed_connections to these relations: replaces, exposes, "
-                                           "requires, extends, belongs_to, covers. Omit for all. Does not "
+                                           "requires, belongs_to, covers. Omit for all. Does not "
                                            "affect `connections`."},
             "min_confidence": {"type": "string", "enum": ["declared", "observed", "heuristic"],
                             "description": "Minimum provenance tier for typed_connections. 'declared' = stated by "

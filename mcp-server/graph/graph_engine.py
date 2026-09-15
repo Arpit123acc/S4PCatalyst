@@ -120,7 +120,13 @@ def _names_are_related(toks_a: frozenset, toks_b: frozenset,
 #     relation is not recoverable from a prefix match. The graph improves by adding
 #     declared sources, not by upgrading what is already there.
 
-REL_TYPES  = ("replaces", "exposes", "requires", "extends", "belongs_to", "covers")
+# Relations that actually have a generator in EDGE_SOURCES, and nothing else. `extends`
+# was listed here and in the tool's rel_types description while producing zero edges, so
+# an agent could filter on it, receive [], and read that as "this object has no extension
+# points" rather than "this brain never emitted that relation" — a confidently empty
+# answer indistinguishable from a correct one. Add a name here when its generator lands,
+# never before.
+REL_TYPES  = ("replaces", "exposes", "requires", "belongs_to", "covers")
 CONFIDENCE = ("declared", "observed", "heuristic")
 _CONF_RANK = {"heuristic": 1, "observed": 2, "declared": 3}
 
@@ -347,8 +353,14 @@ def run_scope_edges(ctx: dict):
 
 # Registry. Adding a relation is adding a generator here — no schema migration, and
 # no change to any consumer, because typed edges are carried alongside the adjacency
-# rather than replacing it. Still to land: requires (communication_scenario, 74) and
-# extends (badis[].business_context, 46).
+# rather than replacing it. Add the name to REL_TYPES in the same change, not before.
+#
+# Unbuilt SOURCES, both small. These would add edges to relations that already exist,
+# not new relations — `requires` already has 3,080 edges from scope dependencies, so
+# read this as "another source for it", never as "requires is missing":
+#   requires  <- apis[].communication_scenario   (74 candidates)
+#   extends   <- badis[].business_context        (46 of 1,734 BAdIs, i.e. 2.7%)
+# `extends` has no generator and is deliberately absent from REL_TYPES until it does.
 EDGE_SOURCES = (
     replaces_edges,
     exposes_edges,
@@ -736,7 +748,7 @@ def get_object_graph(object_name: str, depth: int = 1,
 
     `rel_types` / `min_confidence` filter the TYPED edges only — this is where a
     per-agent projection lives. One store, many views: a RICEFW agent asks for
-    replaces/exposes/extends, a functional agent for requires/belongs_to, an
+    replaces/exposes, a functional agent for requires/belongs_to, an
     architect for min_confidence="declared" and nothing else. The heuristic
     adjacency in `connections` is unaffected by either.
 
