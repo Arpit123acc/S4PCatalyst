@@ -322,14 +322,14 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
     <div class="grid c3">
       <div class="card">
         <h3>Layer 1 · Live Object Graph</h3>
-        <p>10,736 nodes · 137,843 cross-type edges · 33 business areas. Links released APIs, CDS views and BAdIs by shared business-concept name fragments — handles SAP's three naming conventions (CamelCase CDS, fused API, 3-char BAdI abbreviations). Rebuilt automatically on every catalog sync.</p>
+        <p><span id="l1-live">—</span> Links released APIs, CDS views and BAdIs by shared business-concept name fragments — handles SAP's three naming conventions (CamelCase CDS, fused API, 3-char BAdI abbreviations). Rebuilt automatically on every catalog sync.</p>
         <p style="margin-top:10px;font-size:.75rem"><b>Tools:</b></p>
         <p style="font-size:.75rem"><code>get_object_graph</code> — given one object, return all related objects<br><code>get_area_map</code> — full released-object landscape for a business area<br><code>sync_object_graph</code> — rebuild graph (+ live $metadata enrichment)</p>
         <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Graph: mcp-server/graph/graph.json</p>
       </div>
       <div class="card">
         <h3>Layer 2 · SAP Knowledge Vectors</h3>
-        <p>10,767 documents (74 APIs + 8,928 CDS views + 1,734 BAdIs + experience entries + past runs) indexed with a <b>dual-mode backend</b>: <b>dense semantic embeddings</b> (sentence-transformers, <code>all-MiniLM-L6-v2</code>) when installed, or <b>BM25 TF-IDF</b> fallback (pure stdlib, always available). Finds released objects by <em>meaning</em>, not just token match. Index rebuilds automatically on startup and after completed runs.</p>
+        <p><span id="l2-live">—</span> Finds released objects by <em>meaning</em>, not just token match. Backends in descending quality: <b>Bedrock Titan</b> (no local model, IAM only), <b>dense</b> (sentence-transformers), <b>TF-IDF</b> keyword fallback — a rebuild is refused if it would publish a weaker one than is live. Index rebuilds automatically on startup and after completed runs.</p>
         <p style="margin-top:10px;font-size:.75rem"><b>Tools:</b></p>
         <p style="font-size:.75rem"><code>semantic_search</code> — natural-language search, optional type filter<br><code>rebuild_vector_index</code> — rebuild after catalog or run changes</p>
         <p style="margin-top:8px;font-size:.71rem;color:var(--muted)">Index: mcp-server/vector/index.json (metadata) · index.npy (dense float32 matrix, dense mode only)</p>
@@ -370,7 +370,7 @@ python mcp-server/graph/build_graph.py</pre>
         <h3 style="font-size:.85rem">Setup &amp; dependency notes</h3>
         <p style="font-size:.78rem"><b>Layer 1 (graph) &amp; Layer 3 (experience):</b> pure Python 3.9+ stdlib — zero installs. <b>Layer 2 (vectors):</b> TF-IDF fallback is also zero-install. For true semantic search, install the dense backend:</p>
         <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:8px;border-radius:4px;line-height:1.6">pip install sentence-transformers</pre>
-        <p style="font-size:.73rem;color:var(--muted);margin-top:8px">The model (<code>all-MiniLM-L6-v2</code>, ~80 MB) is downloaded once and cached locally. No API keys, no network access in offline mode. <b>Layer 1:</b> adjacency-list BFS with name-prefix edge matching · <b>Live mode:</b> <code>sync_object_graph(live_enrich=true)</code> enriches API nodes with OData entity/field names.</p>
+        <p style="font-size:.73rem;color:var(--muted);margin-top:8px"><span id="l2-backend-note">—</span> <b>Layer 1:</b> adjacency-list BFS with name-prefix edge matching · <b>Live mode:</b> <code>sync_object_graph(live_enrich=true)</code> enriches API nodes with OData entity/field names.</p>
       </div>
     </div>
   </div>
@@ -1996,6 +1996,57 @@ function _ago(ts){
   if(s<86400)return Math.floor(s/3600)+"h ago";
   return Math.floor(s/86400)+"d ago";
 }
+// The three layer cards used to state their own counts in hardcoded prose — "10,736
+// nodes · 137,843 edges · 33 areas", "74 APIs", "all-MiniLM-L6-v2". Every one of those
+// was wrong by 2026-09-15: the catalog sync had moved the graph to 11,725/275,151/29 and
+// the host embeds with Titan, not MiniLM. A description that restates a derivable number
+// is a copy that goes stale on the next rebuild, so these are filled from
+// /api/brain/status and change whenever the index or graph does.
+function fillBrainCards(d){
+  const n = v => (v||0).toLocaleString();
+  const l1 = document.getElementById("l1-live");
+  if(l1){
+    const bt = d.graph_by_type||{};
+    const parts = Object.keys(bt).sort().map(k=>n(bt[k])+" "+k.replace("_"," ")+"s");
+    const rels = Object.keys(d.typed_by_rel||{}).sort().join(", ");
+    // Derived areas are stated separately from curated ones, and a pending derivation
+    // says so rather than reporting 0 as though propagation found nothing.
+    const derived = d.areas_derivation_pending
+      ? " <b style='color:var(--amber)'>(area derivation owed — run derive_areas.py)</b>"
+      : d.areas_derived ? " + "+n(d.areas_derived)+" derived" : "";
+    l1.innerHTML = "<b>"+n(d.graph_nodes)+" nodes</b> · "+n(d.graph_edges)+
+      " cross-type edges · "+n(d.graph_areas)+" business areas"+derived+
+      (parts.length?" ("+parts.join(" + ")+")":"")+
+      (d.typed_edges?" · <b>"+n(d.typed_edges)+" typed edges</b> carrying a relation and a confidence tier"+
+        (rels?" ("+rels+")":""):"")+".";
+  }
+  const l2 = document.getElementById("l2-live");
+  if(l2){
+    const bt = d.doc_by_type||{};
+    const parts = Object.keys(bt).sort().map(k=>n(bt[k])+" "+k.replace("_"," "));
+    const eng = d.active_engine==="bedrock" ? "Bedrock Titan"
+              : d.active_engine==="dense"   ? "dense embeddings"
+              : d.active_engine==="tfidf"   ? "TF-IDF keyword overlap"
+              : "not built";
+    l2.innerHTML = "<b>"+n(d.doc_count)+" documents</b>"+
+      (parts.length?" ("+parts.join(" + ")+")":"")+
+      " indexed with <b>"+eng+"</b>"+(d.model?" <code>"+d.model+"</code>":"")+".";
+  }
+  // The offline/network story DIFFERS per backend, and this note used to assert the
+  // MiniLM one unconditionally ("cached locally, no network access in offline mode") —
+  // false on a Bedrock host, where embedding is a network call to AWS.
+  const note = document.getElementById("l2-backend-note");
+  if(note){
+    note.innerHTML =
+      d.active_engine==="bedrock"
+        ? "Embeddings come from <b>Bedrock Titan</b> via the instance IAM role — no local model and no API key, but embedding a query DOES call AWS, so this backend is not offline."
+      : d.active_engine==="dense"
+        ? "The model (<code>"+(d.model||"all-MiniLM-L6-v2")+"</code>, ~80 MB) is downloaded once and cached locally. No API keys and no network at query time."
+      : d.active_engine==="tfidf"
+        ? "<b>TF-IDF keyword overlap</b> — pure stdlib, no model and no network, but also no synonym or paraphrase matching. Rebuild with a dense backend for real semantic search."
+        : "No index built yet — run <code>build_index.py</code>.";
+  }
+}
 async function loadBrainStatus(){
   const el=$("#brain-status-bar");if(!el)return;
   try{
@@ -2003,8 +2054,14 @@ async function loadBrainStatus(){
     const eng=d.active_engine||"not_built";
     const isDense=eng==="dense";
     const isTfidf=eng==="tfidf";
-    // Layer 2 chips
-    const engChip=isDense
+    const isBedrock=eng==="bedrock";
+    fillBrainCards(d);
+    // Layer 2 chips. `bedrock` was missing here, so the EC2 host — which embeds with
+    // Titan — fell through to "L2 index not built": the strongest backend reported as
+    // no index at all.
+    const engChip=isBedrock
+      ?"<span class='chip green'>Bedrock Titan embeddings</span>"
+      :isDense
       ?"<span class='chip green'>dense embeddings</span>"
       :isTfidf?"<span class='chip blue'>TF-IDF fallback</span>"
       :"<span class='chip amber'>L2 index not built</span>";

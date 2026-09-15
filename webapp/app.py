@@ -1055,6 +1055,7 @@ def brain_status():
     graph_exists  = os.path.isfile(graph_path)
 
     engine = "not_built"; model = ""; doc_count = 0; index_mtime = None
+    doc_by_type = {}
     if index_exists:
         try:
             index_mtime = int(os.path.getmtime(index_path))
@@ -1062,11 +1063,19 @@ def brain_status():
                 d = json.load(fh)
             engine = d.get("engine", "unknown")
             model  = d.get("model", "")
-            doc_count = len(d.get("docs", []))
+            docs = d.get("docs", [])
+            doc_count = len(docs)
+            # Per-type breakdown so the UI can state its own composition instead of
+            # carrying a hardcoded copy that goes stale on the next sync.
+            for _doc in docs:
+                t = (_doc or {}).get("type") or "other"
+                doc_by_type[t] = doc_by_type.get(t, 0) + 1
         except Exception:
             pass
 
     graph_nodes = 0; graph_edges = 0; graph_areas = 0; graph_mtime = None
+    graph_by_type = {}; typed_edges = 0; typed_by_rel = {}
+    areas_derived = 0; areas_derivation_pending = False
     if graph_exists:
         try:
             graph_mtime = int(os.path.getmtime(graph_path))
@@ -1077,6 +1086,13 @@ def brain_status():
                 graph_nodes = gs.get("nodes", 0)
                 graph_edges = gs.get("edges", 0)
                 graph_areas = gs.get("areas", 0)
+                graph_by_type = gs.get("by_type") or {}
+                typed_edges = gs.get("typed_edges", 0)
+                typed_by_rel = gs.get("typed_by_rel") or {}
+                areas_derived = gs.get("areas_derived", 0)
+                # True when the graph has been rebuilt since areas were last derived:
+                # a 0 that means "the step is owed", not "propagation found nothing".
+                areas_derivation_pending = bool(gs.get("areas_derivation_pending"))
         except Exception:
             pass
 
@@ -1087,11 +1103,17 @@ def brain_status():
         "active_engine": engine,
         "model": model,
         "doc_count": doc_count,
+        "doc_by_type": doc_by_type,
         "index_mtime": index_mtime,
         "graph_exists": graph_exists,
         "graph_nodes": graph_nodes,
         "graph_edges": graph_edges,
         "graph_areas": graph_areas,
+        "graph_by_type": graph_by_type,
+        "typed_edges": typed_edges,
+        "typed_by_rel": typed_by_rel,
+        "areas_derived": areas_derived,
+        "areas_derivation_pending": areas_derivation_pending,
         "graph_mtime": graph_mtime,
         "auto_rebuild": True,
     }
