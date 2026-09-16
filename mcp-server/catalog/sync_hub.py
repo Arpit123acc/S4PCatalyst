@@ -352,7 +352,16 @@ def _to_badi(e):
         "name":               name,
         "title":              _f(e, "DisplayName") or name,
         "area":               None,
-        "extensibility_type": "key_user_custom_logic",
+        # None, like every other field the Hub does not supply. This hardcoded
+        # "key_user_custom_logic" for all ~1,688 synced BAdIs — the ONLY field in this
+        # entire sync that invented a value instead of admitting it had none, which is
+        # why it went unnoticed: everything around it is honest. It also contradicted
+        # graph_engine's own default of "developer" for the same field. The Hub's
+        # 12-field listing carries no extensibility mode at all; catalog.svc defines
+        # ReleaseStateKeyUserExtensibility but its rows are unobtainable (settled
+        # 2026-09-15). extensibility_advisor leans on this field, so a guess here reads
+        # as evidence for the key-user/developer decision.
+        "extensibility_type": None,
         "business_context":   None,
         "use_case":           (_f(e, "Description") or None),
         "verified_in_tenant": False,

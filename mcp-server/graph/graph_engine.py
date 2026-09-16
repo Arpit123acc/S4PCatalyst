@@ -142,6 +142,24 @@ def _edge(frm: str, to: str, rel: str, source: str,
     return e
 
 
+def _retired_meta(obj: dict) -> dict:
+    """{"retired": True, "retired_at": ...} for a withdrawn catalog row, else {}.
+
+    Present only when true, so a live object's node is byte-identical to before and a
+    withdrawn one is impossible to read past.
+
+    The release GATE already refuses a retired object (check_object_release_state returns
+    NOT_AVAILABLE / catalog_retired), so nothing unsafe ships without this. What it fixes
+    is DISCOVERY: get_object_graph was still offering withdrawn objects as ordinary
+    neighbours with no flag, so an agent would design around one and only learn at verdict
+    time. Measured 2026-09-15: sap-s4-CE_PROJECTBILLINGREQUEST_0001-v1 was one of the 22
+    neighbours returned for I_EngagementProjectItem during a real run, and is retired.
+    """
+    if not obj.get("retired"):
+        return {}
+    return {"retired": True, "retired_at": obj.get("retired_at") or ""}
+
+
 def _load_scope_items() -> tuple:
     """(active, retired) scope items from the catalog, or ([], []) if unavailable.
 
@@ -547,6 +565,7 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
             "communication_scenario": obj.get("communication_scenario", ""),
             "key_entities": obj.get("key_entities", []),
             "operations":   obj.get("operations", []),
+            **_retired_meta(obj),
         }
         if area:
             areas[area].append(name)
@@ -564,6 +583,7 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
             "area":     area,
             "title":    obj.get("notes", ""),
             "replaces": replaces,
+            **_retired_meta(obj),
         }
         if area:
             areas[area].append(name)
@@ -578,7 +598,15 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
             "area":               area,
             "title":              obj.get("title", ""),
             "use_case":           obj.get("use_case", ""),
-            "extensibility_type": obj.get("extensibility_type", "developer"),
+            # NO DEFAULT. This read `obj.get(..., "developer")` while sync_hub's _to_badi
+            # hardcoded "key_user_custom_logic" — two invented defaults for one field,
+            # and OPPOSITE ones: the two answers the whole extensibility taxonomy turns
+            # on. Only the ~46 hand-curated seed BAdIs know their mode; the ~1,688
+            # Hub-synced ones carry no such field, because the Hub's 12-field listing
+            # has none. Empty now means unknown, which extensibility_advisor can treat
+            # as "establish this" rather than as a recommendation.
+            "extensibility_type": obj.get("extensibility_type") or "",
+            **_retired_meta(obj),
         }
         if area:
             areas[area].append(name)
@@ -1060,6 +1088,11 @@ def get_object_graph(object_name: str, depth: int = 1,
             nb_da = _derived_area(graph, nb)
             if nb_da:
                 entry["area_derived"] = nb_da
+        # A withdrawn neighbour must not read as an ordinary one. The gate would catch it
+        # at verdict time; this stops the agent designing around it first.
+        if meta.get("retired"):
+            entry["retired"] = True
+            entry["retired_at"] = meta.get("retired_at", "")
         if nb in l2_scores:
             # Present ONLY on the l2_similarity path. A caller that sees this knows the
             # neighbour came from meaning, not from an edge, and can weigh it as such.
@@ -1126,6 +1159,21 @@ def get_object_graph(object_name: str, depth: int = 1,
         root_da = _derived_area(graph, resolved)
         if root_da:
             result["area_derived"] = root_da
+    if root_meta.get("retired"):
+        result["retired"] = True
+        result["retired_at"] = root_meta.get("retired_at", "")
+        result["retired_note"] = (
+            "This object is NO LONGER served as RELEASED/ACTIVE by the SAP Business "
+            "Accelerator Hub. check_object_release_state returns NOT_AVAILABLE for it. "
+            "Its neighbours are still accurate history — do not design against the object "
+            "itself.")
+    # Count what the caller is about to be offered but must not use.
+    _rn = sorted(nb for nb in connected if (nodes.get(nb) or {}).get("retired"))
+    if _rn:
+        result["retired_neighbours"] = _rn
+        result["retired_neighbours_note"] = (
+            "%d neighbour(s) below are withdrawn and flagged `retired`. They are shown "
+            "because the relationship is real, NOT as candidates." % len(_rn))
 
     # Say what the neighbours ARE, at the moment they are handed over. The four modes
     # carry very different weight and the field name alone does not convey that.
