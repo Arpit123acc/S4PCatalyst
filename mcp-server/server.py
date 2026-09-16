@@ -1640,6 +1640,118 @@ def tool_get_object_graph(args):
             result["prior_usage"] = brief
     return result
 
+def tool_lookup_process(args):
+    """scope_item -> process -> step -> released object, walked over the typed edges.
+
+    The chain a FUNCTIONAL agent needs and could not previously get. `covers` already
+    answered "which objects relate to J59"; this answers "which STEP needs which
+    object, and is that object still released" — which is the question a fit-gap or
+    key-design-decision conversation actually turns on.
+
+    Every `uses` target carries its LIVE release verdict, so a functional agent cannot
+    cite a withdrawn object: the retirement work means a deprecated API surfaces here as
+    NOT_AVAILABLE rather than as a step's happy dependency.
+
+    Coverage is disclosed, not implied. A step naming no object is not evidence it needs
+    none — process_object_edges skips unresolved names rather than inventing them, so a
+    thin answer must say it is thin. Same reasoning as get_area_map's coverage block.
+    """
+    scope_item = (args.get("scope_item") or "").strip().upper()
+    if not scope_item:
+        return {"error": "scope_item is required (e.g. 'J59')."}
+    ge, err = _load_graph_engine()
+    if ge is None:
+        return {"error": "Layer 1 unavailable (%s). Run: python mcp-server/graph/build_graph.py" % err}
+    graph, err2 = ge._load()
+    if graph is None:
+        return {"error": err2}
+
+    typed = ge._typed_index(graph)
+    tier_of = {}
+
+    def _out(name, rel):
+        hits = []
+        for e in (typed.get(name, {}) or {}).get("out", []):
+            if e.get("rel") == rel:
+                hits.append(e["to"])
+                tier_of[e["to"]] = e.get("confidence", "")
+        return hits
+
+    process_ids = _out(scope_item, "realised_by")
+    if not process_ids:
+        return {
+            "scope_item": scope_item,
+            "processes": [],
+            "note": ("No process model is linked to this scope item. The process catalog "
+                     "(mcp-server/catalog/processes.json) covers %d scope item(s) so far — "
+                     "absence here means UNMODELLED, not that the scope item has no process."
+                     % len({e["from"] for e in (graph.get("typed_edges") or [])
+                            if e.get("rel") == "realised_by"})),
+            "hint": "get_area_map or check_object_release_state still answer object-level questions.",
+        }
+
+    steps_total = steps_with_objects = 0
+    out_procs = []
+    for pid in process_ids:
+        step_ids = _out(pid, "contains")
+        steps = []
+        for sid in step_ids:
+            steps_total += 1
+            objs = []
+            for obj in _out(sid, "uses"):
+                v = tool_check_object_release_state({"object_name": obj})
+                objs.append({"name": obj, "type": (graph["nodes"].get(obj) or {}).get("type", ""),
+                             "verdict": v.get("verdict"), "evidence": v.get("evidence")})
+            if objs:
+                steps_with_objects += 1
+            entry = {"step_id": sid, "uses": objs}
+            # L3 attached at READ time, not stored in L1 — the same mechanism
+            # _attach_lessons uses on a semantic_search hit. A dedicated decision
+            # (KDD) store is the next addition; until it exists this surfaces the
+            # delivery lessons that name the step's objects, which is real today.
+            try:
+                import object_usage                              # noqa: PLC0415
+                names = [o["name"] for o in objs]
+                if names:
+                    les = object_usage.lessons_for_objects(
+                        names, _exp_store.load_experience().get("entries", []))
+                    flat = [l for v in les.values() for l in v]
+                    if flat:
+                        entry["lessons"] = flat
+            except Exception:
+                pass
+            steps.append(entry)
+        out_procs.append({"process_id": pid, "confidence": tier_of.get(pid, ""), "steps": steps})
+
+    withdrawn = [o["name"] for p in out_procs for s in p["steps"]
+                 for o in s["uses"] if o.get("verdict") == "NOT_AVAILABLE"]
+    result = {
+        "scope_item": scope_item,
+        "processes": out_procs,
+        "coverage": {
+            "steps_total": steps_total,
+            "steps_with_objects": steps_with_objects,
+            "note": ("%d of %d steps name a released object that resolves in the catalog. "
+                     "An unresolved name is SKIPPED rather than invented, so a step with "
+                     "none is unmapped — not proof it needs none."
+                     % (steps_with_objects, steps_total)),
+        },
+        "source": "S4PC process catalog + L1 typed edges; verdicts from the live catalog.",
+    }
+    if withdrawn:
+        result["withdrawn_objects"] = withdrawn
+        result["withdrawn_note"] = ("These objects are referenced by a process step and are "
+                                    "NO LONGER released. Redesign the step — do not cite them.")
+    # Say plainly when the whole answer rests on our own guess rather than SAP's statement.
+    tiers = {p.get("confidence") for p in out_procs}
+    if tiers and tiers <= {"heuristic"}:
+        result["confidence_note"] = (
+            "Every edge here is HEURISTIC — hand-seeded, not exported from SAP. Usable to "
+            "shape a conversation, not to assert SAP's process. Replace processes.json with "
+            "a Signavio export (tier 'declared' for Best Practice content) before citing it.")
+    return result
+
+
 def tool_get_area_map(args):
     area = (args.get("area") or "").strip()
     if not area:
@@ -1946,6 +2058,26 @@ TOOLS = {
                                     "Omit to list all available areas."}},
             "required": []},
         "handler": tool_get_area_map,
+    },
+    "lookup_process": {
+        "description": ("Layer 1 — PROCESS layer: given an SAP scope item id (e.g. 'J59'), walk "
+                        "scope_item -> process -> process step -> released object. For FUNCTIONAL work "
+                        "(fit-gap, key design decisions) where the question is 'which step needs which "
+                        "object', not 'which objects exist'. Every object carries its LIVE release "
+                        "verdict, so a withdrawn object shows as NOT_AVAILABLE instead of as a working "
+                        "dependency, and `withdrawn_objects` lists any that must be redesigned around. "
+                        "ALWAYS READ `confidence` on each process and `confidence_note`: 'declared' means "
+                        "SAP states the scope-item link (Signavio Best Practice), 'observed' means a "
+                        "client's own model, 'heuristic' means WE wrote it and it asserts nothing about "
+                        "SAP. `coverage` says how many steps map to an object — a step with none is "
+                        "UNMAPPED, never proof it needs none. Lessons naming a step's objects are "
+                        "attached where they exist."),
+        "schema": {"type": "object", "properties": {
+            "scope_item": {"type": "string",
+                           "description": "3-character SAP scope item id, e.g. 'J59', 'BKJ', '1NN'. "
+                                          "Use lookup_scope_item first if you only have a description."}},
+            "required": ["scope_item"]},
+        "handler": tool_lookup_process,
     },
     "sync_object_graph": {
         "description": ("Layer 1 — Live Object Graph: rebuild graph.json from the current catalog files. "

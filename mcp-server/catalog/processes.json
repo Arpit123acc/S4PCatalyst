@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "source": "hand_seeded_demo",
+    "tier": "heuristic",
+    "tier_note": "HAND-WRITTEN BY US, not exported from SAP. Every edge built from this file therefore carries confidence=heuristic, and an architect querying min_confidence='declared' will not see it. Replace with a real export and set tier accordingly: 'declared' for SAP Best Practice content from Signavio Process Navigator (SAP states the scope-item link), 'observed' for a client's own Process Manager models (true of that project, not of the product). Never label our own guess 'declared'.",
+    "purpose": "One scope item end to end, to prove scope_item -> process -> step -> released object gives a functional agent something it cannot already get. Built before any Signavio API call, deliberately.",
+    "synced": null
+  },
+  "processes": [
+    {
+      "process_id": "J59-DEMO-01",
+      "scope_item_id": "J59",
+      "name": "Accounts Receivable — incoming payment handling",
+      "variant": "hand-seeded demonstration",
+      "lob": "Finance",
+      "steps": [
+        {
+          "step_id": "J59-DEMO-01-010",
+          "name": "Receive and process customer payment advice",
+          "role": "Accounts Receivable Accountant",
+          "objects": ["API_CUSTOMER_PAYMENT_ADVICE_SRV"]
+        },
+        {
+          "step_id": "J59-DEMO-01-020",
+          "name": "Post incoming payment",
+          "role": "Accounts Receivable Accountant",
+          "objects": ["API_PAYMENT_SRV"]
+        },
+        {
+          "step_id": "J59-DEMO-01-030",
+          "name": "Analyse remaining open items",
+          "role": "Accounts Receivable Manager",
+          "objects": ["API_OPLACCTGDOCITEMCUBE_SRV"]
+        },
+        {
+          "step_id": "J59-DEMO-01-040",
+          "name": "Agree write-off for uncollectable residual",
+          "role": "Accounts Receivable Manager",
+          "objects": []
+        }
+      ]
+    }
+  ],
+  "retired_processes": []
+}

@@ -126,7 +126,10 @@ def _names_are_related(toks_a: frozenset, toks_b: frozenset,
 # points" rather than "this brain never emitted that relation" — a confidently empty
 # answer indistinguishable from a correct one. Add a name here when its generator lands,
 # never before.
-REL_TYPES  = ("replaces", "exposes", "requires", "belongs_to", "covers")
+REL_TYPES  = ("replaces", "exposes", "requires", "belongs_to", "covers",
+              # Process layer: scope_item -> process -> step -> released object. Added
+              # WITH their generators, never before — see the note on EDGE_SOURCES.
+              "realised_by", "contains", "uses")
 CONFIDENCE = ("declared", "observed", "heuristic")
 _CONF_RANK = {"heuristic": 1, "observed": 2, "declared": 3}
 
@@ -155,6 +158,88 @@ def _load_scope_items() -> tuple:
         return (d.get("scope_items") or [], d.get("retired_scope_items") or [])
     except Exception:
         return ([], [])
+
+
+def _load_processes() -> tuple:
+    """(processes, retired, tier) from the process catalog, or ([], [], "") if absent.
+
+    Loaded here rather than passed in, so build_graph keeps its signature and every
+    existing caller picks the process layer up without changing — exactly how
+    _load_scope_items works. A missing file degrades to no process edges, which is
+    reported in stats rather than raised: L1 is still valid without them.
+
+    The TIER COMES FROM THE FILE, not from the generators. The same three generators
+    must produce `declared` edges from a Signavio Process Navigator export (SAP states
+    the scope-item link), `observed` edges from a client's own Process Manager models
+    (true of that project, not of the product), and `heuristic` edges from anything we
+    wrote ourselves. Hardcoding a tier in the generator would relabel our own guess as
+    SAP's statement, which is the `naming_heuristic_only` mistake in a different field.
+    """
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "catalog", "processes.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            d = json.load(fh)
+        tier = ((d.get("_meta") or {}).get("tier") or "heuristic").strip().lower()
+        if tier not in _CONF_RANK:
+            tier = "heuristic"          # an unknown tier is never trusted upward
+        return (d.get("processes") or [], d.get("retired_processes") or [], tier)
+    except Exception:
+        return ([], [], "")
+
+
+def process_scope_edges(ctx: dict):
+    """scope_item --realised_by--> process, from processes[].scope_item_id.
+
+    The join costs nothing: Signavio Process Navigator keys best-practice flows by the
+    same 3-char scope item id the catalog already holds 679 of. This is the edge that
+    turns "which objects cover J59" into "which PROCESS STEP needs which object".
+    """
+    for p in ctx.get("processes") or []:
+        pid = (p.get("process_id") or "").strip()
+        sid = (p.get("scope_item_id") or "").strip()
+        if pid and sid:
+            yield _edge(sid, pid, "realised_by",
+                        "process_catalog:processes.scope_item_id",
+                        ctx.get("process_tier") or "heuristic",
+                        target_kind="process")
+
+
+def process_step_edges(ctx: dict):
+    """process --contains--> process_step. Structural: the model's own decomposition."""
+    for p in ctx.get("processes") or []:
+        pid = (p.get("process_id") or "").strip()
+        if not pid:
+            continue
+        for s in (p.get("steps") or []):
+            sid = (s.get("step_id") or "").strip()
+            if sid:
+                yield _edge(pid, sid, "contains",
+                            "process_catalog:processes.steps",
+                            ctx.get("process_tier") or "heuristic",
+                            target_kind="process_step")
+
+
+def process_object_edges(ctx: dict):
+    """process_step --uses--> released object, from processes[].steps[].objects.
+
+    ONLY emitted when the name resolves to a catalog node. An unresolved name is
+    SKIPPED, never invented — the same rule that keeps exposes_edges honestly capped at
+    81 rather than padded to look complete. A step naming no object is not evidence it
+    needs none; lookup_process discloses that separately.
+    """
+    nodes = ctx.get("nodes") or {}
+    for p in ctx.get("processes") or []:
+        for s in (p.get("steps") or []):
+            sid = (s.get("step_id") or "").strip()
+            if not sid:
+                continue
+            for obj in (s.get("objects") or []):
+                obj = (obj or "").strip()
+                if obj and obj in nodes:
+                    yield _edge(sid, obj, "uses",
+                                "process_catalog:processes.steps.objects",
+                                ctx.get("process_tier") or "heuristic")
 
 
 def replaces_edges(ctx: dict):
@@ -392,6 +477,9 @@ def run_scope_edges(ctx: dict):
 EDGE_SOURCES = (
     replaces_edges,
     comm_scenario_edges,
+    process_scope_edges,
+    process_step_edges,
+    process_object_edges,
     exposes_edges,
     scope_dependency_edges,
     scope_master_data_edges,
@@ -527,8 +615,14 @@ def build_graph(apis: list, cds_views: list, badis: list) -> dict:
     scope_by_id   = {s.get("scope_item_id"): s for s in scope_items if s.get("scope_item_id")}
     retired_by_id = {s.get("scope_item_id"): s for s in retired_items if s.get("scope_item_id")}
 
+    processes, retired_processes, process_tier = _load_processes()
+
     ctx = {"apis": apis, "cds_views": cds_views, "badis": badis,
            "scope_items": scope_items, "retired_scope_items": retired_items,
+           "processes": processes, "retired_processes": retired_processes,
+           # Carried in ctx so the three process generators read ONE tier from the
+           # source file instead of each hardcoding a confidence they cannot know.
+           "process_tier": process_tier,
            "graph_areas": set(areas_clean.keys()),
            "nodes": nodes}
 
