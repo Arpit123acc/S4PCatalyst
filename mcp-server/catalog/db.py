@@ -10,6 +10,7 @@ Zero-dependency — sqlite3 is Python 3.9+ stdlib.
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import time
 
@@ -63,7 +64,8 @@ CREATE TABLE IF NOT EXISTS experience (
     impact   TEXT,
     tags     TEXT,
     added    TEXT,
-    source   TEXT
+    source   TEXT,
+    run_id   TEXT
 );
 CREATE TABLE IF NOT EXISTS lint_rules (
     id          TEXT PRIMARY KEY,
@@ -104,14 +106,28 @@ def _ensure_retired_columns(con):
             con.execute("ALTER TABLE %s ADD COLUMN retired_at TEXT" % table)
 
 
+def _ensure_experience_columns(con):
+    """Add `run_id` to the experience table. Idempotent.
+
+    Not in _do_migrate for the same reason as _ensure_retired_columns: that runs once,
+    guarded by the _migrated flag, so a catalog created before this column existed would
+    never gain it — and every catalog in use was created before it existed.
+    """
+    cols = {r[1] for r in con.execute("PRAGMA table_info(experience)")}
+    if "run_id" not in cols:
+        con.execute("ALTER TABLE experience ADD COLUMN run_id TEXT")
+
+
 def get_conn():
     """Open catalog.db, create schema, auto-migrate from JSON on first run."""
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(_SCHEMA)
     _ensure_retired_columns(con)
+    _ensure_experience_columns(con)
     con.commit()
     _auto_migrate(con)
+    _normalise_tags_once(con)
     return con
 
 
@@ -276,7 +292,7 @@ def _badi_row(row):
 
 
 def _exp_row(row):
-    return {
+    d = {
         "id":       row["id"],
         "category": row["category"],
         "topic":    row["topic"],
@@ -286,6 +302,12 @@ def _exp_row(row):
         "added":    row["added"],
         "source":   row["source"],
     }
+    # Only when set, so a lesson with no run (the curated seed, ad-hoc capture) keeps the
+    # payload it has always had instead of gaining a null field every consumer must ignore.
+    rid = _col(row, "run_id")
+    if rid:
+        d["run_id"] = rid
+    return d
 
 
 def _lint_row(row):
@@ -372,20 +394,98 @@ def load_lint_rules():
 
 # ── Write: experience (only catalog table written at runtime by the MCP server) ─
 
+def _norm_tags(tags):
+    """One spelling per tag: lowercased, `-`/whitespace collapsed to `_`, de-duplicated.
+
+    Tags are free text and drifted into synonyms that look like distinct tags to every
+    consumer: `rap`/`RAP` (4 uses each), `key_user`/`key-user` (5/1),
+    `ABAP_Cloud`/`abap-cloud` (2/1) — 86 distinct tags across 40 lessons.
+
+    This survived because the one thing that reads tags does not care:
+    query_experience folds them into a haystack and lowercases the whole string, so
+    search matched both spellings and the split was invisible. Anything that GROUPS or
+    FILTERS on the stored value sees half the lessons and cannot tell that from a
+    correct answer — the same shape as a stale layer. Canonicalising on write is what
+    makes the column safe for a filter to exist over later.
+
+    Order is preserved so the first spelling a lesson used stays first.
+    """
+    out, seen = [], set()
+    for t in (tags or []):
+        s = re.sub(r"[\s\-]+", "_", str(t).strip().lower())
+        s = re.sub(r"_{2,}", "_", s).strip("_")
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _exp_normalise(entry):
+    """The single place an experience entry is cleaned, for every destination.
+
+    Store and seed both go through this, so a tag cannot be canonical in one and raw in
+    the other. Returns a copy — callers pass dicts that live in the in-memory EXPERIENCE.
+    """
+    e = dict(entry)
+    e["tags"] = _norm_tags(e.get("tags"))
+    return e
+
+
+_EXP_COLS = "id,category,topic,lesson,impact,tags,added,source,run_id"
+_EXP_QS   = "?,?,?,?,?,?,?,?,?"
+
+
+def _exp_values(entry):
+    """Column tuple for _EXP_COLS. Used by every experience INSERT, so the column list
+    and the normalisation can never disagree between the two write paths."""
+    e = _exp_normalise(entry)
+    return (e.get("id"), e.get("category"), e.get("topic"), e.get("lesson"),
+            e.get("impact"), _jdump(e.get("tags")), e.get("added"), e.get("source"),
+            (e.get("run_id") or None))
+
+
 def append_experience(entry):
     """Upsert one experience entry into the database."""
     con = get_conn()
     try:
-        con.execute(
-            "INSERT OR REPLACE INTO experience(id,category,topic,lesson,impact,tags,added,source)"
-            " VALUES(?,?,?,?,?,?,?,?)",
-            (entry.get("id"), entry.get("category"), entry.get("topic"),
-             entry.get("lesson"), entry.get("impact"), _jdump(entry.get("tags")),
-             entry.get("added"), entry.get("source"))
-        )
+        con.execute("INSERT OR REPLACE INTO experience(%s) VALUES(%s)" % (_EXP_COLS, _EXP_QS),
+                    _exp_values(entry))
         con.commit()
     finally:
         con.close()
+
+
+_TAG_NORM_FLAG = "_experience_tags_normalised_v1"
+
+
+def _normalise_tags_once(con):
+    """Rewrite stored tags into the canonical spelling. Runs once per database.
+
+    Normalising on write only helps lessons recorded from now on. Leaving the 40 already
+    stored in their drifted spellings would give a column that is canonical for new rows
+    and raw for old ones — worse than raw throughout, because a filter over it returns a
+    subset that reads as a complete answer. The backfill is what makes _norm_tags a
+    property of the column rather than of the write path.
+
+    Guarded by a meta flag rather than re-run each open: the work is idempotent but the
+    scan is not free, and get_conn is on the query_experience hot path.
+    """
+    try:
+        if _get_meta(con, _TAG_NORM_FLAG):
+            return
+        changed = 0
+        for row in con.execute("SELECT id, tags FROM experience").fetchall():
+            cur = _jload(row["tags"]) or []
+            new = _norm_tags(cur)
+            if new != cur:
+                con.execute("UPDATE experience SET tags=? WHERE id=?", (_jdump(new), row["id"]))
+                changed += 1
+        _set_meta(con, _TAG_NORM_FLAG,
+                  {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                   "rows_rewritten": changed})
+        con.commit()
+    except sqlite3.Error:
+        pass        # a tag spelling must never be the reason the catalog will not open
 
 
 _GENERIC_SOURCES = {"delivery experience — seed", "delivery experience - seed", "pipeline run", ""}
@@ -396,12 +496,20 @@ def _seed_safe(entry):
     `source` is the run id, and run ids are derived from the FD filename — so a lesson learned on a
     client engagement would publish that client's project name into experience_db.json. catalog.db
     keeps the real value (local, gitignored, full traceability); the shared seed gets a stable short
-    hash instead, which still groups lessons from the same run without naming it."""
-    safe = dict(entry)
+    hash instead, which still groups lessons from the same run without naming it.
+
+    `run_id` is DROPPED, not hashed. It holds the same FD-derived value this function exists to keep
+    out of git, and it defeated the hash by sitting next to it: EXP-033..035 published
+    source='pipeline run 5e90e30f' and run_id='SMART-SEARCH-FD-R2' in the same object. Hashing it
+    too would only restate what `source` already carries, so the seed simply does without it —
+    consumers group by `source`, and traceability to the real run stays where the real value is,
+    in the local store."""
+    safe = _exp_normalise(entry)
     src = (entry.get("source") or "").strip()
     if src and src.lower() not in _GENERIC_SOURCES:
         digest = hashlib.sha256(src.encode("utf-8")).hexdigest()[:8]
         safe["source"] = "pipeline run %s" % digest
+    safe.pop("run_id", None)
     return safe
 
 
@@ -438,12 +546,8 @@ def sync_experience_from_seed(con=None):
             con = get_conn()
         before = con.execute("SELECT count(*) FROM experience").fetchone()[0]
         for e in rows:
-            con.execute(
-                "INSERT OR IGNORE INTO experience(id,category,topic,lesson,impact,tags,added,source)"
-                " VALUES(?,?,?,?,?,?,?,?)",
-                (e.get("id"), e.get("category"), e.get("topic"), e.get("lesson"),
-                 e.get("impact"), _jdump(e.get("tags")), e.get("added"), e.get("source"))
-            )
+            con.execute("INSERT OR IGNORE INTO experience(%s) VALUES(%s)" % (_EXP_COLS, _EXP_QS),
+                        _exp_values(e))
         con.commit()
         return con.execute("SELECT count(*) FROM experience").fetchone()[0] - before
     except Exception:
@@ -658,12 +762,8 @@ def _do_migrate(con):
     for e in data.get("entries", []):
         if not e.get("id"):
             continue
-        con.execute(
-            "INSERT OR IGNORE INTO experience(id,category,topic,lesson,impact,tags,added,source)"
-            " VALUES(?,?,?,?,?,?,?,?)",
-            (e.get("id"), e.get("category"), e.get("topic"), e.get("lesson"),
-             e.get("impact"), _jdump(e.get("tags")), e.get("added"), e.get("source"))
-        )
+        con.execute("INSERT OR IGNORE INTO experience(%s) VALUES(%s)" % (_EXP_COLS, _EXP_QS),
+                    _exp_values(e))
 
     # Lint rules
     data = _load_json_file(_JSON_LINT, {"rules": []})

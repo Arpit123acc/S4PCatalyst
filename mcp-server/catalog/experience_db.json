@@ -34,7 +34,7 @@
       "tags": [
         "cds",
         "developer",
-        "released-objects"
+        "released_objects"
       ],
       "added": "2026-07-18",
       "source": "delivery experience — seed"
@@ -46,7 +46,7 @@
       "lesson": "Custom Fields app generates technical names like YY1_PriorityLevel_PDH per business context. Do not hardcode them in designs before the field exists — reference the label and mark the technical name 'after creation'.",
       "impact": "Avoids rework in BAdI code and API mappings",
       "tags": [
-        "custom-fields",
+        "custom_fields",
         "key_user"
       ],
       "added": "2026-07-18",
@@ -103,7 +103,7 @@
       "impact": "Zero-cost solutions for ~20% of report FDs",
       "tags": [
         "fiori",
-        "fit-to-standard",
+        "fit_to_standard",
         "report"
       ],
       "added": "2026-07-18",
@@ -117,7 +117,7 @@
       "impact": "No late connectivity surprises",
       "tags": [
         "api",
-        "communication-arrangement",
+        "communication_arrangement",
         "auth"
       ],
       "added": "2026-07-18",
@@ -158,7 +158,7 @@
       "lesson": "Public Cloud output is Adobe Forms via Maintain Form Templates (no Smart Forms, no SAPscript, no print programs). XDP editing requires Adobe LiveCycle Designer — confirm the team has licenses BEFORE the form work starts; it has lead time and cost.",
       "impact": "No blocked form workstream",
       "tags": [
-        "adobe-forms",
+        "adobe_forms",
         "output",
         "licensing",
         "cost"
@@ -232,7 +232,7 @@
       "tags": [
         "btp",
         "cost",
-        "discovery-center"
+        "discovery_center"
       ],
       "added": "2026-07-18",
       "source": "delivery experience — seed"
@@ -245,7 +245,7 @@
       "impact": "Weeks saved per interface",
       "tags": [
         "cpi",
-        "integration-content",
+        "integration_content",
         "hub"
       ],
       "added": "2026-07-18",
@@ -260,7 +260,7 @@
       "tags": [
         "rap",
         "eclipse",
-        "abap-unit",
+        "abap_unit",
         "developer"
       ],
       "added": "2026-07-18",
@@ -273,9 +273,9 @@
       "lesson": "Embedded Steampunk cannot touch unreleased objects at all — not even read-only, no wrapper tricks. If a required object is unreleased: use a released alternative, request it from SAP via influence/customer request, or move the capability side-by-side over released APIs. Design around this from day one.",
       "impact": "No dead-end designs",
       "tags": [
-        "released-objects",
+        "released_objects",
         "developer",
-        "clean-core"
+        "clean_core"
       ],
       "added": "2026-07-18",
       "source": "delivery experience — seed"
@@ -303,11 +303,11 @@
       "lesson": "When a Fiori EL List Report needs to filter by SAP classification characteristic values, implement a RAP custom query class (if_rap_query_provider) that calls API_CLFN_PRODUCT_SRV via cl_web_http_client_manager to resolve the characteristic value to a product RANGE, then injects that range as an IN filter in the CDS SELECT. The value-help CDS (reads I_ClfnCharacteristic) handles the F4 help without any HTTP call. Comm scenario ID must be confirmed with Basis. /ui2/cl_json with REF TO data is fragile — prefer typed deserialization.",
       "impact": "",
       "tags": [
-        "RAP",
-        "custom-query",
+        "rap",
+        "custom_query",
         "classification",
-        "HTTP",
-        "OData-V4"
+        "http",
+        "odata_v4"
       ],
       "added": "2026-07-20",
       "source": "MM-RPT-0001"
@@ -319,10 +319,10 @@
       "lesson": "Movement type to block-type mapping (E/D/L) belongs in a client-dependent config table (delivery class C), not hard-coded in CDS. The RAP query class reads ZCORP_105BWART_T at query time to build a movement-type RANGE, then filters stock rows by InventoryStockType (04=quality/blocked, 07=blocked stock) derived from block type. This makes the mapping configurable without code change. Custom movement types (9C1/9C2) must exist in tenant Customizing before integration testing.",
       "impact": "",
       "tags": [
-        "RAP",
-        "blocked-stock",
-        "config-table",
-        "movement-type"
+        "rap",
+        "blocked_stock",
+        "config_table",
+        "movement_type"
       ],
       "added": "2026-07-20",
       "source": "MM-RPT-0001"
@@ -365,9 +365,9 @@
       "impact": "",
       "tags": [
         "cl_abap_json",
-        "JSON_serialization",
-        "API_casing",
-        "outbound_API"
+        "json_serialization",
+        "api_casing",
+        "outbound_api"
       ],
       "added": "2026-07-21",
       "source": "SMART-SEARCH-FD-R2"
@@ -379,11 +379,11 @@
       "lesson": "SELECT SINGLE on I_PersonWorkAgreement filtered by date range is non-deterministic when multiple Work Agreements overlap (e.g. role transitions). Use SELECT ... ORDER BY ValidityStartDate DESCENDING UP TO 1 ROWS instead of SELECT SINGLE to guarantee the most-recently-started agreement is returned. This is ABAP Cloud compliant and avoids arbitrary row selection.",
       "impact": "",
       "tags": [
-        "SELECT_SINGLE",
-        "I_PersonWorkAgreement",
-        "non-determinism",
-        "RAP",
-        "ABAP_Cloud"
+        "select_single",
+        "i_personworkagreement",
+        "non_determinism",
+        "rap",
+        "abap_cloud"
       ],
       "added": "2026-07-21",
       "source": "SMART-SEARCH-FD-R2"
@@ -395,13 +395,13 @@
       "lesson": "For any FD covering Professional Services / PBS (scope items J12, 1Q4 or similar), assume that the engagement project CDS views, work package CDS views, Work Agreement API, Resource Assignment API, and timesheet BAdI are ALL NOT_VERIFIED in the offline catalog. Add a mandatory pre-build gate: (1) find PBS CDS view names on SAP Help Released CDS Views list, (2) confirm Work Agreement and Resource Assignment APIs on api.sap.com, (3) locate the timesheet BAdI in the SAP Help List of BAdIs under the PBS scope filter. Skipping this causes 4 NOT_VERIFIED findings, 6 open Major transport blockers, and a quality score below 50.",
       "impact": "Prevents low quality scores and blocked transports on PBS deliverables",
       "tags": [
-        "PBS",
-        "professional-services",
-        "NOT_VERIFIED",
-        "pre-build",
-        "tenant-verification",
-        "J12",
-        "1Q4"
+        "pbs",
+        "professional_services",
+        "not_verified",
+        "pre_build",
+        "tenant_verification",
+        "j12",
+        "1q4"
       ],
       "added": "2026-08-06",
       "source": "SMART-SEARCH-FD-R3"
@@ -415,9 +415,9 @@
       "tags": [
         "cx_static_check",
         "exception",
-        "ABAP_Cloud",
-        "error-handling",
-        "RAP"
+        "abap_cloud",
+        "error_handling",
+        "rap"
       ],
       "added": "2026-08-06",
       "source": "SMART-SEARCH-FD-R3"
@@ -447,8 +447,8 @@
       "impact": "Turns a hidden data-completeness bug into a visible, testable user message before it reaches procurement decisions.",
       "tags": [
         "cap",
-        "acceptance-criteria",
-        "data-completeness",
+        "acceptance_criteria",
+        "data_completeness",
         "pagination",
         "defect"
       ],
@@ -466,7 +466,7 @@
         "cap",
         "lint",
         "configuration",
-        "communication-arrangement",
+        "communication_arrangement",
         "governance"
       ],
       "added": "2026-09-03",
@@ -480,14 +480,13 @@
       "impact": "Prevents unchecked SAP objects reaching transport through two release gates.",
       "tags": [
         "gate",
-        "release-check",
-        "abap-cloud",
+        "release_check",
+        "abap_cloud",
         "rap",
-        "clean-core"
+        "clean_core"
       ],
       "added": "2026-09-08",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-034",
@@ -497,14 +496,13 @@
       "impact": "Stops the locked naming contract breaking at build, which reopens a human checkpoint.",
       "tags": [
         "rap",
-        "naming-contract",
-        "custom-entity",
+        "naming_contract",
+        "custom_entity",
         "checkpoint",
         "developer"
       ],
       "added": "2026-09-08",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-035",
@@ -513,15 +511,14 @@
       "lesson": "A key-user Custom Logic implementation cannot see a developer-extensibility CDS view unless that view is released with contract C2 \"Use in Key User Apps\". Here YY1_SS_TS_JOBGRADE_CHK reads ZI_SS_ROLE_MAP, so the activation order must be: create the table, create the view, release the view with C2, then publish the Custom Logic last. Get the order wrong and the implementation will not publish. The two layers also travel in different queues — developer objects through Manage Software Components, the Custom Logic implementation through Export/Import Software Collection — so a single transport does not carry both. Plan one cutover covering both queues. Also: put the mapping in a configuration table read at runtime, never as literals inside the restricted-ABAP logic.",
       "impact": "A wrong activation order blocks the key-user layer from publishing at all.",
       "tags": [
-        "key-user",
-        "custom-logic",
-        "c2-release",
+        "key_user",
+        "custom_logic",
+        "c2_release",
         "transport",
-        "ku-dev"
+        "ku_dev"
       ],
       "added": "2026-09-08",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-036",
@@ -538,8 +535,7 @@
         "fiori_elements"
       ],
       "added": "2026-09-15",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-037",
@@ -556,8 +552,7 @@
         "checkpoint"
       ],
       "added": "2026-09-15",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-038",
@@ -574,8 +569,7 @@
         "key_user"
       ],
       "added": "2026-09-15",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-039",
@@ -592,8 +586,7 @@
         "final"
       ],
       "added": "2026-09-15",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     },
     {
       "id": "EXP-040",
@@ -609,8 +602,7 @@
         "activity_type"
       ],
       "added": "2026-09-15",
-      "source": "pipeline run 5e90e30f",
-      "run_id": "SMART-SEARCH-FD-R2"
+      "source": "pipeline run 5e90e30f"
     }
   ]
 }
