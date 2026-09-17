@@ -514,7 +514,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </div>
   </div>
 
-  <div class="kb-footer"><span>S4PC Catalyst &middot; Brain Architecture</span><span>01 / 17</span></div>
+  <div class="kb-footer"><span>S4PC Catalyst &middot; Brain Architecture</span><span>01 / 18</span></div>
   <div class="notes">Opening frame. Do not read the numbers out one by one — point at the row and say
   "four layers, all live, all queryable today." The single sentence that matters on this slide is the
   rust box: a verdict is only as good as its evidence. Everything after this slide is an argument for that sentence.</div>
@@ -551,7 +551,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <i>defensible</i> &mdash; with the source named, so a human can check it in the tenant.</p>
   </div>
 
-  <div class="kb-footer"><span>Problem</span><span>02 / 17</span></div>
+  <div class="kb-footer"><span>Problem</span><span>02 / 18</span></div>
   <div class="notes">Keep this short — 45 seconds. The audience does not need convincing that hallucination
   exists; they need the SAP-specific consequence. Land the middle card: a fabricated name and a real one are
   visually identical in an FD, which is why this cannot be solved by "reviewing more carefully".</div>
@@ -651,7 +651,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </g>
   </svg>
 
-  <div class="kb-footer"><span>Architecture &middot; End-to-end</span><span>03 / 17</span></div>
+  <div class="kb-footer"><span>Architecture &middot; End-to-end</span><span>03 / 18</span></div>
   <div class="notes">Trace it left to right once, slowly. The two things worth pausing on: the ingest column
   runs on a monthly schedule, so a catalog_hit is current evidence rather than a snapshot from build day; and
   the consumers column is the answer to "can other teams use this" — the pipeline is one consumer of four, not
@@ -723,7 +723,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     startup, after a catalog sync, and after every completed delivery.</p>
   </div>
 
-  <div class="kb-footer"><span>Layers &middot; Detail</span><span>04 / 17</span></div>
+  <div class="kb-footer"><span>Layers &middot; Detail</span><span>04 / 18</span></div>
   <div class="notes">If someone asks why "derived" is called out: L1 and L2 are rebuilt from the catalogs and
   corpus, so they can silently drift. That is the one failure that does not announce itself — the search just
   returns fewer rows, which is indistinguishable from a correct empty result. layer_health exists so an agent can
@@ -813,7 +813,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </g>
   </svg>
 
-  <div class="kb-footer"><span>Connection model</span><span>05 / 17</span></div>
+  <div class="kb-footer"><span>Connection model</span><span>05 / 18</span></div>
   <div class="notes">The shape is the message: fan out, narrow, fan out, converge. Say it in that order.
   The dashed rust line at the bottom is the closed loop — L3 is the only layer we write back to, and it is
   written at package time, so every delivery makes the next one better. That loop is what makes it a brain
@@ -831,7 +831,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     <h1 class="kb-h1" style="font-size:104px">One question,<br>run through <span class="rust">all four</span>.</h1>
     <p class="kb-sub" style="font-size:22px;margin-top:18px">Two objects. Identical verdicts.<br>Everything that matters is in the difference.</p>
   </div>
-  <div class="kb-footer"><span>Section &middot; Worked example</span><span>06 / 17</span></div>
+  <div class="kb-footer"><span>Section &middot; Worked example</span><span>06 / 18</span></div>
   <div class="notes">Pause here. This is the pivot from architecture to proof. Say: "I am going to ask the
   brain about two objects. One is real. One I made up. Watch what they have in common."</div>
 </section>
@@ -872,7 +872,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     Backed by a real catalog entry, refreshed monthly from api.sap.com. Cite it, and note "confirm in ADT".</p>
   </div>
 
-  <div class="kb-footer"><span>Example &middot; Real object</span><span>07 / 17</span></div>
+  <div class="kb-footer"><span>Example &middot; Real object</span><span>07 / 18</span></div>
   <div class="notes">These are real figures pulled from the brain, not illustrative. 13 connections, 3 APIs,
   10 BAdIs, area Inventory, EXP-023. If anyone wants to see it live, the Brain Explorer trace panel does exactly
   this in one click. Do not linger — the next slide is the one that matters.</div>
@@ -918,7 +918,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     and the pipeline gates on it.</p>
   </div>
 
-  <div class="kb-footer"><span>Example &middot; The counter-example</span><span>08 / 17</span></div>
+  <div class="kb-footer"><span>Example &middot; The counter-example</span><span>08 / 18</span></div>
   <div class="notes">Slow down here — this slide earns the whole deck. Land three beats: (1) that object name is
   invented. (2) The verdict is deliberately identical, because the check reports only what it can evidence.
   (3) Every corroborating layer is empty, and THAT is the signal. Then: "we read evidence, not verdicts."
@@ -966,7 +966,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </div>
   </div>
 
-  <div class="kb-footer"><span>Consumers &middot; Pipeline</span><span>09 / 17</span></div>
+  <div class="kb-footer"><span>Consumers &middot; Pipeline</span><span>09 / 18</span></div>
   <div class="notes">The framing sentence is the title. People conflate "the brain" with "Arpit's pipeline";
   this slide separates them, which is what makes the next slide credible. If asked how long a run takes, say a
   full run produces the full deliverable set with three approval stops — the stops dominate the wall-clock time,
@@ -1027,7 +1027,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </div>
   </div>
 
-  <div class="kb-footer"><span>Consumers &middot; Functional agents</span><span>10 / 17</span></div>
+  <div class="kb-footer"><span>Consumers &middot; Functional agents</span><span>10 / 18</span></div>
   <div class="notes">This is the slide that proves the "reusable asset" claim from the platform slide — an agent
   built for a different SAP Activate phase, by a different team, uses the same four layers with the weighting
   reversed. Lead with the inversion table, then walk J59 top to bottom. If asked "why not give each agent its own
@@ -1080,7 +1080,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </div>
   </div>
 
-  <div class="kb-footer"><span>Consumers &middot; External agents</span><span>11 / 17</span></div>
+  <div class="kb-footer"><span>Consumers &middot; External agents</span><span>11 / 18</span></div>
   <div class="notes">This answers the question leadership will actually ask: is this reusable or is it one
   person's tool? Two headers checked by two independent layers is worth calling out — two distinct failure codes
   is the proof the layers are genuinely independent rather than one check wearing two hats.
@@ -1195,11 +1195,62 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     instance profile &mdash; so there is no Anthropic account, and no key, on the critical path.</p>
   </div>
 
-  <div class="kb-footer"><span>Deployment &middot; AWS</span><span>12 / 17</span></div>
+  <div class="kb-footer"><span>Deployment &middot; AWS</span><span>12 / 18</span></div>
   <div class="notes">The one-host point is deliberate: this is a POC footprint, and the scale path
   (RDS pgvector, an autoscaling group, per-client isolation) is designed but not switched on. If asked about cost,
   the honest answer is that it is one t3-class instance plus Bedrock usage per query. Do not oversell the
   infrastructure — the value is the governance model, not the topology.</div>
+</section>
+
+<!-- 13. AS BUILT -->
+<section class="slide">
+  <div class="kb-grid-bg"></div>
+  <div class="kb-kicker">Deployment &middot; as built</div>
+  <h1 class="kb-h2">One host. <span class="rust">Two front doors.</span> No keys.</h1>
+  <p class="kb-sub-s">Everything that is actually running, and the three paths a request can take through it.</p>
+
+  <pre class="kb-codebox sm" style="font-size:11px;line-height:1.5">        INTERNET                                    ACCENTURE VPN
+            │                                             │
+            ▼                                             ▼
+┌───────────────────────────┐           ┌───────────────────────────────┐
+│  API Gateway  (REST)      │           │  Internal NLB · "DigitBrain"  │
+│  stage /Brain             │           │  us-east-1 · private          │
+│  API key + usage plan     │           │  TCP 443    TCP 8321          │
+└─────────────┬─────────────┘           └────────┬───────────────┬──────┘
+              │ VPC Link                         │ 443           │ 8321
+              └──────────────────────────────────┤               │
+                                                 ▼               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│  EC2 · t3.medium · Amazon Linux · VPC 10.35.20.0/23 (us-east-1b)     │
+│                                                                      │
+│    s4pc-mcp      :3002   the brain, MCP over HTTP      API key       │
+│    s4pc-webapp   :8321   dashboard + pipeline engine   password      │
+│    brain-ui      :8400   read-only brain explorer      loopback      │
+│    brain-refresh         monthly: catalog + index + graph            │
+│                                                                      │
+│    EBS ── catalog.db · graph.json · index.npy · brain/ FAISS         │
+│           output/&lt;RUN-ID&gt;/                                           │
+└─────────────────────────────┬────────────────────────────────────────┘
+                              │  instance IAM role — no keys anywhere
+                              ▼
+                ┌─────────────────────────────────┐
+                │  AWS Bedrock   (us-east-1)      │
+                │  Claude  — pipeline inference   │
+                │  Titan   — embeddings  L2 / L4  │
+                └─────────────────────────────────┘</pre>
+
+  <table class="ftab">
+    <tr><th style="width:150px">Path</th><th>Route</th></tr>
+    <tr><td class="code">Run a delivery</td><td>browser &rarr; VPN &rarr; <b>NLB:8321</b> &rarr; dashboard &rarr; Bedrock (Claude) &mdash; and the pipeline calls the brain locally for every verdict</td></tr>
+    <tr><td class="code">Use the brain</td><td>any MCP client &rarr; HTTPS &rarr; <b>API Gateway</b> &rarr; VPC Link &rarr; <b>NLB:443</b> &rarr; brain &mdash; two credentials, two distinct failure codes</td></tr>
+    <tr><td class="code">Stay current</td><td>scheduled &rarr; SAP&#39;s catalog &rarr; rebuild index (Bedrock Titan) &rarr; rebuild graph &rarr; re-derive areas</td></tr>
+  </table>
+
+  <div class="kb-footer"><span>Deployment &middot; as built</span><span>13 / 18</span></div>
+  <div class="notes">Use this when someone wants the concrete picture; the previous slide is the same estate drawn
+  for a non-technical read. If only one survives, keep whichever suits the room — they are the same system. The
+  line worth landing is the last row: the brain is not a snapshot, it refreshes itself, and that is what keeps a
+  withdrawn SAP object from being reported as released.</div>
 </section>
 
 <!-- 12. THE URLS -->
@@ -1240,7 +1291,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     Bedrock, so a teammate clicking <i>Run</i> never needed their own Claude Code licence or AWS access in the first place.</p>
   </div>
 
-  <div class="kb-footer"><span>Access &middot; URLs</span><span>13 / 17</span></div>
+  <div class="kb-footer"><span>Access &middot; URLs</span><span>14 / 18</span></div>
   <div class="notes">Have the dashboard already open in a tab before this slide — clicking through live is worth
   more than the screenshot. Keys and the dashboard password go out of band, never in this deck and never in chat
   alongside it. If someone asks for access in the room, take the name down and send credentials separately.</div>
@@ -1286,7 +1337,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     that separation is built before the second engagement, not after.</p>
   </div>
 
-  <div class="kb-footer"><span>Integration &middot; client landscape</span><span>14 / 17</span></div>
+  <div class="kb-footer"><span>Integration &middot; client landscape</span><span>15 / 18</span></div>
   <div class="notes">The question behind this slide is always "what are you connecting to our system?" Answer it in
   one sentence: read-only, optional, and off by default. Lead with source 1 because it needs nothing from them at
   all. If asked about source 3, it is our own deliverables with masking on ingest — not their data. The isolation
@@ -1338,7 +1389,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </div>
   </div>
 
-  <div class="kb-footer"><span>Integration &middot; the delivery platform</span><span>15 / 17</span></div>
+  <div class="kb-footer"><span>Integration &middot; the delivery platform</span><span>16 / 18</span></div>
   <div class="notes">This is the slide that sets up the roadmap, so land the asset point: the brain is reusable
   infrastructure and the dashboard is a client of it. If someone asks "why not build the knowledge into the
   dashboard" — because then agent number two rebuilds it, and the two copies drift. Keep it at that level; the
@@ -1394,7 +1445,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     </div>
   </div>
 
-  <div class="kb-footer"><span>Plan of action &middot; agent onboarding</span><span>16 / 17</span></div>
+  <div class="kb-footer"><span>Plan of action &middot; agent onboarding</span><span>17 / 18</span></div>
   <div class="notes">The message is that scaling is bounded work, not 40 unknowns. The three steps are the actual
   mechanism, not a simplification. If challenged on "surely some agents need their own data" — the Signavio example
   IS that challenge, already answered: it became three relationships, and everything else got them too.</div>
@@ -1463,7 +1514,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
     grows on real engagements, not in a lab, and the next one is worth more to us than the last.</p>
   </div>
 
-  <div class="kb-footer"><span>Status &amp; next steps</span><span>17 / 17</span></div>
+  <div class="kb-footer"><span>Status &amp; next steps</span><span>18 / 18</span></div>
   <div class="notes">Lead with what is live, then the sequence, then the two asks. Prerequisites are stated as prerequisites, not as apologies — credibility on this deck comes from
   the evidence argument, and it would be self-defeating to then oversell the state. The closing ask is deliberately
   two things: one approval (the allowlist) and one commitment (a real delivery to point it at). Do not end on the
