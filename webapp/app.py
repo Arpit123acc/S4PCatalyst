@@ -1307,9 +1307,17 @@ _FINDINGS_SCHEMA = (
     "FINDINGS SCHEMA — use these EXACT field names every time you write a finding to run.json findings[]:\n"
     '  {"id":"F-01","severity":"Critical|Major|Minor|Info","source":"<gate or step name e.g. Gate 1>",\n'
     '   "description":"<plain English: what the problem is — one sentence>",\n'
-    '   "established":"<what the TOOLS already determined, naming the tool and the value — e.g.\n'
-    '                   \'search_released_apis: communication_scenario = SAP_COM_0103\'. Use \'\' ONLY if\n'
-    "                   the tools genuinely returned nothing for this finding.>\",\n"
+    '   "established":"<what the Brain ALREADY ANSWERED, in PLAIN ENGLISH. One fact per line,\n'
+    "                   separated by \\n. A delivery lead with no technical background reads this\n"
+    "                   column, so write sentences, never tool-call syntax. Name the object and say\n"
+    "                   what was found; do not name the tool or paste its raw output.\n"
+    "                   WRONG: 'check_object_release_state: API_X -> LIKELY_RELEASED, evidence =\n"
+    "                          naming_heuristic_only. search_released_apis -> 0 rows.'\n"
+    "                   RIGHT: 'The released-object catalog has no entry for API_X.\\n"
+    "                          Its name follows SAP's convention, which is why it looks real, but\n"
+    "                          nothing in the catalog backs it.\\nA search on the business keywords\n"
+    "                          returned no alternative.'\n"
+    "                   Use '' ONLY if the Brain genuinely returned nothing for this finding.>\",\n"
     '   "resolution":"<what a HUMAN must do that no tool can do — one to three numbered steps>",\n'
     '   "verify":"<how to confirm it is fixed — one sentence>",\n'
     '   "kind":"defect|config|verification|decision",\n'
@@ -1348,9 +1356,12 @@ _FINDINGS_SCHEMA = (
     "  go back and use them (search_released_apis / semantic_search / get_object_graph /\n"
     "  search_brain / check_object_release_state) before writing the finding.\n"
     "  WRONG: established:'' | resolution:'1. Search for the communication scenario for API_X.'\n"
-    "  RIGHT: established:'search_released_apis: API_X -> SAP_COM_0103'\n"
+    "  RIGHT: established:'API_X requires the Communication Arrangement SAP_COM_0103.'\n"
     "         resolution:'1. Correct the FD from SAP_COM_0009 to SAP_COM_0103. 2. Confirm the\n"
     "         Communication Arrangement exists in the tenant.'\n"
+    "  Note the RIGHT example states the FINDING, not the call that produced it. The reader needs\n"
+    "  to know what is true, not which tool was invoked — the UI already attributes the column to\n"
+    "  the Brain, so naming the tool adds nothing and costs readability.\n"
 )
 
 _SBPA_PHASE_B_INSTRUCTIONS = (

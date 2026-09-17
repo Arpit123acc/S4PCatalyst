@@ -1842,7 +1842,24 @@ function renderFindings(){
     var verifyHtml=f.verify?"<div style='font-size:.68rem;color:var(--muted);margin-top:3px'>Verify: "+esc(f.verify)+"</div>":"";
     // Already answered by the tools — surfaced so a Major finding whose value the catalog supplied
     // does not read as untouched manual work.
-    var estHtml=f.established?"<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #0ea5e9;padding-left:6px;color:var(--ink)'><b>Already determined</b>: "+esc(f.established)+"</div>":"";
+    // Split on newlines into bullets, and attribute the column to the Brain. Written as one
+    // dense run of tool-call syntax it was unreadable to anyone non-technical — and it is a
+    // delivery lead, not an engineer, who reads the findings inventory.
+    var estHtml="";
+    if(f.established){
+      var estLines=String(f.established).split(/\r?\n/).map(function(x){return x.trim();})
+                     .filter(function(x){return x.length;});
+      estHtml="<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #0ea5e9;padding-left:8px;color:var(--ink)'>"+
+        "<div style='display:flex;align-items:center;gap:6px;margin-bottom:3px'>"+
+        "<b>What the Brain already checked</b>"+
+        "<span class='chip blue' style='font-size:.58rem;padding:0 5px'>SOURCE · BRAIN</span></div>"+
+        (estLines.length>1
+          ? "<ul style='margin:0;padding-left:15px'>"+
+            estLines.map(function(x){return "<li style='margin:1px 0'>"+esc(x)+"</li>";}).join("")+
+            "</ul>"
+          : "<div>"+esc(estLines[0]||"")+"</div>")+
+        "</div>";
+    }
     var raw=f._raw||{};
     // Your own review input + what the pipeline actually did about it
     var yours=raw.developer_input?"<div style='font-size:.68rem;margin-top:5px;border-left:3px solid #7c3aed;padding-left:6px;color:var(--ink)'><b>Your input</b>"+
