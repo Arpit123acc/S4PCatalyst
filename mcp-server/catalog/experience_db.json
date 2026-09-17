@@ -522,6 +522,95 @@
       "added": "2026-09-08",
       "source": "pipeline run 5e90e30f",
       "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-036",
+      "category": "developer",
+      "topic": "A RAP query provider cannot warn the user — surface a row cap as the true total instead",
+      "lesson": "EXP-031 says: never truncate a result set silently, warn at the boundary. In a RAP custom-entity query provider you cannot obey that literally. IF_RAP_QUERY_RESPONSE exposes only SET_DATA and SET_TOTAL_NUMBER_OF_RECORDS — there is no message channel, no REPORTED table, nothing that reaches the user. Do not invent one; a made-up response method is an activation failure, not a warning. Make the boundary visible through the count instead: when the fetched rows equal the cap, run COUNT(*) once and report the true total, so the list report header reads \"50 of 1,240\" rather than \"50 of 50\". Keep the user-facing sentence as list-report text and put its display on the tenant checklist, because it is Fiori configuration, not ABAP. This also preserves the opposite rule (do not run the join twice on ordinary paging): the count fires only when the cap is reached or the framework asks for a total, never on an under-cap page.",
+      "impact": "Stops a design promising a warning the RAP query framework cannot deliver, and keeps the paging-cost fix intact.",
+      "tags": [
+        "rap",
+        "query_provider",
+        "if_rap_query_response",
+        "row_cap",
+        "paging",
+        "fiori_elements"
+      ],
+      "added": "2026-09-15",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-037",
+      "category": "developer",
+      "topic": "A RAP behaviour definition has no name of its own — never put one in a naming contract",
+      "lesson": "A checkpoint comment asked for the behaviour definition to be named ZBEH_SMRT_SRCH while keeping the root entity as ZC_SS_WORKPACKAGE_SEARCH. That pair cannot exist: ADT derives a behaviour definition's name from its root CDS entity and offers no independent name field. The only way to honour such a request is to rename the entity, which then cascades into the service definition, the query annotation and the behaviour pool. So when you build the Custom-Object Naming Contract that a human locks at solution approval, give an entry to the entity, the query provider, the behaviour pool, the service definition and the service binding — but not to the behaviour definition, or the human will lock a name the platform cannot honour and the build has to report the conflict back instead of building. The same holds for a service binding: renaming the service definition does not rename the binding, so both need their own contract entries or the build keeps the old prefix and looks inconsistent.",
+      "impact": "Removes a naming-contract entry that always produces an unhonourable instruction and a checkpoint round trip.",
+      "tags": [
+        "rap",
+        "behaviour_definition",
+        "naming_contract",
+        "adt",
+        "service_binding",
+        "checkpoint"
+      ],
+      "added": "2026-09-15",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-038",
+      "category": "key_user",
+      "topic": "Rebasing a search onto a customer YY1_ CDS view moves the clean-core proof one level down, and voids every field name in the design",
+      "lesson": "At code approval the client replaced ten released view reads with one customer CDS view (YY1_SMART_SEARCH) plus a customer table (YY1_CLIENT_DEL) they maintain themselves. Three consequences, none of them obvious. (1) check_object_release_state returns NOT_VERIFIED / evidence none for every YY1_ object — that is silence by design, because the offline catalog holds SAP objects only. Do not report it as unreleased and do not treat it as released. (2) The clean-core argument still holds but is now indirect: the Custom CDS Views app only offers released views as sources, so the released-object rule applies one level down — and no tool can confirm how that particular view was built, so 'every source of YY1_SMART_SEARCH is a released view' and 'the view enforces project authorisation' become tenant verification items, not design statements. (3) Every field name the query filters on becomes unconfirmed at once, because a customer object's field list exists only in the tenant. Expect the filter coverage in the build to collapse to the one or two fields you can name, with the rest specified and untestable until the View Browser answers.",
+      "impact": "Sets the right expectation when a client substitutes their own CDS view mid-run: fewer coded filters, more tenant items, clean core still arguable.",
+      "tags": [
+        "custom_cds_view",
+        "yy1",
+        "not_verified",
+        "clean_core",
+        "tenant_verification",
+        "key_user"
+      ],
+      "added": "2026-09-15",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-039",
+      "category": "developer",
+      "topic": "Make a RAP behaviour pool testable with protected attributes and lazy getters — and drop FINAL from the collaborators",
+      "lesson": "EXP-034 requires an injection point wherever a RAP handler calls an outbound service, but not how to build one. What works inside a behaviour pool, without adding an object to a locked naming contract: declare each collaborator as a PROTECTED DATA attribute, fill it through a lazy getter method (IF mo_x IS NOT BOUND. mo_x = NEW ...), call the getter rather than NEW from the action method, and add FRIENDS ltcl_action to the handler's CLASS DEFINITION so the local test class can set the attribute directly. No factory class, no constructor parameter, no new transportable object. The part that surprises reviewers: the collaborator classes themselves must lose FINAL, because the doubles are subclasses that redefine one method. That is a testability change, not a clean-core one — both classes stay in the customer namespace, read only released views, and inherit from no standard SAP class, so abap_cloud_lint stays PASS. Say so explicitly in the lint report, or the diff reads as a weakened design.",
+      "impact": "Gives the concrete pattern for doubling an outbound call in a RAP action, and pre-empts the \"why is FINAL gone\" review challenge.",
+      "tags": [
+        "rap",
+        "abap_unit",
+        "test_double",
+        "behaviour_pool",
+        "dependency_injection",
+        "final"
+      ],
+      "added": "2026-09-15",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
+    },
+    {
+      "id": "EXP-040",
+      "category": "general",
+      "topic": "Use a human-supplied configuration value verbatim and raise a finding — never silently correct it",
+      "lesson": "The configuration contract locked at solution approval arrived with two malformed values: the communication scenario as SAP_COM_009 (three digits, where every SAP scenario id carries four — compare SAP_COM_0021 in the catalog) and one of nine activity types as lower-case t005. Both were obvious typos, and correcting them quietly would have been wrong twice: the build would no longer match the contract the human locked, and nobody would ever confirm the real tenant value. The rule that worked: code the value exactly as given, then raise one finding per value with the evidence for why it looks wrong (a catalog example of the correct format, the FD table, the other eight rows), and let the checkpoint answer. Both came back corrected at the findings review — SAP_COM_0009 and T005 — with one line of notes each. Cheap to raise, and it keeps the contract and the code in step. Format evidence from the catalog is what makes such a finding actionable rather than pedantic.",
+      "impact": "Keeps a locked configuration contract and the build identical, and turns a silent typo into a one-line human decision.",
+      "tags": [
+        "config_contract",
+        "communication_scenario",
+        "checkpoint",
+        "findings",
+        "activity_type"
+      ],
+      "added": "2026-09-15",
+      "source": "pipeline run 5e90e30f",
+      "run_id": "SMART-SEARCH-FD-R2"
     }
   ]
 }
