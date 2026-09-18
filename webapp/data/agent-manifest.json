@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "_note": "This agent's own manifest. S4PC Catalyst IS one agent -- the RICEFW Builder -- so this describes itself, not a catalogue of agents. Which agents exist, and their phase/status/ordering, is the GrowActivAIte dashboard's registry; this file must never carry a copy of that. NOT webapp/data/agents.json, which is the six pipeline ROLES inside this one agent and is served at /api/agents.",
+  "agent": {
+    "id": "ricefw-builder",
+    "name": "RICEFW Builder",
+    "phase": "Realize",
+    "group": "Intelligent Build",
+    "summary": "Delivers a clean-core RICEFW object from a Functional Design through 12 governed steps.",
+    "description": "Reads an FD, decides the extensibility mode per capability, verifies every SAP object against the release catalog, builds, lints, tests, and packages. Three quality gates and three human checkpoints; no object is named from memory.",
+    "status": "ready",
+    "runtime": {
+      "kind": "pipeline",
+      "engine": "s4pc-ricefw-pipeline",
+      "mcp": [
+        "s4pc"
+      ]
+    },
+    "inputs": [
+      {
+        "id": "fd",
+        "label": "Functional Design",
+        "type": "file_ref",
+        "source": "/api/inputs",
+        "required": true,
+        "help": "Upload the FD first if it is not listed."
+      }
+    ],
+    "steps_source": "PIPELINE_STEPS",
+    "checkpoint_controls": {
+      "CP1": "naming_contract",
+      "CP2": "code_files",
+      "CP3": "findings_review"
+    },
+    "artifacts": [
+      {
+        "pattern": "^\\d\\d-.*\\.md$",
+        "label": "Deliverables"
+      },
+      {
+        "pattern": "^run\\.json$",
+        "label": "Run manifest"
+      }
+    ]
+  }
+}

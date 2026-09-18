@@ -3777,26 +3777,30 @@ PIPELINE_STEPS = [
 # appends them to run.json only when the solution's mode split includes a side-by-side (BTP)
 # capability, so the deploy stage appears only for BTP solutions.
 
-def _catalogue():
-    """The agent catalogue, with every derivable field resolved server-side.
+def _agent_manifest():
+    """This agent's own manifest, with every derivable field resolved server-side.
 
-    An agent whose `steps_source` is PIPELINE_STEPS gets the real 13 rows injected here
-    rather than restating them in JSON. That is deliberate: a registry that copies the
-    step list is a second source which drifts, and each of the panel, closed-set and
-    downgrade-guard defects fixed on 2026-09-15 was exactly that shape -- a copy trusted
-    in place of the thing it copied. The UI reads only this endpoint, so a card, a start
-    form and a run view cannot disagree about what an agent does.
+    S4PC Catalyst IS one agent -- the RICEFW Builder -- so this describes itself. It is
+    deliberately NOT a catalogue: which agents exist, and their phase, status and
+    ordering, belongs to the GrowActivAIte dashboard's registry. A card there points at
+    this endpoint for the operational detail rather than carrying a copy of it, which is
+    the only arrangement where the two cannot drift apart.
+
+    `steps_source: PIPELINE_STEPS` gets the real 13 rows injected here rather than
+    restating them in JSON. That matters most now that the registry is admin-editable:
+    a step list copied into editable data is one save away from no longer matching the
+    code. Each of the panel, closed-set and downgrade-guard defects fixed on 2026-09-15
+    was that same shape -- a copy trusted in place of the thing it copied.
 
     Checkpoint controls stay declared, not derived: which control a checkpoint needs is
     a UI fact the step list does not carry, and it is what lets one CheckpointPanel
     serve every agent instead of one component each.
     """
-    cat = read_json(os.path.join(APP_DIR, "data", "agent-catalogue.json"),
-                    {"version": 1, "phases": [], "agents": []})
-    cp_step = re.compile(r"Checkpoint\s*(\d+)", re.I)
-    for agent in cat.get("agents") or []:
-        if agent.pop("steps_source", None) != "PIPELINE_STEPS":
-            continue
+    man = read_json(os.path.join(APP_DIR, "data", "agent-manifest.json"),
+                    {"version": 1, "agent": {}})
+    agent = man.get("agent") or {}
+    if agent.pop("steps_source", None) == "PIPELINE_STEPS":
+        cp_step = re.compile(r"Checkpoint\s*(\d+)", re.I)
         controls = agent.get("checkpoint_controls") or {}
         steps = []
         for (n, name, role, gate) in PIPELINE_STEPS:
@@ -3808,14 +3812,14 @@ def _catalogue():
             steps.append(step)
         agent["steps"] = steps
         agent["step_count"] = len(steps)
-        # Declared controls that match no step are a registry typo, and silence here
+        # Declared controls that match no step are a manifest typo, and silence here
         # would show the developer a checkpoint with the wrong control at CP-time.
         found = {s["checkpoint"]["id"] for s in steps if s.get("checkpoint")}
         unused = sorted(set(controls) - found)
         if unused:
             agent["registry_warning"] = ("checkpoint_controls names %s, which no step "
                                          "declares" % ", ".join(unused))
-    return cat
+    return man
 
 
 def _run_base_and_version(fd_path):
@@ -5200,10 +5204,14 @@ class Handler(BaseHTTPRequestHandler):
             "/api/workflows": lambda: {"workflows": list_workflows()},
             "/api/mcp": mcp_inventory,
             # Two different things, deliberately on two paths: /api/agents is the six
-            # pipeline ROLES (an org chart for one agent, consumed by the Agents page),
-            # /api/catalogue is the agent catalogue the new cards are built from.
+            # pipeline ROLES inside this agent (an org chart, consumed by the Agents
+            # page), /api/agent-manifest is this agent describing ITSELF to whatever is
+            # hosting it. Named "manifest" rather than "catalogue" because the dashboard
+            # in front of this serves its own /api/catalogue -- the portfolio of every
+            # agent -- and two endpoints with one name behind one front door is a
+            # mistake waiting to be made.
             "/api/agents": lambda: read_json(os.path.join(APP_DIR, "data", "agents.json"), {"agents": []}),
-            "/api/catalogue": _catalogue,
+            "/api/agent-manifest": _agent_manifest,
             "/api/admin": admin_data,
             "/api/settings": settings_data,
             "/api/btp/connections": btp_connections_get,
