@@ -271,6 +271,7 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
       </div>
     </div>
     <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">Gate results</h3><div id="ex-gates" style="display:flex;gap:10px;flex-wrap:wrap"></div></div>
+    <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:4px">Brain activity <span style="font-size:.7rem;font-weight:400;color:var(--muted)">— which layers this run actually read</span></h3><div id="ex-brain"></div></div>
     <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">✋ Human-in-the-loop decisions</h3><div id="ex-approvals"></div></div>
     <div class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">Findings inventory</h3>
       <div class="tabs" id="ex-sev-tabs" style="margin-bottom:12px"></div>
@@ -1668,6 +1669,68 @@ function renderRunChips(){
   if(first&&(!EX_RUN||!list.some(r=>r.id===EX_RUN.id)))selectRun(first.id);
   if(!first){EX_RUN=null;$("#ex-dash").style.display="none";$("#ex-empty").style.display=""}
 }
+// Brain activity for one run, counted from the engine's own stream-json logs when the
+// panel opens. Nothing is recorded during a run for this, so the figures are also right
+// for runs that finished before the panel existed — and there is no second counter to
+// drift away from what the logs say.
+const BRAIN_LAYER_ORDER=["L1","L2","L3","L4","L3+L4"];
+async function loadBrainHits(runId){
+  const el=$("#ex-brain");if(!el)return;
+  el.innerHTML="<div style='font-size:.72rem;color:var(--muted)'>reading engine logs…</div>";
+  let d;
+  try{d=await api("/api/brain/hits?run="+encodeURIComponent(runId));}
+  catch(e){el.innerHTML="<div style='font-size:.72rem;color:var(--amber)'>Could not read brain activity: "+esc(String((e&&e.message)||e))+"</div>";return;}
+  const segs=d.segments||[],t=d.totals||{},lab=d.layer_labels||{},byLayer=t.by_layer||{};
+  if(!segs.length){
+    el.innerHTML="<div style='font-size:.73rem;color:var(--muted)'>No engine job is recorded against this run, so there is nothing to count. A run started outside the dashboard leaves no <code>pipeline_job_started</code> entry in the audit log.</div>";
+    return;
+  }
+  const n=t.brain_calls||0;
+  const chips=BRAIN_LAYER_ORDER.filter(k=>byLayer[k]).map(k=>
+    "<span class='chip blue' style='font-size:.66rem'>"+esc(k)+" "+esc(lab[k]||"")+" · <b>"+byLayer[k]+"</b></span>").join(" ");
+  const tools=Object.entries(t.by_tool||{}).sort((a,b)=>b[1]-a[1]);
+  const toolHtml=tools.length
+    ? "<div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:8px'>"+tools.map(([k,v])=>
+        "<span style='border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-size:.67rem'><code>"+esc(k)+"</code> · <b>"+v+"</b></span>").join("")+"</div>"
+    : "";
+  // A phase whose log is gone is shown as unknown, never as zero. "Did not touch the
+  // brain" and "we cannot tell" are different answers and a confident 0 would hide
+  // which one this is.
+  const rows=segs.map(s=>{
+    const when=(s.started||"").replace("T"," ").slice(0,16);
+    if(!s.log_available)
+      return "<tr><td style='padding:3px 10px 3px 0'>"+esc(s.phase||"—")+"</td><td style='padding:3px 10px 3px 0;color:var(--muted)'>"+esc(when)+"</td>"+
+             "<td colspan='2' style='padding:3px 0;color:var(--amber)'>engine log no longer on disk — not counted</td></tr>";
+    const lay=BRAIN_LAYER_ORDER.filter(k=>(s.by_layer||{})[k]).map(k=>k+"×"+s.by_layer[k]).join("  ")||"—";
+    return "<tr><td style='padding:3px 10px 3px 0'>"+esc(s.phase||"—")+"</td>"+
+           "<td style='padding:3px 10px 3px 0;color:var(--muted)'>"+esc(when)+"</td>"+
+           "<td style='padding:3px 10px 3px 0'><b>"+(s.brain_calls||0)+"</b></td>"+
+           "<td style='padding:3px 0;font-size:.67rem;color:var(--muted)'>"+esc(lay)+"</td></tr>";
+  }).join("");
+  const other=t.other_calls||0;
+  el.innerHTML=
+    "<div style='display:flex;align-items:baseline;gap:10px;flex-wrap:wrap'>"+
+      "<span style='font-size:1.45rem;font-weight:700;color:var(--purple-dark)'>"+n+"</span>"+
+      "<span style='font-size:.78rem'>brain call"+(n===1?"":"s")+" in this run</span>"+
+      "<span class='chip blue' style='font-size:.58rem;padding:0 5px'>SOURCE · BRAIN</span>"+
+    "</div>"+
+    (chips?"<div style='margin-top:7px;display:flex;gap:5px;flex-wrap:wrap'>"+chips+"</div>":"")+
+    toolHtml+
+    "<table style='margin-top:11px;font-size:.72rem;border-collapse:collapse'>"+
+      "<thead><tr style='text-align:left;color:var(--muted);font-size:.65rem;letter-spacing:.04em'>"+
+      "<th style='padding-right:10px;font-weight:600'>PHASE</th><th style='padding-right:10px;font-weight:600'>STARTED</th>"+
+      "<th style='padding-right:10px;font-weight:600'>BRAIN</th><th style='font-weight:600'>LAYERS</th></tr></thead>"+
+      "<tbody>"+rows+"</tbody></table>"+
+    // Counted apart on purpose: a release verdict reads catalog.db, which is L1's
+    // SOURCE rather than L1, and layer_health reports on the brain without reading
+    // from it. Folding them in would make "checked whether an API exists" look like
+    // deep brain use.
+    (other?"<div style='margin-top:9px;font-size:.69rem;color:var(--muted)'>Plus <b>"+other+
+      "</b> other governance call"+(other===1?"":"s")+" (release verdicts, lint, advisor, health) — these read the catalog and the rule set, not the brain layers.</div>":"")+
+    (d.segments_without_log?"<div style='margin-top:6px;font-size:.69rem;color:var(--amber)'>"+d.segments_without_log+
+      " phase(s) have no engine log left on disk, so their calls are missing from the total above.</div>":"")+
+    "<div style='margin-top:8px;font-size:.62rem;color:var(--muted)'>Counted from the engine's stream-json logs when this panel opened — not from a stored counter.</div>";
+}
 function selectRun(id){
   EX_RUN=RUNS.find(r=>r.id===id);if(!EX_RUN)return;
   CP_DIRTY=false;                    // the checkpoint card is about to be rebuilt from server state
@@ -1750,6 +1813,7 @@ function selectRun(id){
       "<div style='font-size:.58rem;opacity:.5;margin-top:4px'>"+(hasDetail?"ⓘ details":"&nbsp;")+"</div>"+"</div>";
   }).join("<div style='align-self:center;color:var(--line);flex:0 0 auto'>→</div>");
   renderLive(r,curIdx);
+  loadBrainHits(r.id);                 // async; fills #ex-brain when the logs have been read
   if(!BTP_DEPLOY_JOB)renderBtpDeployPanel(r);
   else if(BTP_DEPLOY_JOB)btpDeployPoll(BTP_DEPLOY_JOB);
   $("#ex-gates").innerHTML=(r.gate_results||[]).map(function(g,gi){

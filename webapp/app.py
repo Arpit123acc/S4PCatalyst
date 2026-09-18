@@ -1161,6 +1161,182 @@ def usage_data():
                            'total_input': 0, 'total_output': 0, 'total_cost': 0.0})
     return result
 
+# ── Brain hit accounting ──────────────────────────────────────────────────────
+#
+# Which layer of the brain a tool actually reads. Taken from each tool's
+# implementation rather than its name: get_object_usage is L3+L4 because find_usage()
+# searches the corpus mention index AND the experience entries in one call.
+_BRAIN_LAYER_TOOLS = {
+    "L1":    ("get_object_graph", "get_area_map", "lookup_scope_item",
+              "scope_item_dependencies", "lookup_process", "sync_object_graph"),
+    "L2":    ("semantic_search", "find_similar_delivery", "rebuild_vector_index"),
+    "L3":    ("query_experience", "record_experience"),
+    "L4":    ("search_brain",),
+    "L3+L4": ("get_object_usage",),
+}
+_BRAIN_LAYER_LABEL = {
+    "L1": "Object graph", "L2": "Semantic index", "L3": "Experience",
+    "L4": "Corpus", "L3+L4": "Precedent (lessons + documents)",
+}
+# Everything else the governance server exposes, counted separately and deliberately
+# NOT as a brain hit. A release verdict reads catalog.db, which is L1's SOURCE rather
+# than L1 itself, and layer_health reports ON the brain without retrieving anything
+# from it. Folding either in would make a run that only asked "does this API exist"
+# look like a heavy brain user, which is the opposite of what this panel is for.
+_S4PC_OTHER_GROUP = {
+    "check_object_release_state": "catalog", "search_released_apis": "catalog",
+    "search_released_badis": "catalog",
+    "abap_cloud_lint": "gate", "extensibility_advisor": "gate",
+    "get_reference_links": "reference",
+    "odata_query": "live_sap", "odata_get_metadata": "live_sap",
+    "sap_connection_test": "live_sap",
+    "layer_health": "ops", "guardrails_status": "ops", "observability_snapshot": "ops",
+    "file_probe": "utility", "extract_docx": "utility", "btp_deploy": "utility",
+}
+_TOOL_LAYER = {t: lay for lay, tools in _BRAIN_LAYER_TOOLS.items() for t in tools}
+
+_MCP_TOOL_PREFIX = "mcp__s4pc__"
+
+
+def _brain_calls_in_log(path):
+    """Count s4pc tool calls in one engine log. Returns (by_tool, agents_seen).
+
+    The log is exactly what `claude -p --output-format stream-json --verbose` wrote, so
+    every tool_use block is already on disk and a run records nothing extra for this.
+
+    (None, None) when the log is missing or unreadable. That is NOT ({}, {}): "this
+    phase made no brain calls" and "we cannot tell" are different answers, and the
+    caller reports which one it has instead of showing a confident zero.
+    """
+    if not os.path.isfile(path):
+        return None, None
+    by_tool, agents = {}, {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                # Substring reject before parsing. A stream-json log is mostly assistant
+                # text deltas, and json.loads on every one of them dominates the cost on
+                # a multi-megabyte log. Safe because any event this counts must contain
+                # the prefix literally — it is matched again properly below.
+                if _MCP_TOOL_PREFIX not in line:
+                    continue
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue                    # the [engine] header lines
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    continue                    # truncated last line of a live run
+                content = (ev.get("message") or {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                for blk in content:
+                    if not isinstance(blk, dict) or blk.get("type") != "tool_use":
+                        continue
+                    name = blk.get("name") or ""
+                    if not name.startswith(_MCP_TOOL_PREFIX):
+                        continue
+                    tool = name[len(_MCP_TOOL_PREFIX):]
+                    by_tool[tool] = by_tool.get(tool, 0) + 1
+                    # Reported as found, not grouped on. The stream carries an `agent`
+                    # key whose values have not been characterised yet; surfacing it
+                    # raw is how we learn what it holds without designing around a
+                    # guess. Per-ROLE attribution needs it: one `claude -p` covers
+                    # several PIPELINE_STEPS roles, so the log alone cannot separate
+                    # the Extensibility Architect's calls from the Developer's.
+                    who = ev.get("agent")
+                    if who:
+                        agents[str(who)] = agents.get(str(who), 0) + 1
+    except OSError:
+        return None, None
+    return by_tool, agents
+
+
+def _engine_jobs_for_run(run_id=""):
+    """Engine jobs and the runs they belong to, from the audit trail.
+
+    JOBS is in-memory, so a webapp restart empties it and it cannot answer this for a
+    run that finished yesterday. pipeline_job_started carries the same job -> run
+    mapping and is on disk, which is why this reads the audit log instead — and why
+    the panel works retroactively on runs that predate it.
+    """
+    out = []
+    path = os.path.join(MCP_DIR, "logs", "audit.jsonl")
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                # Cheap reject before parsing: the audit log is mostly other events.
+                if '"pipeline_job_started"' not in line:
+                    continue
+                try:
+                    rec = json.loads(line.strip())
+                except ValueError:
+                    continue
+                if rec.get("event") != "pipeline_job_started":
+                    continue
+                d = rec.get("detail") or {}
+                if run_id and (d.get("run") or "") != run_id:
+                    continue
+                out.append({"job": d.get("job") or "", "run": d.get("run") or "",
+                            "phase": d.get("phase") or d.get("kind") or "",
+                            "fd": d.get("fd") or "", "started": rec.get("ts") or ""})
+    except OSError:
+        pass
+    return out
+
+
+def brain_hits(run_id=""):
+    """Brain calls for one run (or all runs), parsed from the engine logs on demand.
+
+    Deliberately not accumulated into run.json. The logs already are the record, so
+    parsing them keeps one source: the numbers are right for runs that finished before
+    this endpoint existed, and there is no counter to drift out of step with reality.
+    The cost is a file scan per request, which is nothing at this volume.
+    """
+    jobs = sorted(_engine_jobs_for_run(run_id), key=lambda j: j.get("started") or "")
+    segments, missing = [], 0
+    for j in jobs:
+        by_tool, agents = _brain_calls_in_log(
+            os.path.join(ENGINE_LOG_DIR, "pipeline-%s.log" % j["job"]))
+        if by_tool is None:
+            missing += 1
+            segments.append(dict(j, log_available=False))
+            continue
+        brain = {t: n for t, n in by_tool.items() if t in _TOOL_LAYER}
+        other = {t: n for t, n in by_tool.items() if t not in _TOOL_LAYER}
+        by_layer, by_group = {}, {}
+        for t, n in brain.items():
+            lay = _TOOL_LAYER[t]
+            by_layer[lay] = by_layer.get(lay, 0) + n
+        for t, n in other.items():
+            g = _S4PC_OTHER_GROUP.get(t, "other")
+            by_group[g] = by_group.get(g, 0) + n
+        segments.append(dict(j, log_available=True, agents=agents,
+                             brain_calls=sum(brain.values()), by_layer=by_layer,
+                             by_tool=brain,
+                             other_calls=sum(other.values()), by_group=by_group))
+    totals = {"brain_calls": 0, "other_calls": 0, "by_layer": {}, "by_tool": {}}
+    for s in segments:
+        if not s.get("log_available"):
+            continue
+        totals["brain_calls"] += s["brain_calls"]
+        totals["other_calls"] += s["other_calls"]
+        for key in ("by_layer", "by_tool"):
+            for k, v in s[key].items():
+                totals[key][k] = totals[key].get(k, 0) + v
+    return {
+        "run": run_id,
+        "segments": segments,
+        "totals": totals,
+        "layer_labels": _BRAIN_LAYER_LABEL,
+        # Reported, never folded into the totals as zero. A rotated-away log means we
+        # have no evidence, not that the phase skipped the brain.
+        "segments_without_log": missing,
+        "source": ("webapp/logs/pipeline-<job>.log (stream-json), mapped to runs via "
+                   "mcp-server/logs/audit.jsonl pipeline_job_started"),
+    }, 200
+
+
 def admin_data():
     metrics = read_json(os.path.join(MCP_DIR, "logs", "metrics.json"), {}) or {}
     audit_path = os.path.join(MCP_DIR, "logs", "audit.jsonl")
@@ -4991,6 +5167,11 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/run-file":
             qs = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             payload, code = run_file((qs.get("run") or [""])[0], (qs.get("file") or [""])[0])
+            return self._send(code, payload)
+        if path == "/api/brain/hits":
+            # ?run=<id> scopes it to one run; omitted means every run on the box.
+            qs = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            payload, code = brain_hits((qs.get("run") or [""])[0])
             return self._send(code, payload)
         if path == "/api/btp/deploy-status":
             qs = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
