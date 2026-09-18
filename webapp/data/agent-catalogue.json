@@ -41,59 +41,6 @@
         { "pattern": "^\\d\\d-.*\\.md$", "label": "Deliverables" },
         { "pattern": "^run\\.json$", "label": "Run manifest" }
       ]
-    },
-
-    {
-      "id": "explore-accelerator",
-      "name": "Explore Accelerator",
-      "phase": "Explore",
-      "group": "Design Intelligence",
-      "summary": "Turns SAP scope items into Key Design Decisions and a Business Design Clarification Questionnaire.",
-      "description": "Reads the Process Navigator scope catalog, generates KDD rows per scope item through a five-stage agent chain, and builds the BDCQ workbook. A human sets each gap's resolution in the editor; the ones marked WRICEF are what this hands to the Realize phase.",
-      "status": "integration_pending",
-
-      "_separate_from_pipeline": "A DIFFERENT agent in a DIFFERENT SAP Activate phase, not a stage of the RICEFW pipeline. It has its own repository, its own runtime (Node/Express) and its own release cadence; the only connection is the handoff below. Listing it here is what makes the dashboard a catalogue rather than one pipeline with a side door.",
-
-      "runtime": {
-        "kind": "external_app",
-        "engine": "fulcrum",
-        "language": "node",
-        "repo": "https://github.com/nehaabhardwaj1/explore-accelerator",
-        "owner": "Neha Bhardwaj",
-        "port": 8410,
-        "base_url": "/agents/fulcrum",
-        "mcp": []
-      },
-
-      "handoff": {
-        "to": "ricefw-builder",
-        "endpoint": "GET /api/kdd/wricef",
-        "gated_by": "human",
-        "note": "Only rows a human has marked Resolution = WRICEF in the KDD editor cross over. Generation never sets that field, so the handoff is deliberately not automatic."
-      },
-
-      "steps": [
-        { "id": 1, "name": "Cache",      "role": "Cache Agent",      "gate": false },
-        { "id": 2, "name": "Library",    "role": "Library Agent",    "gate": false },
-        { "id": 3, "name": "Context",    "role": "Context Agent",    "gate": false },
-        { "id": 4, "name": "Generation", "role": "Generation Agent", "gate": false },
-        { "id": 5, "name": "Validation", "role": "Validation Agent", "gate": true }
-      ],
-
-      "inputs": [
-        {
-          "id": "scope_catalog",
-          "label": "Scope catalog",
-          "type": "external",
-          "required": true,
-          "help": "Produced by the SAP Deck Agent Chrome extension from Process Navigator, then uploaded to the app. Not held in this dashboard."
-        }
-      ],
-
-      "artifacts": [
-        { "pattern": "\\.xlsx$", "label": "KDD / BDCQ / WRICEF workbooks" },
-        { "pattern": "\\.pptx$", "label": "Decks" }
-      ]
     }
   ]
 }

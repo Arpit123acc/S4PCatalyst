@@ -305,11 +305,7 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
   <div id="rtab-skills"><div class="grid c3" id="skills-grid"></div></div>
   <div id="rtab-workflows" style="display:none"><div class="grid c3" id="ref-wf-grid"></div></div>
   <div id="rtab-mcp" style="display:none"><div id="mcp-list"></div></div>
-  <div id="rtab-agents" style="display:none">
-    <div id="agent-catalogue"></div>
-    <h3 style="margin:20px 0 8px;font-size:.9rem">Pipeline roles <span style="font-size:.72rem;font-weight:400;color:var(--muted)">— the six sub-agent roles <i>inside</i> the RICEFW Builder. Not separate agents; see the catalogue above for those.</span></h3>
-    <div class="grid c3" id="agents-grid"></div>
-  </div>
+  <div id="rtab-agents" style="display:none"><div class="grid c3" id="agents-grid"></div></div>
   <div id="rtab-catalog" style="display:none"><div id="catalog-area"></div></div>
   <div id="rtab-experience" style="display:none">
     <div class="notice">🧠 <b>Experience database</b> — team delivery lessons for Public Cloud. Grows with every pipeline run (the package step records new lessons via <code>record_experience</code>). Searchable semantically via <code>find_similar_delivery</code> (Layer 3 — Digital Brain). References: <a href="https://api.sap.com/products/SAPS4HANACloud/apis/all" target="_blank">SAP Business Accelerator Hub</a> (APIs/CDS) · <a href="https://discovery-center.cloud.sap/viewServices" target="_blank">SAP Discovery Center</a> (BTP services + pricing).</div>
@@ -710,7 +706,7 @@ async function boot(){
   renderModes();renderAgentflow();
   const wf=await api("/api/workflows");WORKFLOWS=wf.workflows;renderWF("All");
   const sk=await api("/api/skills");SKILLS=sk.skills;renderSkills();
-  renderRefWF();loadMCP();loadCatalogue();loadAgents();loadCatalogs();loadSettings();renderFAQ();loadRuns();loadInputs();loadJobs();loadExperience();loadUsage();loadBrainStatus();
+  renderRefWF();loadMCP();loadAgents();loadCatalogs();loadSettings();renderFAQ();loadRuns();loadInputs();loadJobs();loadExperience();loadUsage();loadBrainStatus();
 }
 
 /* ---------- fd intake ---------- */
@@ -2027,55 +2023,6 @@ async function loadMCP(){
    "</tbody></table>"+
    (s.hidden_tool_count?"<p style='font-size:.7rem;color:var(--muted);margin-top:8px'>+ "+s.hidden_tool_count+" advanced tools hidden (live-only OData tools and offline catalog-search, superseded by the public SAP sources) — they still run for the pipeline, just not shown here.</p>":"")+
    "</div>").join("");
-}
-// The agent catalogue, grouped by SAP Activate phase. Every entry here is a SEPARATE
-// agent with its own runtime and — for external ones — its own repository and release
-// cadence. None of them is a stage of the RICEFW pipeline, which is why this is keyed
-// on phase rather than hung off the pipeline's step list.
-//
-// Phases with no agent are still rendered. An empty phase is information — it is where
-// the next agent goes — and hiding it would make the catalogue look complete.
-async function loadCatalogue(){
-  const el=$("#agent-catalogue");if(!el)return;
-  let d;
-  try{d=await api("/api/catalogue");}
-  catch(e){el.innerHTML="<div style='font-size:.72rem;color:var(--amber)'>Could not load the agent catalogue.</div>";return;}
-  const phases=d.phases||[],agents=d.agents||[];
-  el.innerHTML=phases.map(function(ph){
-    const inPhase=agents.filter(a=>a.phase===ph);
-    const body=inPhase.length
-      ? "<div class='grid c3'>"+inPhase.map(catalogueCard).join("")+"</div>"
-      : "<div style='font-size:.71rem;color:var(--muted);padding:1px 0 3px'>no agent yet</div>";
-    return "<div style='margin-bottom:16px'>"+
-      "<div style='display:flex;align-items:baseline;gap:8px;margin-bottom:6px'>"+
-        "<b style='font-size:.83rem'>"+esc(ph)+"</b>"+
-        (inPhase.length?"<span class='chip gray' style='font-size:.6rem'>"+inPhase.length+"</span>":"")+
-      "</div>"+body+"</div>";
-  }).join("");
-}
-function catalogueCard(a){
-  const rt=a.runtime||{};
-  const statusChip=a.status==="ready"
-    ? "<span class='chip green'>ready</span>"
-    : "<span class='chip amber'>"+esc(String(a.status||"unknown").replace(/_/g," "))+"</span>";
-  const lang  = rt.language ? "<span class='chip blue'>"+esc(rt.language)+"</span>" : "";
-  const steps = (a.steps||[]).length ? "<span class='chip purple'>"+a.steps.length+" steps</span>" : "";
-  // Named owner = the agent is maintained outside this repo. Worth showing on the card:
-  // it tells you who to ask before it tells you anything technical.
-  const owner = rt.owner ? "<span class='chip gray' title='Maintained outside this repository'>"+esc(rt.owner)+"</span>" : "";
-  const repo  = rt.repo
-    ? "<div style='margin-top:7px;font-size:.66rem'><a href='"+esc(rt.repo)+"' target='_blank' rel='noopener' style='color:var(--purple)'>separate repository ↗</a></div>" : "";
-  const hand  = a.handoff
-    ? "<div style='margin-top:7px;font-size:.66rem;color:var(--muted);border-left:2px solid var(--line);padding-left:7px'>hands off to <b>"+
-      esc(a.handoff.to)+"</b> via <code>"+esc(a.handoff.endpoint)+"</code>"+
-      (a.handoff.gated_by==="human"?" · <b>human-gated</b>":"")+"</div>" : "";
-  const warn  = a.registry_warning
-    ? "<div style='margin-top:6px;font-size:.66rem;color:var(--amber)'>"+esc(a.registry_warning)+"</div>" : "";
-  return "<div class='card'><h3 style='font-size:.85rem'>"+esc(a.name)+"</h3>"+
-    "<p style='font-size:.73rem'>"+esc(a.summary||"")+"</p>"+
-    "<div style='margin-top:9px;display:flex;gap:4px;flex-wrap:wrap'>"+statusChip+
-      (a.group?"<span class='chip purple'>"+esc(a.group)+"</span>":"")+lang+steps+owner+"</div>"+
-    repo+hand+warn+"</div>";
 }
 async function loadAgents(){
   const d=await api("/api/agents");
