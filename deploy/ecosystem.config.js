@@ -22,35 +22,41 @@ module.exports = {
       script: 'webapp/app.py',
       interpreter: 'python3.11',
       env: {
-        // Exception to the loopback rule, added 2026-09-11 to serve the team dashboard.
-        // An SSH tunnel never needed this (`-L 8321:localhost:8321` resolves its target
-        // on this host), and binding 0.0.0.0 with auth off is the 2026-09-03 exposure.
+        // BACK ON LOOPBACK as of 2026-09-18. The 0.0.0.0 exception added on 2026-09-11
+        // is retired: the GrowActivAIte dashboard (8410) now fronts this app through an
+        // authenticated reverse proxy on 8411, so the browser reaches the pipeline
+        // through a session-checked hop and this process needs no listener of its own
+        // on the network.
         //
-        // S4PC_ACCESS_PASSWORD IS THE ONLY CONTROL. Measured 2026-09-11, not assumed:
-        // AIEP_INTERNAL_SECURITY_GROUP (sg-2bc0e25c) carries an `IpProtocol: -1` rule —
-        // every port — for ~30 internal CIDRs including the VPN subnet (10.50.1.0/24)
-        // and the workspace ranges (10.35.22-23.0/24). Security groups are additive, so
-        // NO rule added to DigitalBrainSG can narrow that, and the internal NLB in front
-        // supplies a stable hostname, NOT isolation: `curl http://10.35.20.84:8321`
-        // succeeds from any laptop on the VPN. Verified, do not re-derive.
+        // WHY LOOPBACK IS THE CONTROL, AND THE NLB IS NOT. Measured 2026-09-11, not
+        // assumed: AIEP_INTERNAL_SECURITY_GROUP (sg-2bc0e25c) carries an
+        // `IpProtocol: -1` rule — every port — for ~30 internal CIDRs including the VPN
+        // subnet (10.50.1.0/24) and the workspace ranges (10.35.22-23.0/24). Security
+        // groups are additive, so NO rule added to DigitalBrainSG can narrow it, and the
+        // internal NLB supplies a stable hostname, NOT isolation:
+        // `curl http://10.35.20.84:8321` succeeds from any laptop on the VPN. Verified,
+        // do not re-derive.
         //
-        // So this bind is defensible only while the password is set and strong. There is
-        // no network boundary behind it, and no TLS in front — Basic auth is base64, so
-        // the password crosses the wire in the clear. Weaker footing than s4pc-mcp's
-        // exception, which at least sits behind API Gateway TLS.
-        // See docs/dashboard-access-migration.md §3.1.
+        // The consequence worth spelling out: REMOVING THE NLB LISTENER DOES NOT PROTECT
+        // THIS APP. Only the bind does. Anyone reasoning "it is off the load balancer so
+        // it is private" is wrong on this host, and that mistake is easy to make because
+        // the URL does stop working.
         //
-        // The same finding is why brain-ui (8400) MUST stay on loopback: it has no
-        // authentication at all, so a wildcard bind there publishes it to all ~30 CIDRs.
-        // S4PC_ACCESS_PASSWORD is a secret, supplied out-of-band, never in this file.
-        // It is REFERENCED here rather than stored: `process.env` is read when pm2 parses
-        // this file, so the value must be present in the shell that runs pm2 —
+        // With the bind on loopback, S4PC_ACCESS_PASSWORD is OPTIONAL — app.py's guard
+        // only refuses to start when the bind is non-loopback and the password is unset.
+        // Leaving it unset is the intended state: one login, at the dashboard, and no
+        // second password inside the frame. The line below is kept so a password can
+        // still be layered on deliberately; it reads process.env when pm2 parses this
+        // file, so the value must be in the shell that runs pm2:
         //   S4PC_ACCESS_PASSWORD='…' pm2 start deploy/ecosystem.config.js --only s4pc-webapp
-        // Exporting it and relying on `pm2 restart --update-env` is NOT enough: the pm2
-        // daemon carries its own environment from whenever it started, so the export never
-        // reaches the process and the app comes up on a wildcard bind with auth OFF.
-        // That happened on 2026-09-11. app.py now refuses to start in that state.
-        S4PC_UI_HOST: '0.0.0.0',
+        // `pm2 restart --update-env` is NOT enough — the pm2 daemon carries the
+        // environment it started with, so the export never reaches the process. That is
+        // how the app came up on a wildcard bind with auth OFF on 2026-09-11.
+        //
+        // The same SG finding is why brain-ui (8400) MUST stay on loopback: it has no
+        // authentication at all, so a wildcard bind there publishes it to ~30 CIDRs.
+        // See docs/dashboard-access-migration.md §3.1.
+        S4PC_UI_HOST: '127.0.0.1',
         S4PC_ACCESS_PASSWORD: process.env.S4PC_ACCESS_PASSWORD,
         // app.py spawns build_index.py on startup and on every run completion
         // (_rebuild_index_bg) with no env= argument, so the child inherits THIS block.
