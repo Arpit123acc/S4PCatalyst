@@ -142,8 +142,6 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
     <p class="pgsub" style="margin:0">Localhost Catalyst — your single-user S/4HANA <b>Public Cloud</b> development workstation. Pick a workspace below.</p></div>
   </div>
   <div style="height:22px"></div>
-  <div class="sect-h" style="font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">AGENTS <span style="font-weight:400">· by SAP Activate phase — each one a separate agent, not a stage of the pipeline</span></div>
-  <div id="agent-catalogue-home" style="margin-bottom:28px"></div>
   <div class="sect-h" style="font-size:.72rem;letter-spacing:.1em;color:var(--muted);margin-bottom:10px">MAIN FEATURES <span style="font-weight:400">· day-to-day clean-core work</span></div>
   <div class="grid c2" style="margin-bottom:28px">
     <div class="card click" onclick="location.hash='intake'"><h3>⇥ FD Intake</h3><p>Start here: drop a Functional Design, get a clean-core solution proposal (key user / developer / side-by-side — or mixed), and approve at three human checkpoints.</p></div>
@@ -2038,16 +2036,12 @@ async function loadMCP(){
 // Phases with no agent are still rendered. An empty phase is information — it is where
 // the next agent goes — and hiding it would make the catalogue look complete.
 async function loadCatalogue(){
-  // Two mount points, one render: Home (where people land) and Reference > Agents
-  // (where they go looking). Rendering the same HTML into both is what stops the
-  // two views from disagreeing about which agents exist.
-  const targets=["#agent-catalogue-home","#agent-catalogue"].map(s=>$(s)).filter(Boolean);
-  if(!targets.length)return;
+  const el=$("#agent-catalogue");if(!el)return;
   let d;
   try{d=await api("/api/catalogue");}
-  catch(e){targets.forEach(t=>{t.innerHTML="<div style='font-size:.72rem;color:var(--amber)'>Could not load the agent catalogue.</div>";});return;}
+  catch(e){el.innerHTML="<div style='font-size:.72rem;color:var(--amber)'>Could not load the agent catalogue.</div>";return;}
   const phases=d.phases||[],agents=d.agents||[];
-  const html=phases.map(function(ph){
+  el.innerHTML=phases.map(function(ph){
     const inPhase=agents.filter(a=>a.phase===ph);
     const body=inPhase.length
       ? "<div class='grid c3'>"+inPhase.map(catalogueCard).join("")+"</div>"
@@ -2058,7 +2052,6 @@ async function loadCatalogue(){
         (inPhase.length?"<span class='chip gray' style='font-size:.6rem'>"+inPhase.length+"</span>":"")+
       "</div>"+body+"</div>";
   }).join("");
-  targets.forEach(t=>{t.innerHTML=html;});
 }
 function catalogueCard(a){
   const rt=a.runtime||{};
