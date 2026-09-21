@@ -69,23 +69,22 @@ SOURCES = {
     "sapactivate": (BRAIN / "sapactivate" / "raw" / "accelerators.json", "title"),
 }
 
-# sapbp's 505 help URLs are skipped by default, and that is a measured decision
-# rather than a preference. They are all BOM.175 "Test script (SAP Help Portal)"
-# -- the same test script already arriving as .xlsx and .docx for the same scope
-# item. Word-set overlap on two sampled items:
+# BOTH SOURCES ARE FETCHED. An earlier pass skipped sapbp's help pages as duplicates of the xlsx/docx for
+# the same scope item, on measured word-set overlap: jaccard 0.79-0.80 against
+# the xlsx, with 0.91-0.93 of the help version's vocabulary already present.
 #
-#     help <-> xlsx   jaccard 0.79-0.80   0.91-0.93 of help's vocabulary in xlsx
-#     docx <-> xlsx   jaccard 0.59-0.84   0.76-0.97 of docx's vocabulary in xlsx
+# That reasoning was reversed, and the reversal is worth recording. Word-set
+# overlap is a proxy for topic, not for content: two documents about the same
+# scope item share domain vocabulary whether or not they say the same things.
+# The structures in fact differ -- the help rendering carries Purpose,
+# Prerequisites, Overview Table, Test Procedures and Appendix, where the docx
+# carries System Access, Roles, Master Data and Business Conditions.
 #
-# The xlsx is 2-3x larger and close to a superset of both. Ingesting all three
-# would put three near-copies of one test script in the index for ~500 scope
-# items, and vectorstore.py already records what a large block of similar new
-# documents does to ranking: 90 of the top 200 candidates became the new source
-# and a filtered query returned 2 hits where 184 qualified.
-#
-# sapactivate's 218 are methodology documents with no such twin, so they are
-# fetched in full. Pass --include-sapbp-help to override deliberately.
-DUPLICATED_BY_DOWNLOAD = {"sapbp"}
+# The deciding argument is asymmetry rather than similarity. Fetching costs
+# half an hour and no authentication; NOT fetching costs another session
+# capture once the cookie expires, and leaves nothing to evaluate. Chunks are
+# cheap to drop later and tagged content_type makes them separable, so the
+# reversible choice is to take them.
 
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -171,16 +170,10 @@ def main():
     ap.add_argument("--rate", type=float, default=0.3)
     ap.add_argument("--max-topics", type=int, default=25,
                     help="topics per document; a few have very long tables of contents")
-    ap.add_argument("--include-sapbp-help", action="store_true",
-                    help="also fetch the 505 sapbp help URLs (see DUPLICATED_BY_DOWNLOAD)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
     for name in (list(SOURCES) if a.source == "all" else [a.source]):
-        if name in DUPLICATED_BY_DOWNLOAD and not a.include_sapbp_help:
-            print(f"\n=== {name}: skipped — its help pages duplicate the xlsx/docx "
-                  f"already downloaded (--include-sapbp-help to override)")
-            continue
         man_p, title_key = SOURCES[name]
         if not man_p.exists():
             print(f"({name}: no catalogue)")
