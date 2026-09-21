@@ -141,14 +141,50 @@ def safe_name(item_id, url):
     return f"{stem}{ext}"
 
 
-def fetch(url, cookie):
-    req = urllib.request.Request(url)
-    for k, v in BROWSER_HEADERS.items():
-        req.add_header(k, v)
-    if cookie:
-        req.add_header("Cookie", cookie)
-    with urllib.request.urlopen(req, timeout=90) as r:
-        return r.read(), r.headers.get("Content-Type", ""), r.geturl()
+# Errors that mean "the network blinked", not "this document is unavailable".
+# A 6,000-URL run produced 903 getaddrinfo failures in one burst -- DNS giving up
+# under sustained lookups, or a VPN flap -- and every one of those URLs was fine
+# on retry. Treating them as permanent would have written off 15% of the corpus.
+TRANSIENT = ("getaddrinfo", "temporarily unavailable", "timed out", "timeout",
+             "connection reset", "forcibly closed", "remote end closed",
+             "incompleteread", "connection aborted", "broken pipe")
+
+
+def _safe_url(url):
+    """Percent-encode what urllib will not accept raw.
+
+    Catalogue URLs are not all clean: one carries a literal space and another an
+    en-dash, and urllib raises before the request is made -- "URL can't contain
+    control characters" and "'ascii' codec can't encode character '\\u2013'".
+    Re-quoting the path leaves already-encoded URLs untouched because % is safe.
+    """
+    p = urllib.parse.urlsplit(url)
+    return urllib.parse.urlunsplit((
+        p.scheme, p.netloc,
+        urllib.parse.quote(p.path, safe="/%:@!$&'()*+,;=~"),
+        urllib.parse.quote(p.query, safe="=&%:/?@!$'()*+,;~"),
+        p.fragment))
+
+
+def fetch(url, cookie, attempts=3):
+    last = None
+    for i in range(attempts):
+        req = urllib.request.Request(_safe_url(url))
+        for k, v in BROWSER_HEADERS.items():
+            req.add_header(k, v)
+        if cookie:
+            req.add_header("Cookie", cookie)
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                return r.read(), r.headers.get("Content-Type", ""), r.geturl()
+        except urllib.error.HTTPError:
+            raise                                   # a real answer; do not retry
+        except Exception as exc:                    # noqa: BLE001
+            last = exc
+            if not any(t in str(exc).lower() for t in TRANSIENT):
+                raise
+            time.sleep(2 * (i + 1))                 # brief, widening backoff
+    raise last
 
 
 def load_rows(name, public_only):
@@ -186,6 +222,9 @@ def main():
     ap.add_argument("--public-only", action="store_true",
                     help="skip everything needing a session")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--match", default="",
+                    help="only URLs whose title contains this (case-insensitive), "
+                         "so a high-value subset can jump the queue")
     ap.add_argument("--rate", type=float, default=0.5, help="seconds between requests")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
@@ -197,6 +236,9 @@ def main():
     for name in names:
         cfg = SOURCES[name]
         rows = load_rows(name, a.public_only)
+        if a.match:
+            m = a.match.lower()
+            rows = [r for r in rows if m in (r.get("title") or "").lower()]
         if a.limit:
             rows = rows[:a.limit]
 
