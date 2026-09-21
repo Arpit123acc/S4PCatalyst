@@ -39,6 +39,8 @@ CHUNK_ROOTS = [
     BRAIN_DIR / "sharepoint" / "chunks",     # SharePoint delivery docs
     BRAIN_DIR / "webdocs" / "chunks",        # curated CAP/UI5/Node/Clean-ABAP docs (webdocs_ingest.py)
     BRAIN_DIR / "guidance" / "chunks",       # local ABAP Cloud/RAP standards (guidance_ingest.py)
+    BRAIN_DIR / "sapbp" / "chunks",          # SAP Best Practices processes + accelerators (sapme_ingest.py)
+    BRAIN_DIR / "sapactivate" / "chunks",    # SAP Activate roadmap accelerators (sapme_ingest.py)
 ]
 # A new connector is not wired in until its root is listed HERE. guidance_ingest.py
 # wrote 8 chunks, reported success, and they were silently absent from the index
