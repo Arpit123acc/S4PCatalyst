@@ -112,6 +112,35 @@ def embed_text(client, text, dim):
             raise
 
 
+def _superseded_bpd_scope_items(files):
+    """Scope items whose SharePoint-era BPD is replaced by a current one.
+
+    `sap_bpd` is SAP Business Process Documentation that reached the corpus via
+    SharePoint -- whatever release someone happened to download, measured across
+    S4CLD2308, S4HANA2022 and S4HANA2023. `sap_best_practices` is the same class
+    of document pulled straight from Process Navigator at the current release,
+    with scope item, country and release recorded.
+
+    Keeping both means a query for a scope item's test script returns a 2022 copy
+    and a 2608 copy with nothing to tell them apart, which is the supersession
+    problem this corpus already has with the EDI spec revisions -- and a stale
+    answer reads exactly like a current one.
+
+    Supersession is per SCOPE ITEM, not blanket: the old BPD is dropped only
+    where a current one actually covers the same scope item. A scope item we did
+    not fetch keeps whatever the corpus already had.
+    """
+    covered = set()
+    for fp in files:
+        try:
+            d = json.loads(fp.read_text(encoding="utf-8"))
+        except Exception:                                   # noqa: BLE001
+            continue
+        if d.get("source_system") == "sap_best_practices" and d.get("scope_item_id"):
+            covered.add(d["scope_item_id"])
+    return covered
+
+
 def load_chunks(limit=None):
     """Yield (text, metadata) for every chunk JSON under the chunk roots."""
     files = []
@@ -120,6 +149,13 @@ def load_chunks(limit=None):
             files.extend(sorted(root.rglob("*.json")))
     if limit:
         files = files[:limit]
+
+    superseded = _superseded_bpd_scope_items(files)
+    if superseded:
+        log.info("Superseding sap_bpd for %d scope items now covered by "
+                 "sap_best_practices", len(superseded))
+    dropped = 0
+
     for fp in files:
         try:
             data = json.loads(fp.read_text(encoding="utf-8"))
@@ -129,10 +165,17 @@ def load_chunks(limit=None):
         text = (data.get("text") or "").strip()
         if not text:
             continue
+        if (data.get("source_system") == "sap_bpd"
+                and data.get("scope_item_id") in superseded):
+            dropped += 1
+            continue
         meta = {k: data[k] for k in _META_FIELDS if k in data}
         meta.setdefault("source_system", "sharepoint")   # multi-source tag
         meta["chunk_file"] = str(fp.relative_to(BRAIN_DIR))
         yield text, meta
+
+    if dropped:
+        log.info("Dropped %d superseded sap_bpd chunks", dropped)
 
 
 def load_scope_items(limit=None):

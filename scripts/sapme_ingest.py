@@ -290,6 +290,29 @@ def ingest_files(source, dry, tally):
         return
     state = json.loads(state_p.read_text(encoding="utf-8"))
 
+    # THE FILES ON DISK ARE THE GROUND TRUTH, NOT THE MANIFEST.
+    # Both fetchers read the whole manifest, mutate it in memory and write it
+    # back, so running two at once loses whatever the slower one did not know
+    # about. Measured 2026-09-21: 236 help documents on disk against 196 in the
+    # manifest -- 40 real files that ingest would simply never have seen, with
+    # nothing anywhere reporting a problem. Rather than rely on the fetchers
+    # never overlapping, anything present in files/ is adopted here.
+    known = {str(v.get("file")) for v in state.values() if v.get("file")}
+    adopted = 0
+    for f in sorted(files_d.iterdir()) if files_d.is_dir() else []:
+        if f.name in known or not f.is_file():
+            continue
+        # help_<id>.<ext> and <id>.<ext> both carry the catalogue id in the stem
+        stem = f.stem[5:] if f.name.startswith("help_") else f.stem
+        state[f"adopted://{f.name}"] = {
+            "status": "ok", "id": stem, "file": f.name,
+            "kind": "html" if f.suffix == ".html" else f.suffix.lstrip("."),
+            "bytes": f.stat().st_size, "title": None, "adopted": True,
+        }
+        adopted += 1
+    if adopted:
+        print(f"   adopted {adopted} file(s) present on disk but missing from the manifest")
+
     cat_p = (BRAIN / "sapbp" / "raw" / "bom_manifest.json" if source == "sapbp"
              else BRAIN / "sapactivate" / "raw" / "accelerators.json")
     facets = {}
