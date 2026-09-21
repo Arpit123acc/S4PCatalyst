@@ -6,26 +6,36 @@
 <title>S4PC Catalyst — Public Cloud</title>
 <style>
 :root{
-  --purple:#6d28d9; --purple-dark:#4c1d95; --purple-deep:#3b0f80; --purple-bg:#f6f4fb;
-  --ink:#1d1b26; --muted:#6b6880; --line:#e6e3f0; --card:#ffffff;
-  --green:#0f9d58; --amber:#c77700; --red:#c5221f; --blue:#1a73e8;
-  --radius:12px; --sidebar-w:230px;
+  /* GrowActivAIte palette — the shell this UI renders inside. Names keep the
+     --purple-* spelling so no rule below has to change; only the values move. */
+  --purple:#2563C9; --purple-dark:#1d4ed8; --purple-deep:#1e40af; --purple-bg:#eff5fd;
+  --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --card:#ffffff;
+  --green:#00875A; --amber:#B4690E; --red:#c5221f; --blue:#2563C9;
+  --green-soft:#E3F5EE; --amber-soft:#FCF0E0; --grey-soft:#F1F2F4;
+  --shadow:0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.06);
+  /* The sidebar keeps a lilac identity while the content area runs on the
+     dashboard's blue: navigation chrome reads as Catalyst, content as the
+     shell it sits in. Desaturated hard -- a saturated panel next to a blue
+     content area competes instead of framing it. */
+  --lilac:#f7f4fe; --lilac-2:#f1ecfb; --lilac-line:#e7e0f6;
+  --lilac-active:#e9e2fb; --lilac-ink:#5b21b6;
+  --radius:14px; --sidebar-w:230px;
   font-size:15px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#fafafa;display:flex;min-height:100vh}
+body{font-family:"Segoe UI Variable","Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:linear-gradient(180deg,#f8fbff 0%,#f1f5f9 100%);background-attachment:fixed;display:flex;min-height:100vh}
 a{color:var(--purple);text-decoration:none}
 /* ---------- sidebar ---------- */
-#sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,var(--purple-deep),var(--purple-dark));color:#fff;position:fixed;top:0;bottom:0;left:0;overflow-y:auto;padding:14px 10px;z-index:10}
+#sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,var(--lilac),var(--lilac-2));border-right:1px solid var(--lilac-line);color:var(--ink);position:fixed;top:0;bottom:0;left:0;overflow-y:auto;padding:14px 10px;z-index:10}
 #sidebar .brand{display:flex;align-items:center;gap:8px;padding:6px 10px 16px}
-#sidebar .brand .logo{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:17px}
+#sidebar .brand .logo{width:34px;height:34px;border-radius:10px;background:#ffffff;color:var(--lilac-ink);box-shadow:0 1px 3px rgba(91,33,182,.14);display:flex;align-items:center;justify-content:center;font-size:17px}
 #sidebar .brand b{font-size:.95rem;display:block}
-#sidebar .brand small{opacity:.65;font-size:.7rem}
-#sidebar .sect{font-size:.62rem;letter-spacing:.12em;opacity:.55;padding:14px 12px 4px;text-transform:uppercase}
-#sidebar a.nav{display:flex;align-items:center;gap:9px;color:#eee;padding:7px 12px;border-radius:8px;font-size:.86rem;margin:1px 0}
-#sidebar a.nav:hover{background:rgba(255,255,255,.10)}
-#sidebar a.nav.active{background:rgba(255,255,255,.18);font-weight:600}
-#sidebar a.nav .ic{width:18px;text-align:center;opacity:.85}
+#sidebar .brand small{color:var(--muted);font-size:.7rem}
+#sidebar .sect{font-size:.62rem;letter-spacing:.12em;color:#7c6ba0;font-weight:600;padding:14px 12px 4px;text-transform:uppercase}
+#sidebar a.nav{display:flex;align-items:center;gap:9px;color:var(--ink);padding:7px 12px;border-radius:8px;font-size:.86rem;margin:1px 0}
+#sidebar a.nav:hover{background:rgba(255,255,255,.72)}
+#sidebar a.nav.active{background:var(--lilac-active);color:var(--lilac-ink);font-weight:600}
+#sidebar a.nav .ic{width:18px;text-align:center;color:var(--muted)}
 /* ---------- layout ---------- */
 #main{margin-left:var(--sidebar-w);flex:1;min-width:0}
 .page{display:none;padding:34px 44px;max-width:1200px;margin:0 auto}
@@ -42,12 +52,12 @@ p.pgsub{color:var(--muted);font-size:.86rem;margin-bottom:26px}
 .card h3{font-size:.95rem;margin-bottom:6px;display:flex;align-items:center;gap:8px}
 .card p{font-size:.8rem;color:var(--muted);line-height:1.45}
 .chip{display:inline-block;font-size:.66rem;font-weight:600;padding:2.5px 9px;border-radius:99px;margin:2px 4px 0 0}
-.chip.purple{background:#ede9fe;color:var(--purple-dark)}
-.chip.green{background:#e6f4ea;color:var(--green)}
-.chip.amber{background:#fef3e2;color:var(--amber)}
+.chip.purple{background:var(--purple-bg);color:var(--purple-dark)}
+.chip.green{background:var(--green-soft);color:var(--green)}
+.chip.amber{background:var(--amber-soft);color:var(--amber)}
 .chip.red{background:#fce8e6;color:var(--red)}
-.chip.blue{background:#e8f0fe;color:var(--blue)}
-.chip.gray{background:#f0eff5;color:var(--muted)}
+.chip.blue{background:var(--purple-bg);color:var(--blue)}
+.chip.gray{background:var(--grey-soft);color:var(--muted)}
 .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
 .tabs button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 16px;font-size:.82rem;cursor:pointer;color:var(--ink);display:flex;gap:7px;align-items:center}
 .tabs button.on{background:var(--purple);border-color:var(--purple);color:#fff;font-weight:600}
@@ -69,27 +79,27 @@ table.tbl td{padding:8px 10px;border-bottom:1px solid #f1eff8;vertical-align:top
 .notice.warn{border-left-color:var(--amber);background:#fffaf2}
 .bar-row{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:.76rem}
 .bar-row .lbl{width:220px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar-row .bar{flex:1;background:#f0eff5;border-radius:6px;height:16px;overflow:hidden}
-.bar-row .bar i{display:block;height:100%;background:linear-gradient(90deg,#8b5cf6,#6d28d9);border-radius:6px}
+.bar-row .bar{flex:1;background:var(--grey-soft);border-radius:6px;height:16px;overflow:hidden}
+.bar-row .bar i{display:block;height:100%;background:linear-gradient(90deg,#60a5fa,#2563C9);border-radius:6px}
 .bar-row .val{width:56px;text-align:right;font-weight:600}
 details.faq{border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:10px;padding:0 16px}
 details.faq summary{padding:13px 0;font-size:.87rem;font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
 details.faq summary::after{content:"▾";color:var(--muted);font-size:.8rem}
 details.faq[open] summary::after{content:"▴"}
 details.faq .body{padding:0 0 14px;font-size:.82rem;color:var(--muted);line-height:1.55}
-pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-size:.75rem;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.5}
+pre.code{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px;font-size:.75rem;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.5}
 .verdict{font-size:1rem;font-weight:700;padding:6px 16px;border-radius:9px;display:inline-block}
-.verdict.PASS,.verdict.SHIP,.verdict.LIKELY_RELEASED{background:#e6f4ea;color:var(--green)}
+.verdict.PASS,.verdict.SHIP,.verdict.LIKELY_RELEASED{background:var(--green-soft);color:var(--green)}
 .verdict.FAIL,.verdict.NOT_AVAILABLE{background:#fce8e6;color:var(--red)}
-.verdict.WARN,.verdict.NOT_VERIFIED{background:#fef3e2;color:var(--amber)}
+.verdict.WARN,.verdict.NOT_VERIFIED{background:var(--amber-soft);color:var(--amber)}
 /* modal */
 #modal{display:none;position:fixed;inset:0;background:rgba(20,14,40,.45);z-index:50;align-items:flex-start;justify-content:center;padding:5vh 20px}
 #modal.open{display:flex}
 #modal .box{background:#fff;border-radius:14px;max-width:860px;width:100%;max-height:88vh;overflow-y:auto;padding:28px 32px;position:relative}
-#modal .close{position:sticky;top:0;float:right;background:#f0eff5;border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.9rem}
+#modal .close{position:sticky;top:0;float:right;background:var(--grey-soft);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:.9rem}
 .md h1{font-size:1.25rem;margin:14px 0 8px}.md h2{font-size:1.02rem;margin:16px 0 6px}.md h3{font-size:.9rem;margin:12px 0 4px}
 .md p,.md li{font-size:.83rem;line-height:1.55;color:#333}.md ul,.md ol{padding-left:22px;margin:6px 0}
-.md code{background:#f0eff5;border-radius:4px;padding:1px 5px;font-size:.78rem;font-family:ui-monospace,Menlo,Consolas,monospace}
+.md code{background:#F1F2F4;border-radius:4px;padding:1px 5px;font-size:.78rem;font-family:ui-monospace,Menlo,Consolas,monospace}
 .md table{border-collapse:collapse;margin:10px 0;font-size:.78rem}.md th,.md td{border:1px solid var(--line);padding:6px 10px;text-align:left}
 .md blockquote{border-left:3px solid var(--purple);padding-left:12px;color:var(--muted);margin:8px 0}
 .hero{background:linear-gradient(120deg,var(--purple-deep),var(--purple));border-radius:16px;color:#fff;padding:38px 40px;text-align:center;margin-bottom:26px}
@@ -110,6 +120,16 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
 .result-box{margin-top:18px}
 .foot{color:var(--muted);font-size:.72rem;text-align:center;padding:26px}
 @media(max-width:900px){#sidebar{width:64px}#sidebar .brand b,#sidebar .brand small,#sidebar .sect,#sidebar a.nav .txt{display:none}#main{margin-left:64px}.page{padding:22px}}
+
+/* Stat tiles, borrowed from the dashboard shell. Its 47 / 15 / 13 / 19 row is the
+   thing people recognise, and the pipeline already has counts that belong in it. */
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:18px 0 26px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      padding:20px 22px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:2.1rem;font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.stat span{display:block;font-size:.78rem;color:var(--muted);margin-top:6px}
+.stat.green b{color:var(--green)} .stat.amber b{color:var(--amber)}
+.stat.blue b{color:var(--purple)} .stat.grey b{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -184,11 +204,11 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
   <h1 class="pgtitle">Agent Workflow <span class="chip purple">Simplified View</span></h1>
   <p class="pgsub">How the agent team collaborates to deliver clean-core RICEFW — every phase gated by the s4pc MCP server.</p>
   <div class="grid c3">
-    <div class="card" style="border-top:4px solid #8b5cf6"><h3>⚙ Propose &amp; Build</h3><p><b>Extensibility Architect + Developer</b></p><p style="margin-top:8px">FD analysis → extensibility decision → object inventory + <b>Custom-Object Naming Contract</b> → <b>GATE 1: release verdicts</b> → ✋ CP1 solution approval (names locked) → <b>build from the approved proposal</b> → lint</p><p style="margin-top:8px"><span class="chip green">Gate 1: every object released</span></p></div>
+    <div class="card" style="border-top:4px solid #2563C9"><h3>⚙ Propose &amp; Build</h3><p><b>Extensibility Architect + Developer</b></p><p style="margin-top:8px">FD analysis → extensibility decision → object inventory + <b>Custom-Object Naming Contract</b> → <b>GATE 1: release verdicts</b> → ✋ CP1 solution approval (names locked) → <b>build from the approved proposal</b> → lint</p><p style="margin-top:8px"><span class="chip green">Gate 1: every object released</span></p></div>
     <div class="card" style="border-top:4px solid #3b82f6"><h3>🔍 Review &amp; Test</h3><p><b>Clean-Core Reviewer + Test Agent</b></p><p style="margin-top:8px"><b>GATE 2: code review</b> (clean-core + security) → ✋ CP2 code approval (per-file comments) → ABAP Unit / API tests → $metadata-grounded field checks → Technical Design (documentation, authored after tests)</p><p style="margin-top:8px"><span class="chip green">Gate 2: code review PASS + tests green</span></p></div>
     <div class="card" style="border-top:4px solid #f59e0b"><h3>🛡 Challenge &amp; Ship</h3><p><b>Adversarial audit + deliverable pack</b></p><p style="margin-top:8px">Peer review → upgrade-safety challenge → verdict SHIP/FIX/REDESIGN → package + tenant verification checklist → ✋ CP3 acceptance → <b>optional BTP deploy</b> (prereq-checklist gate)</p><p style="margin-top:8px"><span class="chip green">Gate 3: challenger PASS</span></p></div>
   </div>
-  <div class="card" style="margin-top:16px;background:linear-gradient(120deg,#2a1065,#4c1d95);border:none;color:#fff">
+  <div class="card" style="margin-top:16px;background:linear-gradient(120deg,#1e40af,#2563C9);border:none;color:#fff">
     <h3 style="color:#fff">✦ Powered by the s4pc governance layer</h3>
     <div id="agentflow-chips" style="margin-top:6px"></div>
   </div>
@@ -201,7 +221,7 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
   <h1 class="pgtitle">FD Intake — start a pipeline run</h1>
   <p class="pgsub">Drop a Functional Design here, then run the pipeline in Claude Code. The pipeline proposes a clean-core solution (key user / developer / side-by-side — or a mix, driven by the requirement) and <b>stops at three checkpoints for your decision</b>.</p>
   <div class="grid c3" style="margin-bottom:18px">
-    <div class="card" style="border-top:4px solid #8b5cf6"><h3>✋ Checkpoint 1 · Solution</h3><p>After the release gate: capability-by-capability mode split, objects + verdicts, and the <b>Custom-Object Naming Contract</b>. You approve/adjust/reject the approach and <b>lock the object names</b> before any code is built.</p></div>
+    <div class="card" style="border-top:4px solid #2563C9"><h3>✋ Checkpoint 1 · Solution</h3><p>After the release gate: capability-by-capability mode split, objects + verdicts, and the <b>Custom-Object Naming Contract</b>. You approve/adjust/reject the approach and <b>lock the object names</b> before any code is built.</p></div>
     <div class="card" style="border-top:4px solid #3b82f6"><h3>✋ Checkpoint 2 · Code</h3><p>After the build + code review (Gate 2): the built code <b>file by file</b> with review findings. Comment on any file to request changes, or approve as-is — build happens first, the TD is documented afterward.</p></div>
     <div class="card" style="border-top:4px solid #f59e0b"><h3>✋ Checkpoint 3 · Acceptance</h3><p>After peer review + challenger: the full package (and, for side-by-side, the BTP prerequisite checklist before deploy). You accept or send specific items back for rework.</p></div>
   </div>
@@ -237,7 +257,17 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
     .s4pc-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);animation:s4pcBlink 1s infinite;margin-right:7px;vertical-align:middle}
     #ex-steps > div[onclick]{cursor:pointer;transition:transform .1s}
     #ex-steps > div[onclick]:hover{transform:translateY(-2px)}
-  </style>
+  
+/* Stat tiles, borrowed from the dashboard shell. Its 47 / 15 / 13 / 19 row is the
+   thing people recognise, and the pipeline already has counts that belong in it. */
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:18px 0 26px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      padding:20px 22px;box-shadow:var(--shadow)}
+.stat b{display:block;font-size:2.1rem;font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.stat span{display:block;font-size:.78rem;color:var(--muted);margin-top:6px}
+.stat.green b{color:var(--green)} .stat.amber b{color:var(--amber)}
+.stat.blue b{color:var(--purple)} .stat.grey b{color:var(--muted)}
+</style>
   <h1 class="pgtitle">Workflow Explorer</h1>
   <p class="pgsub">Interactive visualization of pipeline runs. Runs are read from <code>output/&lt;ID&gt;/run.json</code> — written automatically by the <b>s4pc-ricefw-pipeline</b> skill on every execution, nothing here is hardcoded.</p>
   <div class="card" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px">
@@ -362,7 +392,7 @@ pre.code{background:#14101f;color:#e8e3f5;border-radius:10px;padding:14px;font-s
           <span id="brain-rebuild-status" style="font-size:.75rem;color:var(--muted)"></span>
         </div>
         <p style="font-size:.73rem;color:var(--muted)">CLI alternative (same result):</p>
-        <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:10px;border-radius:4px;line-height:1.7">pip install sentence-transformers   # optional: enable dense embeddings
+        <pre style="font-size:.69rem;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:4px;line-height:1.7">pip install sentence-transformers   # optional: enable dense embeddings
 python mcp-server/vector/build_index.py
 python mcp-server/graph/build_graph.py</pre>
         <p style="font-size:.73rem;color:var(--muted);margin-top:8px">Or call <code>rebuild_vector_index</code> / <code>sync_object_graph</code> from the MCP server directly.</p>
@@ -370,7 +400,7 @@ python mcp-server/graph/build_graph.py</pre>
       <div class="card">
         <h3 style="font-size:.85rem">Setup &amp; dependency notes</h3>
         <p style="font-size:.78rem"><b>Layer 1 (graph) &amp; Layer 3 (experience):</b> pure Python 3.9+ stdlib — zero installs. <b>Layer 2 (vectors):</b> TF-IDF fallback is also zero-install. For true semantic search, install the dense backend:</p>
-        <pre style="font-size:.69rem;background:#14101f;color:#e8e3f5;padding:8px;border-radius:4px;line-height:1.6">pip install sentence-transformers</pre>
+        <pre style="font-size:.69rem;background:#0f172a;color:#e2e8f0;padding:8px;border-radius:4px;line-height:1.6">pip install sentence-transformers</pre>
         <p style="font-size:.73rem;color:var(--muted);margin-top:8px"><span id="l2-backend-note">—</span> <b>Layer 1:</b> adjacency-list BFS with name-prefix edge matching · <b>Live mode:</b> <code>sync_object_graph(live_enrich=true)</code> enriches API nodes with OData entity/field names.</p>
       </div>
     </div>
@@ -807,7 +837,7 @@ async function loadJobs(){
     esc(j.kind)+" · "+esc(j.fd)+" <span style='color:var(--muted)'>("+esc(j.started.replace("T"," "))+")</span></span>"+
     "<b style='display:flex;gap:8px;align-items:center'>"+esc(j.status)+
     " <button class='btn ghost' style='font-size:.66rem;padding:3px 8px' onclick='toggleJobLog(\""+esc(j.job)+"\")'>View log</button></b></div>"+
-    "<pre id='log-"+esc(j.job)+"' style='display:none;max-height:280px;overflow-y:auto;width:100%;background:#14101f;color:#e8e3f5;border-radius:8px;padding:10px;font-size:.68rem;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;margin-top:4px'></pre>"+
+    "<pre id='log-"+esc(j.job)+"' style='display:none;max-height:280px;overflow-y:auto;width:100%;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;font-size:.68rem;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;margin-top:4px'></pre>"+
     "</div>";
   }).join("")||"<p style='font-size:.78rem;color:var(--muted)'>No pipeline jobs yet this session.</p>";
 }
@@ -1532,7 +1562,7 @@ function renderBtpDeployPanel(r){
   if(BTP_DEPLOY_JOB)return;  // already has a job — let btpDeployPoll manage the UI
   el.innerHTML="<div style='border:1.5px solid #7c3aed;border-radius:10px;padding:12px 16px;background:#f5f0ff'>"+
     "<div style='display:flex;align-items:center;gap:12px;flex-wrap:wrap'>"+
-    "<span style='font-size:.85rem;font-weight:700;color:#4c1d95'>BTP Cloud Foundry deploy</span>"+
+    "<span style='font-size:.85rem;font-weight:700;color:#1d4ed8'>BTP Cloud Foundry deploy</span>"+
     "<button class='btn' style='font-size:.78rem;padding:5px 14px;background:#7c3aed;border-color:#7c3aed' "+
     "onclick='btpStartDeploy(\""+esc(r.id)+"\",this)'>Deploy to BTP</button>"+
     "<span id='btp-dp-msg' style='font-size:.75rem;color:var(--muted)'>Uses the enabled connection — skips mbt build if .mtar is &lt; 2 h old.</span>"+
@@ -1559,9 +1589,9 @@ function btpRenderProgress(j){
   const el=$("#btp-deploy-panel");if(!el)return;
   const done=j.status==="done";
   const ok=j.ok===true;
-  const headerColor=done?(ok?"#0f9d58":"#c5221f"):"#4c1d95";
+  const headerColor=done?(ok?"#00875A":"#c5221f"):"#1d4ed8";
   const headerBg=done?(ok?"#e6f4ea":"#fce8e6"):"#f5f0ff";
-  const headerBorder=done?(ok?"#0f9d58":"#c5221f"):"#7c3aed";
+  const headerBorder=done?(ok?"#00875A":"#c5221f"):"#7c3aed";
   const icon=done?(ok?"✓":"✕"):"⏳";
   const label=done?(ok?"Deploy complete":"Deploy failed"):"Deploying…";
   const tgt=j.target||{};
@@ -2027,7 +2057,7 @@ async function loadMCP(){
 async function loadAgents(){
   const d=await api("/api/agents");
   $("#agents-grid").innerHTML=(d.agents||[]).map(a=>
-   "<div class='card'><h3 style='font-size:.85rem'><span style='background:#ede9fe;color:var(--purple-dark);border-radius:7px;padding:3px 7px;font-size:.7rem'>"+a.id+"</span> "+esc(a.name)+" <span class='dot g' style='margin-left:auto'></span></h3>"+
+   "<div class='card'><h3 style='font-size:.85rem'><span style='background:#eff5fd;color:var(--purple-dark);border-radius:7px;padding:3px 7px;font-size:.7rem'>"+a.id+"</span> "+esc(a.name)+" <span class='dot g' style='margin-left:auto'></span></h3>"+
    "<p>"+esc(a.role)+"</p><div style='margin-top:9px'><span class='chip gray'>"+esc(a.tier)+"</span><span class='chip purple'>"+esc(a.skill)+"</span><span class='chip blue'>Claude (session)</span></div></div>").join("");
 }
 let EXP_ENTRIES=[],EXP_CAT="All";
@@ -2189,7 +2219,7 @@ async function pgFindSimilar(q){
   if(el)el.innerHTML="<div style='margin-top:10px;display:flex;flex-direction:column;gap:10px'>"+
     hits.map(function(h){
       const m=h.metadata||{};
-      const score=h.score!=null?"<span style='font-size:.7rem;background:#ede9fe;color:#4c1d95;border-radius:4px;padding:1px 6px;font-weight:700'>"+Math.round(h.score*100)+"% match</span>":"";
+      const score=h.score!=null?"<span style='font-size:.7rem;background:#eff5fd;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-weight:700'>"+Math.round(h.score*100)+"% match</span>":"";
       const mode=m.extensibility_mode?"<span class='chip blue' style='font-size:.65rem'>"+esc(m.extensibility_mode)+"</span>":"";
       const approach=m.approved_approach?"<p style='font-size:.76rem;margin:4px 0'><b>Approach:</b> "+esc(m.approved_approach)+"</p>":"";
       const objects=m.objects_used?(Array.isArray(m.objects_used)?m.objects_used:[m.objects_used]).slice(0,6).map(function(o){return"<code style='font-size:.68rem'>"+esc(o)+"</code>";}).join(" "):"";
@@ -2406,7 +2436,7 @@ function renderBtpConns(){
     el.innerHTML="<p style='color:var(--muted);font-size:.82rem;margin:0 0 8px'>No BTP systems configured yet. Click <b>+ Add system</b> to connect your first BTP account.</p>";
     return;
   }
-  el.innerHTML=_btpConns.map(c=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:7px;background:${c.enabled?"#f0f9ff":"#fafafa"}">
+  el.innerHTML=_btpConns.map(c=>`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:7px;background:${c.enabled?"#f0f9ff":"#f8fafc"}">
     <div style="display:flex;gap:12px;align-items:flex-start">
       <label style="display:flex;gap:5px;align-items:center;margin-top:3px;cursor:pointer;font-size:.78rem;white-space:nowrap"><input type="checkbox" ${c.enabled?"checked":""} onchange="btpToggleEnable('${esc(c.id)}',this.checked)"> Deploy</label>
       <div>
