@@ -36,6 +36,14 @@ OUTPUT
     the plain downloader uses, and records it in the same fetch_manifest.json,
     so sapme_ingest.py picks these up with no special case.
 
+DO NOT RUN THIS ALONGSIDE sapme_fetch.py
+    Both write the same brain/<source>/fetch_manifest.json, and each reads the
+    whole file, mutates it in memory and writes it back. Run concurrently, the
+    slower one's final write silently discards everything the other recorded --
+    observed here, six help documents vanished from the manifest while the plain
+    downloader was still going. Sequence them; the files on disk survive either
+    way, but the manifest is the record of what was fetched.
+
 USAGE
     python3.11 scripts/sapme_help_fetch.py --dry-run
     python3.11 scripts/sapme_help_fetch.py --limit 20
@@ -60,6 +68,24 @@ SOURCES = {
     "sapbp": (BRAIN / "sapbp" / "raw" / "bom_manifest.json", "name"),
     "sapactivate": (BRAIN / "sapactivate" / "raw" / "accelerators.json", "title"),
 }
+
+# sapbp's 505 help URLs are skipped by default, and that is a measured decision
+# rather than a preference. They are all BOM.175 "Test script (SAP Help Portal)"
+# -- the same test script already arriving as .xlsx and .docx for the same scope
+# item. Word-set overlap on two sampled items:
+#
+#     help <-> xlsx   jaccard 0.79-0.80   0.91-0.93 of help's vocabulary in xlsx
+#     docx <-> xlsx   jaccard 0.59-0.84   0.76-0.97 of docx's vocabulary in xlsx
+#
+# The xlsx is 2-3x larger and close to a superset of both. Ingesting all three
+# would put three near-copies of one test script in the index for ~500 scope
+# items, and vectorstore.py already records what a large block of similar new
+# documents does to ranking: 90 of the top 200 candidates became the new source
+# and a filtered query returned 2 hits where 184 qualified.
+#
+# sapactivate's 218 are methodology documents with no such twin, so they are
+# fetched in full. Pass --include-sapbp-help to override deliberately.
+DUPLICATED_BY_DOWNLOAD = {"sapbp"}
 
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -145,10 +171,16 @@ def main():
     ap.add_argument("--rate", type=float, default=0.3)
     ap.add_argument("--max-topics", type=int, default=25,
                     help="topics per document; a few have very long tables of contents")
+    ap.add_argument("--include-sapbp-help", action="store_true",
+                    help="also fetch the 505 sapbp help URLs (see DUPLICATED_BY_DOWNLOAD)")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
     for name in (list(SOURCES) if a.source == "all" else [a.source]):
+        if name in DUPLICATED_BY_DOWNLOAD and not a.include_sapbp_help:
+            print(f"\n=== {name}: skipped — its help pages duplicate the xlsx/docx "
+                  f"already downloaded (--include-sapbp-help to override)")
+            continue
         man_p, title_key = SOURCES[name]
         if not man_p.exists():
             print(f"({name}: no catalogue)")
