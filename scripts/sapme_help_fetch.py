@@ -101,11 +101,32 @@ except ImportError:
     pass
 
 
-def api(path, params):
+# TRANSIENT is imported rather than restated. sapme_fetch.py grew retry logic
+# after a run lost 903 URLs to a burst of getaddrinfo failures; this script did
+# not, and the very next run lost 423 the same way. A rule that lives in one
+# code path while a second path skips it is the defect shape this repo keeps
+# hitting, so there is one definition of "the network blinked" and both callers
+# use it.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sapme_fetch import TRANSIENT                 # noqa: E402
+
+
+def api(path, params, attempts=3):
     url = f"{SVC}/{path}?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode("utf-8", errors="replace"))
+    last = None
+    for i in range(attempts):
+        req = urllib.request.Request(url, headers=HEADERS)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.loads(r.read().decode("utf-8", errors="replace"))
+        except urllib.error.HTTPError:
+            raise                                  # a real answer; do not retry
+        except Exception as exc:                   # noqa: BLE001
+            last = exc
+            if not any(t in str(exc).lower() for t in TRANSIENT):
+                raise
+            time.sleep(2 * (i + 1))
+    raise last
 
 
 def split_doc_url(url):
