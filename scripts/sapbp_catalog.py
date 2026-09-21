@@ -132,12 +132,19 @@ def _get(url):
     return json.loads(body)
 
 
-def fetch_all(entity, params, label):
-    """Page an entity set to exhaustion. Returns (rows, count, etag)."""
+def fetch_all(entity, params, label, page=PAGE):
+    """Page an entity set to exhaustion. Returns (rows, count, etag).
+
+    `page` is tunable because row SIZE varies by orders of magnitude here. A
+    thousand BOM items is a small response; a thousand flow diagrams carrying
+    BPMN XML is ~35 MB, and the server closed the connection mid-body
+    (IncompleteRead after 35,412,558 bytes). Page size has to follow the payload,
+    not the row count.
+    """
     rows, etag, total, skip = [], None, None, 0
     while True:
         q = dict(params)
-        q["$top"] = PAGE
+        q["$top"] = page
         q["$skip"] = skip
         if skip == 0:
             q["$count"] = "true"
@@ -157,11 +164,71 @@ def fetch_all(entity, params, label):
         rows.extend(batch)
         print(f"   {label}: {len(rows)}"
               + (f" / {total}" if total is not None else "") + " rows", flush=True)
-        if len(batch) < PAGE:
+        if len(batch) < page:
             break
-        skip += PAGE
+        skip += page
         time.sleep(RATE_LIMIT_S)
     return rows, total, etag
+
+
+def fetch_l1(scenario, dry):
+    """The three structured entities that make processes.json a graph.
+
+    These are L1, not L4, and the distinction is load-bearing: "which apps does
+    scope item 7TC use" is an exact lookup, and an exact lookup cannot invent a
+    plausible-but-wrong app name the way a nearest-neighbour search can. That
+    matters more here than in an ordinary RAG system, because this project's
+    whole gate model exists to stop confident fabrication.
+
+    The test-case workbooks were the other candidate source for the
+    process -> application edge and turned out to be import templates with those
+    columns blank (see sapme_ingest.xlsx_text). This is the only route.
+    """
+    out = {}
+
+    def keep(name, rows):
+        out[name] = rows
+        if not dry:
+            p = RAW_DIR / f"{name}.json"
+            p.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"   wrote {len(rows)} -> {p}")
+
+    # process -> Fiori application. Three columns, no prose: the clearest L1 case.
+    apps, n_apps, _ = fetch_all(
+        "SolutionProcessDiagramApplicationFilter", {}, "applications")
+    keep("applications", apps)
+
+    # The Business Capability Model: line of business -> business area ->
+    # business capability -> solution capability, per process. Richer than the
+    # single businessProcessGroupName the process rows carry.
+    # Unfiltered on purpose. Filtering by solutionScenario_ID returned zero rows
+    # for EARL_SolS-013 even though the entity is populated for other scenarios,
+    # so the scenario is joined afterwards on solutionProcess_ID -- the same way
+    # applications are, since that entity also spans every scenario (14,417 rows
+    # over 1,966 processes against our 657). Filtering server-side here trades a
+    # smaller download for silently losing rows, which is the wrong trade.
+    caps, n_caps, _ = fetch_all("SolutionCapabilityHierarchy", {}, "capabilities")
+    keep("capabilities", caps)
+
+    # BPMN, so steps can be parsed rather than guessed. $select is deliberate --
+    # the entity also carries SVG and JSON renderings of the same diagram, and
+    # pulling all three for ~1,500 diagrams would multiply the payload for
+    # pictures nothing downstream can read.
+    diag, n_diag, _ = fetch_all(
+        "SolutionProcessFlowDiagram",
+        {"$select": "ID,name,stableId,businessId,diagramContentBpmn"}, "diagrams",
+        page=100)
+    keep("diagrams", diag)
+
+    print(f"\n== applications {len(apps)}   capabilities {len(caps)}   diagrams {len(diag)}")
+    if apps:
+        per = Counter(r.get("solutionProcessID") for r in apps)
+        print(f"   {len(per)} processes carry an application; "
+              f"busiest has {max(per.values()) if per else 0}")
+    if diag:
+        withb = sum(1 for d in diag if d.get("diagramContentBpmn"))
+        print(f"   {withb} of {len(diag)} diagrams carry BPMN")
+    return out
 
 
 def main():
@@ -170,8 +237,16 @@ def main():
     ap.add_argument("--country", default=DEFAULT_COUNTRY)
     ap.add_argument("--language", default=DEFAULT_LANGUAGE)
     ap.add_argument("--lancode", default=DEFAULT_LANCODE)
+    ap.add_argument("--l1-only", action="store_true",
+                    help="fetch only the structured L1 entities")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
+
+    if a.l1_only:
+        RAW_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"== service  {SERVICE}")
+        fetch_l1(a.scenario, a.dry_run)
+        return 0
 
     c, lang = a.country, a.language
     print(f"== service  {SERVICE}")
