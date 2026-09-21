@@ -19,12 +19,13 @@ FACETS, AND WHY THEY MATTER MORE THAN THE TEXT
     filters instead of hoping: phase=Explore + agent_role="Testing Expert" is an
     exact set, where a similarity search over the same corpus is a guess.
 
-WHY XLSX IS SKIPPED ON PURPOSE
-    Every test script exists twice -- BOM.169 as .xlsx (SAP Cloud ALM format) and
-    BOM.115 as .docx -- 2,811 of each. Taking the .docx and skipping its .xlsx twin
-    halves the corpus, drops a dependency, and avoids the real error: a spreadsheet
-    is structured data, and embedding a table as prose gives fuzzy hits on
-    something that deserves exact lookup. Structured spreadsheets belong in L1.
+BOTH FORMATS ARE INGESTED, AND THAT WAS A CORRECTION
+    The counts match at 2,811 .xlsx and 2,811 .docx, which looked like the same
+    test script twice. Opening a pair showed otherwise: the .docx is the narrative
+    (purpose, prerequisites, roles, master data) and the .xlsx is the Cloud ALM
+    test-case definition -- Activity/Action steps with instructions and expected
+    results, 116k characters from a single file. They are complementary, so both
+    are ingested. See xlsx_text() for what the workbooks do NOT contain.
 
 NO PII MASKING
     Same call as webdocs_ingest.py: this is SAP's own published material, not
@@ -130,6 +131,114 @@ def pdf_text(path):
         return ""
 
 
+# Columns of the SAP Cloud ALM test-case sheet (BOM.169). Verified against a real
+# file 2026-09-21 rather than assumed.
+TC_KEY = "Test Case GUID"
+TC_CARRY = ("Test Case GUID", "Test Case Name*", "[Scope GUID]", "[Scope Name]",
+            "[Solution Process GUID]", "[Solution Process Name]",
+            "[Solution Process Flow GUID]", "[Solution Process Flow Name]",
+            "Test Case Status")
+
+
+def _cell(v):
+    """Cell text. Instructions arrive as HTML fragments, so strip them."""
+    s = "" if v is None else str(v)
+    return html_text(s.encode("utf-8")) if "<" in s and ">" in s else s.strip()
+
+
+def xlsx_text(path):
+    """Readable prose from a Cloud ALM test-case workbook.
+
+    An earlier pass skipped .xlsx entirely, assuming BOM.169 was just BOM.115 in
+    another format -- the counts matched at 2,811 each. Opening a pair disproved
+    it. The .docx is the narrative test script (purpose, prerequisites, roles);
+    the .xlsx is the Cloud ALM test-case definition, and it is the richer of the
+    two: one file rendered to 116,522 characters of Activity/Action steps with
+    instructions and expected results, against the docx's narrative. Do not skip
+    it again.
+
+    It yields NO L1 edges, though, and that was also measured rather than
+    assumed. Every bracketed column -- [Scope GUID], [Solution Process GUID],
+    Activity Target Name/URL -- is empty in all 333 rows, because SAP ships these
+    as IMPORT TEMPLATES for Cloud ALM and the customer fills those in. Only
+    Activity Title, Action Title, Action Instructions and Action Expected Result
+    carry data. The scope_item -> process -> application chain therefore has to
+    come from the OData entities (SolutionProcessDiagramApplicationFilter), not
+    from here.
+
+    Sheets that are not test cases fall back to a plain row rendering.
+    """
+    try:
+        import openpyxl                                  # noqa: PLC0415
+    except ImportError:
+        return None
+    try:
+        wb = openpyxl.load_workbook(str(path), data_only=True, read_only=True)
+    except Exception:                                    # noqa: BLE001
+        return ""
+
+    out = []
+    for ws in wb.worksheets:
+        rows = ws.iter_rows(values_only=True)
+        header, cols = None, []
+        buf = []
+        for row in rows:
+            vals = ["" if c is None else str(c).strip() for c in row]
+            if header is None:
+                if any(v == TC_KEY for v in vals):
+                    header, cols = True, vals
+                else:
+                    buf.append(row)
+                continue
+            rec = {c: _cell(v) for c, v in zip(cols, row) if c}
+            if not any(rec.values()):
+                continue
+            out.append(rec)
+
+        if header is None:
+            # Not a test-case sheet. Render rows as text so reference workbooks
+            # still contribute something, without pretending to understand them.
+            lines = [" | ".join(str(c) for c in r if c not in (None, ""))
+                     for r in buf]
+            body = "\n".join(l for l in lines if l.strip())
+            if body:
+                out.append({"__plain__": f"[{ws.title}]\n{body}"})
+    wb.close()
+
+    # Forward-fill: the test-case columns are written once, on the first row of
+    # each case, and left blank on its remaining Activity/Action rows.
+    carried, parts, current = {}, [], None
+    for rec in out:
+        if "__plain__" in rec:
+            parts.append(rec["__plain__"])
+            continue
+        for k in TC_CARRY:
+            if rec.get(k):
+                carried[k] = rec[k]
+        name = carried.get("Test Case Name*")
+        if name and name != current:
+            current = name
+            parts.append(f"\n\nTest case: {name}")
+            scope, proc = carried.get("[Scope Name]"), carried.get("[Solution Process Name]")
+            if scope:
+                parts.append(f"Scope: {scope}")
+            if proc:
+                parts.append(f"Solution process: {proc}")
+        act, action = rec.get("Activity Title*"), rec.get("Action Title*")
+        if act:
+            parts.append(f"\nActivity: {act}")
+        if rec.get("Activity Target Name"):
+            parts.append(f"Application: {rec['Activity Target Name']}")
+        if action:
+            parts.append(f"Step: {action}")
+        if rec.get("Action Instructions*"):
+            parts.append(rec["Action Instructions*"])
+        if rec.get("Action Expected Result"):
+            parts.append(f"Expected result: {rec['Action Expected Result']}")
+
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()
+
+
 def write_chunks(out_dir, doc_id, text, meta, tally):
     pieces = chunk(text)
     for i, body in enumerate(pieces):
@@ -202,12 +311,13 @@ def ingest_files(source, dry, tally):
         suffix = path.suffix.lower()
 
         if suffix in (".xlsx", ".xlsm", ".xls"):
-            tally["skipped_xlsx"] += 1          # deliberate — see the module docstring
-            continue
-        if suffix == ".docx" or st.get("kind") == "zip":
+            text = xlsx_text(path)
+        elif suffix == ".docx":
             text = docx_text(path)
         elif suffix == ".pdf" or st.get("kind") == "pdf":
             text = pdf_text(path)
+        elif st.get("kind") == "zip":
+            text = docx_text(path)
         else:
             text = html_text(path.read_bytes())
 
@@ -249,8 +359,10 @@ def ingest_files(source, dry, tally):
 
         doc_id = f"{source}_{hashlib.sha1(url.encode()).hexdigest()[:12]}"
         tally[f"{source}_docs"] += 1
+        tally[f"{source}_{suffix.lstrip('.') or 'web'}"] += 1
         if not dry:
             write_chunks(out, doc_id, text, meta, tally)
+
 
 
 def main():
