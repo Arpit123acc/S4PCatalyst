@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-09-22T09:57:56.002568+00:00",
+  "recorded_utc": "2026-09-22T12:22:29.882166+00:00",
   "top_k": 10,
   "cases": [
     {
@@ -1755,6 +1755,13 @@
       "failures": [],
       "hits": [
         {
+          "id": "redacted:cf23d773f522",
+          "chunk_file": "redacted:ce7f69d2b8f7",
+          "source": "redacted:f30265af2910",
+          "source_system": "sap_activate",
+          "score": 0.5022
+        },
+        {
           "id": "redacted:f41227051307",
           "chunk_file": "redacted:a2dbc9d56c67",
           "source": "redacted:1c968dcfd613",
@@ -1767,13 +1774,6 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.5294
-        },
-        {
-          "id": "redacted:88050063fc73",
-          "chunk_file": "redacted:29cd5acb9a34",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.5141
         },
         {
           "id": "redacted:7a1f9dc4bc89",
@@ -1790,11 +1790,11 @@
           "score": 0.5146
         },
         {
-          "id": "redacted:ad5eda054221",
-          "chunk_file": "redacted:4c8b733dfbac",
+          "id": "redacted:88050063fc73",
+          "chunk_file": "redacted:29cd5acb9a34",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5077
+          "score": 0.5141
         },
         {
           "id": "redacted:ebf584ea013c",
@@ -1802,6 +1802,13 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.5409
+        },
+        {
+          "id": "redacted:ad5eda054221",
+          "chunk_file": "redacted:4c8b733dfbac",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.5077
         },
         {
           "id": "redacted:d8974d639134",
@@ -1816,13 +1823,6 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.5237
-        },
-        {
-          "id": "redacted:455969da04dc",
-          "chunk_file": "redacted:909ca6309f29",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.484
         }
       ]
     },
@@ -1917,6 +1917,27 @@
       "failures": [],
       "hits": [
         {
+          "id": "redacted:c1708ab7f3e2",
+          "chunk_file": "redacted:534f6a6b69cc",
+          "source": "redacted:1071eeffe259",
+          "source_system": "sap_best_practices",
+          "score": 0.6004
+        },
+        {
+          "id": "redacted:90766b47362a",
+          "chunk_file": "redacted:9e9caf105520",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.5937
+        },
+        {
+          "id": "redacted:2e361f91d35e",
+          "chunk_file": "redacted:54cf4ad254dc",
+          "source": "redacted:a1b7e84a5ea7",
+          "source_system": "sap_best_practices",
+          "score": 0.5852
+        },
+        {
           "id": "scope_4N6",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -1924,18 +1945,25 @@
           "score": 0.5555
         },
         {
-          "id": "redacted:e1656db92711",
-          "chunk_file": "redacted:478f46e048a2",
-          "source": "redacted:d399f7a2ffe6",
-          "source_system": "sharepoint",
-          "score": 0.5215
+          "id": "redacted:a07a91ab34c0",
+          "chunk_file": "redacted:4a85d860b0bb",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.5622
         },
         {
-          "id": "scope_2LG",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5456
+          "id": "redacted:48fddb9c847e",
+          "chunk_file": "redacted:6f8ef7485441",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.5601
+        },
+        {
+          "id": "redacted:8307627bca56",
+          "chunk_file": "redacted:3c18124f85ff",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.5593
         },
         {
           "id": "redacted:6ea4ff694bf2",
@@ -1952,39 +1980,11 @@
           "score": 0.5467
         },
         {
-          "id": "scope_4A1",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5454
-        },
-        {
-          "id": "scope_5FN",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5448
-        },
-        {
-          "id": "scope_2UV",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5436
-        },
-        {
-          "id": "scope_2V7",
-          "chunk_file": "catalog:scope_items",
-          "source": "SAP Scope Item Catalog",
-          "source_system": "sap_scope_catalog",
-          "score": 0.5298
-        },
-        {
-          "id": "redacted:fb438215d1b3",
-          "chunk_file": "redacted:98eca9279597",
-          "source": "redacted:d399f7a2ffe6",
-          "source_system": "sharepoint",
-          "score": 0.4976
+          "id": "redacted:853a315f66f9",
+          "chunk_file": "redacted:12bde81f634a",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.5569
         }
       ]
     },
@@ -2160,6 +2160,13 @@
       "failures": [],
       "hits": [
         {
+          "id": "redacted:cf23d773f522",
+          "chunk_file": "redacted:ce7f69d2b8f7",
+          "source": "redacted:f30265af2910",
+          "source_system": "sap_activate",
+          "score": 0.5022
+        },
+        {
           "id": "redacted:f41227051307",
           "chunk_file": "redacted:a2dbc9d56c67",
           "source": "redacted:1c968dcfd613",
@@ -2172,13 +2179,6 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.5294
-        },
-        {
-          "id": "redacted:88050063fc73",
-          "chunk_file": "redacted:29cd5acb9a34",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.5141
         },
         {
           "id": "redacted:7a1f9dc4bc89",
@@ -2195,11 +2195,11 @@
           "score": 0.5146
         },
         {
-          "id": "redacted:ad5eda054221",
-          "chunk_file": "redacted:4c8b733dfbac",
+          "id": "redacted:88050063fc73",
+          "chunk_file": "redacted:29cd5acb9a34",
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
-          "score": 0.5077
+          "score": 0.5141
         },
         {
           "id": "redacted:ebf584ea013c",
@@ -2207,6 +2207,13 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.5409
+        },
+        {
+          "id": "redacted:ad5eda054221",
+          "chunk_file": "redacted:4c8b733dfbac",
+          "source": "redacted:1c968dcfd613",
+          "source_system": "sharepoint",
+          "score": 0.5077
         },
         {
           "id": "redacted:d8974d639134",
@@ -2221,13 +2228,6 @@
           "source": "redacted:1c968dcfd613",
           "source_system": "sharepoint",
           "score": 0.5237
-        },
-        {
-          "id": "redacted:455969da04dc",
-          "chunk_file": "redacted:909ca6309f29",
-          "source": "redacted:1c968dcfd613",
-          "source_system": "sharepoint",
-          "score": 0.484
         }
       ]
     },
@@ -3061,18 +3061,18 @@
           "score": 0.4954
         },
         {
-          "id": "redacted:c4098594c3ec",
-          "chunk_file": "redacted:7f69e0c26d29",
-          "source": "redacted:0c04b35c068c",
-          "source_system": "abap_guidance",
-          "score": 0.4519
-        },
-        {
           "id": "redacted:edc21261c64b",
           "chunk_file": "redacted:4028efc9fdd3",
           "source": "redacted:0c04b35c068c",
           "source_system": "abap_guidance",
           "score": 0.4641
+        },
+        {
+          "id": "redacted:c4098594c3ec",
+          "chunk_file": "redacted:7f69e0c26d29",
+          "source": "redacted:0c04b35c068c",
+          "source_system": "abap_guidance",
+          "score": 0.4519
         },
         {
           "id": "redacted:f233de199c7d",
@@ -3096,11 +3096,11 @@
           "score": 0.4594
         },
         {
-          "id": "redacted:da078ce1816e",
-          "chunk_file": "redacted:903d525f6570",
-          "source": "redacted:0965b3b0eeea",
-          "source_system": "sap_activate",
-          "score": 0.4319
+          "id": "redacted:ca6ed8bf1251",
+          "chunk_file": "redacted:2b1960015119",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.4531
         }
       ]
     },
