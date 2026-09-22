@@ -28,6 +28,7 @@ import sys
 import json
 import time
 import argparse
+import collections
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
@@ -55,6 +56,11 @@ INDEX_DIR   = BRAIN_DIR / "index"
 INDEX_PATH  = INDEX_DIR / "faiss.index"
 META_PATH   = INDEX_DIR / "metadata.json"
 MANIFEST    = INDEX_DIR / "manifest.json"
+
+# A single source may not lose more than this fraction of its vectors without
+# --allow-shrink. Mirrors sharepoint_ingest.MAX_ORPHAN_FRACTION deliberately:
+# both answer "how much of one source can vanish before a human should look?"
+MAX_SOURCE_SHRINK = 0.25
 
 REGION      = os.environ.get("AWS_REGION", "us-east-1")
 MODEL_ID    = os.environ.get("TITAN_MODEL", "amazon.titan-embed-text-v2:0")
@@ -285,12 +291,14 @@ def main():
     # from the .prev rollback copy). Refuse to shrink the index unless it is asked
     # for explicitly. Same principle as the mismatch guard in vectorstore.persist():
     # publishing something worse than what is already live is not a valid outcome.
-    existing = 0
+    existing, prev_by_src = 0, collections.Counter()
     if META_PATH.exists():
         try:
-            existing = len(json.loads(META_PATH.read_text(encoding="utf-8")))
+            prev = json.loads(META_PATH.read_text(encoding="utf-8"))
+            existing = len(prev)
+            prev_by_src = collections.Counter(m.get("source_system") for m in prev)
         except Exception:
-            existing = 0
+            existing, prev_by_src = 0, collections.Counter()
     if existing > len(all_texts) and not args.allow_shrink:
         sys.exit(
             "REFUSING to publish: this build has %d vectors but the live index has %d.\n"
@@ -298,6 +306,39 @@ def main():
             "  replace the whole brain. Re-run without --limit for a real rebuild, or pass\n"
             "  --allow-shrink if you genuinely intend a smaller index.\n"
             "  Nothing was written; the live index is untouched." % (len(all_texts), existing))
+
+    # The total is not enough, and 2026-09-22 is why. Between 09-07 and 09-22 the
+    # sharepoint source fell from 44,586 vectors to 28,742 -- a third of it gone --
+    # and this guard said nothing, because over the same period the SAP ingest took
+    # the TOTAL from 49,857 to 179,482. `existing > len(all_texts)` was false, so a
+    # source losing 15,844 vectors read as a corpus that had more than tripled.
+    #
+    # One source's growth masking another's collapse is only possible in a
+    # multi-source corpus, and this guard was written when there was effectively
+    # one. So it is checked per source as well as in total: the failure it was
+    # built to catch is exactly the failure it had stopped being able to see.
+    #
+    # Note for a supersession run: dropping a source deliberately (sap_bpd went
+    # 7,072 -> 20 when sap_best_practices superseded it) trips this once, which is
+    # the intent -- thousands of vectors disappearing is worth one confirmation.
+    # --allow-shrink covers it, but it lifts BOTH guards, so read the table first.
+    now_by_src = collections.Counter(m.get("source_system") for m in all_metas)
+    for src in sorted(set(prev_by_src) | set(now_by_src), key=str):
+        was, now = prev_by_src.get(src, 0), now_by_src.get(src, 0)
+        log.info("  source %-22s %7d -> %7d  (%+d)", src, was, now, now - was)
+    if prev_by_src and not args.allow_shrink:
+        floor = 1.0 - MAX_SOURCE_SHRINK
+        shrunk = [(k, prev_by_src[k], now_by_src.get(k, 0)) for k in prev_by_src
+                  if now_by_src.get(k, 0) < prev_by_src[k] * floor]
+        if shrunk:
+            sys.exit(
+                "REFUSING to publish: %d source(s) lost more than %.0f%% of their "
+                "vectors, even though the total did not shrink.\n%s\n"
+                "  Check the source folder is fully mounted and that the ingest ran,\n"
+                "  or pass --allow-shrink if the drop is intended (e.g. supersession).\n"
+                "  Nothing was written; the live index is untouched."
+                % (len(shrunk), MAX_SOURCE_SHRINK * 100,
+                   "\n".join("    %-22s %7d -> %7d" % r for r in shrunk)))
 
     # ── Embed in parallel ────────────────────────────────────────────────────
     # pool.map preserves order, so vectors[i] aligns with all_metas[i].
