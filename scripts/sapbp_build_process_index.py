@@ -136,14 +136,31 @@ def fetched_scenario():
     return (m or {}).get("scenario_id"), (m or {}).get("target_release")
 
 
+def primary_country():
+    """The country whose process row wins when a scope item has several.
+
+    The fetch now covers DE plus BR/ES/US, because those three carry the 22
+    localized scope items DE lacks. Most scope items therefore arrive several
+    times, once per country, with the same name but a country-specific process.
+    Without an explicit preference the winner would be whichever row the service
+    happened to return first, so the index would silently describe a German
+    scope item using its Brazilian process on some runs and not others.
+    """
+    return (_load(MANIFEST, {}) or {}).get("country") or "DE"
+
+
 def build(scenario):
     procs = _load(PROCESSES)
     if not procs:
         raise SystemExit(f"{PROCESSES} missing — run sapbp_catalog.py first")
 
-    # Spine. Keyed by scope item; a scope item can own several processes.
+    # Spine. Keyed by scope item; a scope item can own several processes, and
+    # since the fetch became multi-country it usually owns one per country.
+    # Primary-country rows are processed FIRST so setdefault keeps theirs.
     by_scope = {}
     pid_scope = {}
+    home = primary_country()
+    procs = sorted(procs, key=lambda r: 0 if r.get("country_ID") == home else 1)
     for p in procs:
         ext = (p.get("externalId") or "").strip().upper()
         if not ext:
@@ -157,6 +174,7 @@ def build(scenario):
             "license_required": p.get("licenseRequired"),
             "target_release": p.get("solutionScenarioTargetRelease"),
             "has_country_process": True,
+            "countries": [],
             "process_ids": [],
             "applications": [],
             "steps": [],
@@ -164,6 +182,9 @@ def build(scenario):
             "diagrams": [],
         })
         row["process_ids"].append(p.get("solutionProcessId"))
+        cc = p.get("country_ID")
+        if cc and cc not in row.setdefault("countries", []):
+            row["countries"].append(cc)
 
     # process -> Fiori applications
     apps = _load(APPLICATIONS)
@@ -256,6 +277,10 @@ def build(scenario):
         "diagrams_for_scenario": len(mine),
         "diagrams_matched": matched,
         "scope_items_from_catalog_only": from_catalog,
+        "primary_country": home,
+        "scope_items_outside_primary_country": sum(
+            1 for r in by_scope.values()
+            if r.get("countries") and home not in r["countries"]),
         "diagrams_unmatched": len(unmatched),
         "scope_items_with_steps": sum(1 for r in by_scope.values() if r["steps"]),
         "capability_rows_used": cap_hits,

@@ -45,11 +45,16 @@ PID_A, PID_B = "pid-a", "pid-b"
 
 PROCESSES = [
     {"solutionProcessId": PID_A, "externalId": "2LH",
-     "enName": "Automated Invoice Settlement (2LH)",
+     "enName": "Automated Invoice Settlement (2LH)", "country_ID": "DE",
      "businessProcessGroupName": "Finance", "changeCategory": "No Change",
      "solutionScenarioTargetRelease": "2608"},
+    # same scope item, a SECONDARY country: the DE row must win
+    {"solutionProcessId": "pid-a-br", "externalId": "2LH",
+     "enName": "WRONG - Brazilian variant", "country_ID": "BR",
+     "businessProcessGroupName": "Finance", "changeCategory": "Update",
+     "solutionScenarioTargetRelease": "2608"},
     {"solutionProcessId": PID_B, "externalId": "1GA",
-     "enName": "Accounting and Financial Close (1GA)",
+     "enName": "Accounting and Financial Close (1GA)", "country_ID": "DE",
      "businessProcessGroupName": "Finance", "changeCategory": "Update",
      "solutionScenarioTargetRelease": "2608"},
 ]
@@ -101,7 +106,7 @@ class TestBuilder(unittest.TestCase):
         bld.PROCESSES.write_text(json.dumps(PROCESSES), encoding="utf-8")
         bld.APPLICATIONS.write_text(json.dumps(APPLICATIONS), encoding="utf-8")
         bld.DIAGRAMS.write_text(json.dumps(DIAGRAMS), encoding="utf-8")
-        bld.MANIFEST.write_text(json.dumps({"scenario_id": OURS,
+        bld.MANIFEST.write_text(json.dumps({"scenario_id": OURS, "country": "DE",
                                             "target_release": "2608"}), encoding="utf-8")
 
     def tearDown(self):
@@ -148,6 +153,21 @@ class TestBuilder(unittest.TestCase):
         self.assertFalse(rows["1WQ"]["has_country_process"])
         self.assertTrue(rows["2LH"]["has_country_process"])
         self.assertEqual(counts["scope_items_from_catalog_only"], 1)
+
+    def test_primary_country_process_wins(self):
+        """The fetch is multi-country, so most scope items arrive several times.
+
+        Without an explicit preference the winner is whichever row the service
+        returned first, so the index would describe a scope item with its
+        Brazilian process on some runs and its German one on others -- a
+        difference nobody would notice and nobody could reproduce.
+        """
+        rows, counts, _ = bld.build(OURS)
+        self.assertEqual(rows["2LH"]["name"], "Automated Invoice Settlement (2LH)")
+        self.assertEqual(rows["2LH"]["change_category"], "No Change", "DE's value, not BR's")
+        self.assertEqual(sorted(rows["2LH"]["countries"]), ["BR", "DE"],
+                         "both countries are recorded even though DE's row wins")
+        self.assertEqual(counts["primary_country"], "DE")
 
     def test_unmatched_diagrams_are_counted_not_hidden(self):
         _, counts, unmatched = bld.build(OURS)

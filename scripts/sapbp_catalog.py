@@ -76,6 +76,16 @@ DEFAULT_SCENARIO = "5c293206-d436-4b73-af8b-55a6e80a79a3"
 # keeps meeting. The GUID stays only as the offline fallback.
 DEFAULT_STABLE_ID = "EARL_SolS-013"
 DEFAULT_COUNTRY = "DE"
+# DE is the spine because it carries the most solution processes (657). It is not
+# everything: the 2608 release adds country-specific scope items for localization
+# -- Brazilian master-data tax fields, Spanish/Canary SII, Thai tax invoicing,
+# Italian CIG/CUP -- and those processes exist only under their own country.
+#
+# Measured 2026-09-22 across 20 countries: the union beyond DE is 22 scope items,
+# and DE + BR + ES + US covers all 679 active ones with nothing left over. The
+# other 56 countries add no scope item DE does not already have, so fetching them
+# would multiply the catalog for nothing.
+SECONDARY_COUNTRIES = ["BR", "ES", "US"]
 DEFAULT_LANGUAGE = "EN"
 DEFAULT_LANCODE = "en-US"
 
@@ -87,6 +97,12 @@ DEFAULT_LANCODE = "en-US"
 # CATEGORY of scenario-level documentation, which is why nothing looked missing:
 # every scope item still had its test scripts.
 GENERIC_COUNTRY = "XX"
+
+
+def country_clause(countries):
+    """OData `or` chain. Not `in (...)`: this CAP service has already shown it
+    handles some operators unexpectedly, and an or-chain works everywhere."""
+    return "(" + " or ".join("country_ID eq '%s'" % c for c in countries) + ")"
 
 PAGE = 1000          # CAP caps a page well below the row counts here; we page regardless
 RATE_LIMIT_S = 0.4   # polite against someone else's service, and these are cheap reads
@@ -298,7 +314,11 @@ def main():
                     help="Pin a specific scenario GUID. Default: resolve the "
                          "newest for --stable-id.")
     ap.add_argument("--stable-id", dest="stable_id", default=DEFAULT_STABLE_ID)
-    ap.add_argument("--country", default=DEFAULT_COUNTRY)
+    ap.add_argument("--country", default=DEFAULT_COUNTRY,
+                    help="Primary country; its process row wins when several exist")
+    ap.add_argument("--secondary", default=SECONDARY_COUNTRIES,
+                    type=lambda v: [x.strip().upper() for x in v.split(",") if x.strip()],
+                    help="Extra countries fetched for their localized scope items")
     ap.add_argument("--language", default=DEFAULT_LANGUAGE)
     ap.add_argument("--lancode", default=DEFAULT_LANCODE)
     ap.add_argument("--l1-only", action="store_true",
@@ -314,6 +334,8 @@ def main():
         return 0
 
     c, lang = a.country, a.language
+    process_countries = [c] + [x for x in a.secondary if x and x != c]
+    countries = process_countries + [GENERIC_COUNTRY]
     print(f"== service  {SERVICE}")
     scenario, target_release, internal_version = resolve_scenario(
         a.stable_id, explicit=a.scenario)
@@ -325,13 +347,13 @@ def main():
     scen = f"SolutionScenarioTranslation(ID={scenario},lanCode='{a.lancode}')"
     procs, n_procs, etag = fetch_all(
         f"{scen}/solutionProcessTranslation",
-        {"$filter": f"country_ID eq '{c}'", "$orderby": "name"},
+        {"$filter": country_clause(process_countries), "$orderby": "name"},
         "processes")
 
     # --- Tier B: the accelerator inventory --------------------------------------
     boms, n_boms, _ = fetch_all(
         "BomItemURLsWithMultiLanguage",
-        {"$filter": f"(country_ID eq '{c}' or country_ID eq '{GENERIC_COUNTRY}') "
+        {"$filter": f"{country_clause(countries)} "
                     f"and isValid eq true and isArchive eq false"},
         "bom items")
 
@@ -342,8 +364,7 @@ def main():
     # keyed (bomItem_ID, country_ID, language_ID) and is the real link table.
     urls, n_urls, _ = fetch_all(
         "BomItemUrl",
-        {"$filter": f"(country_ID eq '{c}' or country_ID eq '{GENERIC_COUNTRY}') "
-                    f"and language_ID eq '{lang}'"},
+        {"$filter": f"{country_clause(countries)} and language_ID eq '{lang}'"},
         "urls")
 
     by_item = {u["bomItem_ID"]: u["url"] for u in urls if u.get("url")}
@@ -424,6 +445,7 @@ def main():
         "target_release": target_release,
         "internal_version": internal_version,
         "country": c,
+        "countries": countries,
         "language": lang,
         # A changed etag means SAP altered the contract. 343 entity sets, several
         # named *Test/*Temp -- this is an internal service and may move without
