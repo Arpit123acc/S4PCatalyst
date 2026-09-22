@@ -201,8 +201,11 @@
       "filters": {
         "phase": "Deploy"
       },
-      "why": "Pins that an existing phase filter still selects the SharePoint corpus. If the reference-exemption rule is added, this is where unintended widening would show up first.",
-      "expect_min_hits": 1
+      "why": "Pins that an existing phase filter still SELECTS the SharePoint corpus, not merely admits it. The widening this case was written to anticipate happened on 2026-09-22: the provenance exemption grew from 954 chunks to 133,891, so every phase filter now admits the SAP sources. Delivery material held 9 of 10 slots, but expect_min_hits:1 would have passed at 0 of 10, so the guard is quantified now.",
+      "expect_min_hits": 1,
+      "expect_min_source_hits": {
+        "sharepoint": 5
+      }
     },
     {
       "id": "R-060",

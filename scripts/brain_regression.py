@@ -107,6 +107,18 @@ def check_assertions(case, hits):
             fails.append("expected NO hits with source_system=%s, got %d"
                          % (absent_sys, n))
 
+    # Quantified form. expect_source_system only asserts a source APPEARS, which
+    # one hit in ten satisfies -- too weak for a case whose claim is that a filter
+    # still SELECTS a corpus rather than merely admitting it. R-044 needed this on
+    # 2026-09-22: widening the provenance exemption from 954 chunks to 133,891 made
+    # every phase filter admit the SAP sources, and the existing assertions would
+    # have passed even if delivery material had been pushed off the page entirely.
+    for src, n_want in (case.get("expect_min_source_hits") or {}).items():
+        n = sum(1 for h in hits if h.get("source_system") == src)
+        if n < n_want:
+            fails.append("expected >=%d hits with source_system=%s, got %d"
+                         % (n_want, src, n))
+
     want_src = case.get("expect_source_contains")
     if want_src:
         low = want_src.lower()
