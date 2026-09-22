@@ -172,12 +172,16 @@ CAND_DEPTH   = int(os.environ.get("BRAIN_CAND_DEPTH", "100"))
 # revisions, not to hide them -- an old revision is often the only place some detail
 # survives -- so the cheapest value that does the job is the correct one.
 SUPERSEDED_PENALTY = float(os.environ.get("BRAIN_SUPERSEDED_PENALTY", "0.2"))
-# Down-rank factor for BULK TEMPLATE material. INERT AT 0.0 until swept on the
-# delivery host -- see _demote_bulk() for what to measure and why it is not
-# already set. A constant whose value has not been measured against the
-# regression set does not belong live in this file, and this one acts on 75% of
-# the corpus.
-BULK_PENALTY = float(os.environ.get("BRAIN_BULK_PENALTY", "0.0"))
+# Down-rank factor for BULK TEMPLATE material. Swept 2026-09-22 against all 43
+# regression cases on the delivery host: 0.1 FAILS, and everything from 0.15 to
+# 0.8 passes 43/43. See _demote_bulk() for the table.
+#
+# 0.25, not the floor. SUPERSEDED_PENALTY's precedent would take 0.15 -- above it
+# nothing improves -- but 0.15 sits directly against a failing value, which is the
+# fragility KW_WEIGHT's comment picks a midpoint to avoid. Standing clear of that
+# edge costs nothing measurable here: R-020's catalog entry lands on rank 10 at
+# 0.15, 0.25 and 0.4 alike, and test-script recall is identical at all three.
+BULK_PENALTY = float(os.environ.get("BRAIN_BULK_PENALTY", "0.25"))
 # Which deliverable_type values count as bulk.
 #
 # deliverable_type, NOT content_type. sapme_ingest sets BOTH to "test_script" on
@@ -405,14 +409,37 @@ def _demote_bulk(fused):
         source, so the content is reachable; what regressed is what wins when
         nobody filters, and agents do not always filter.
 
-        MEASURED 2026-09-22, and R-020 is out of this lever's reach. The
-        penalty lifts its scope-catalog entry from rank 19 to 13 at 0.15, to 11
-        at 0.4, and no further at 0.6 -- ten of the hits above it are not test
-        scripts, so rank 11 is a ceiling, not a tuning problem. Sweep this
-        against R-034, which a test script genuinely holds at rank 1. R-020
-        needs a different instrument: it asks which scope item covers a topic,
-        which is a lookup against 679 curated rows, not a semantic search over
-        179,482 prose chunks.
+        SWEPT 2026-09-22 (delivery host, 43 cases, production CAND_DEPTH=100):
+
+            penalty   gate     overlap   R-020: rank of the catalog entry
+            0         42/43     76%      not in top 10
+            0.1       42/43     76%      not in top 10
+            0.15      43/43     77%      10
+            0.25      43/43     77%      10
+            0.4       43/43     77%      10
+            0.6       43/43     79%      --
+            0.8       43/43     80%      --
+
+        R-020 was the only failing case and this penalty is what fixes it. Read
+        the last column before trusting that: the catalog entry lands on rank
+        10 -- the LAST SLOT -- at every passing value, and more penalty does not
+        improve it, because the nine hits above it are not test scripts and this
+        lever cannot touch them. The gate passes with zero margin, so R-020 will
+        fail again on any ingest that adds one better-scoring document. The
+        durable fix is a lookup, not a ranking constant: the case asks which
+        scope item covers a topic, which is 679 curated rows, not a semantic
+        search over 179,482 prose chunks.
+
+        DO NOT CHOOSE THIS VALUE BY MEAN OVERLAP. It rises monotonically with the
+        penalty and that is not quality: baseline.json was recorded 2026-09-08,
+        before the SAP ingest, so suppressing SAP test scripts moves results back
+        toward a corpus 133,871 chunks smaller. Maximising overlap would mean
+        undoing the ingest.
+
+        Test-script recall is unharmed. "test script steps for supplier invoice
+        posting" returns 5 of 5 test scripts at 0, 0.15 and 0.4: the penalty is
+        uniform across test scripts, so it never reorders them against each
+        other, only against other sources. When they are the answer they win.
 
     WHAT THIS CANNOT DO -- READ BEFORE SWEEPING
         Fusion only reorders the union of the two CAND_DEPTH-deep candidate lists.
@@ -502,11 +529,13 @@ def _cap_per_doc(fused, cap=None):
         The bulk penalty alone reached rank 11 too, saturating there at 0.4 and
         staying at 11 through 0.6.
 
-        Rank 11 is the arithmetic ceiling for BOTH levers: ten of the eighteen
-        hits above the catalog entry are neither test scripts nor duplicates,
-        so no amount of demoting the other eight can clear the page. R-020 is
-        not fixable by ranking, and this function is NOT its fix -- see
-        _demote_bulk for the same conclusion from the other direction.
+        Those rank figures were all measured at BRAIN_CAND_DEPTH=400 and do
+        NOT transfer to production, which runs at 100: _wsum_fuse min-max
+        normalises WITHIN the candidate list, so a 400-deep list has a lower
+        floor and compresses the normalised scores differently. At depth 100 the
+        bulk penalty does fix R-020 (see _demote_bulk), which the depth-400
+        numbers were read as proving impossible. Only the narrower conclusion
+        survives, and it is the one that matters here: the cap is not the fix.
 
         The first version of this docstring claimed the eighteen were "about
         six distinct documents" with a discovery assessment and a RACI matrix
