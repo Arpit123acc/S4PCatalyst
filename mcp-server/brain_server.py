@@ -9,7 +9,7 @@ retrieval-augmented search using Amazon Bedrock Titan embeddings + a FAISS index
 instance profile. It degrades gracefully: if the deps or index are missing, the
 tool returns a helpful message instead of crashing.
 
-Exposes one tool:
+Exposes three tools - one retrieval, two exact lookups:
     search_brain(query, top_k?, phase?, agent_role?, deliverable_type?,
                  source_system?, dedup?)
         → top matching chunks across all indexed sources, with phase/agent/
@@ -17,6 +17,12 @@ Exposes one tool:
           default. Client delivery documents are PII-masked at ingest; SAP's
           own published material is not (it is not client data). Filter or
           check `source_system` to know which you have.
+
+    lookup_accelerator(query?, scope_item?, phase?, lob?, source?, needs_auth?)
+        -> SAP accelerators with their URL and whether opening one needs a
+          session. Exact, no embeddings.
+    lookup_scope_item(query?, limit?)
+        -> scope items by id or business topic; retired ones flagged.
 
 Run (registered via .mcp.json), or standalone:
     python3.11 mcp-server/brain_server.py --tool search_brain '{"query":"cutover plan"}'
@@ -88,6 +94,53 @@ def tool_search_brain(args):
     }
 
 
+def _lookup_mod():
+    import accelerator_lookup                              # noqa: PLC0415
+    return accelerator_lookup
+
+
+def tool_lookup_accelerator(args):
+    try:
+        al = _lookup_mod()
+    except Exception as exc:
+        return {"error": "accelerator lookup unavailable: %s" % exc}
+    try:
+        res = al.lookup(
+            query=args.get("query"),
+            scope_item=args.get("scope_item"),
+            phase=args.get("phase"),
+            lob=args.get("lob"),
+            source=args.get("source"),
+            needs_auth=args.get("needs_auth"),
+            limit=int(args.get("limit") or 20),
+        )
+    except Exception as exc:
+        return {"error": "lookup failed: %s" % exc}
+    res["verified"] = False
+    res["note"] = ("Exact catalog lookup, not retrieval - an empty result means no "
+                   "catalog row matches, which is information rather than a miss. "
+                   "URLs are SAP's; needs_auth true means a SAP for Me / SAML "
+                   "session is needed to open it.")
+    return res
+
+
+def tool_lookup_scope_item(args):
+    try:
+        al = _lookup_mod()
+    except Exception as exc:
+        return {"error": "scope lookup unavailable: %s" % exc}
+    try:
+        res = al.scope_items(query=args.get("query"), limit=int(args.get("limit") or 20))
+    except Exception as exc:
+        return {"error": "lookup failed: %s" % exc}
+    res["verified"] = False
+    res["note"] = ("The 679-row SAP scope-item catalog, matched exactly. An empty "
+                   "result means NO scope item carries that name - do not fall back "
+                   "to search_brain and quote its nearest prose hit as if it were "
+                   "one. retired: true means SAP withdrew the scope item.")
+    return res
+
+
 TOOLS = {
     "search_brain": {
         "description": ("HYBRID search over the S4PC Public Cloud Brain: a dense vector ranking (Bedrock "
@@ -130,6 +183,27 @@ TOOLS = {
             "dedup":            {"type": "boolean", "description": "Collapse to one hit per source document (default true)"}},
             "required": ["query"]},
         "handler": tool_search_brain,
+    },
+    "lookup_accelerator": {
+        "description": "EXACT LOOKUP over the 6,935-row SAP accelerator catalogs (Signavio Process Navigator + SAP Activate Roadmap Viewer). Use this, NOT search_brain, when you need the ARTIFACT rather than its contents: the URL, whether it is public or behind a login, its access level, its scope item. search_brain indexes the TEXT of documents and holds no link back to the file it came from; this returns the link. No embeddings, so it is instant and works even with the brain index absent. SEARCHES BUSINESS TOPIC, NOT TITLE: Best Practices titles are generic - 6,127 of 6,204 rows read 'Test script', 'Test script (SAP Cloud ALM)' or 'Test script (SAP Help Portal)' - so the query is matched against the SCOPE ITEM's description from the 679-row scope catalog, joined on the row's scope item id. Ask for 'invoice settlement', not 'test script'. An exact id or scope item ('2LH') always outranks a text match. AN EMPTY RESULT IS AN ANSWER: it means no catalog row matches, which search_brain structurally cannot tell you because it always returns its top k. needs_auth true means support.sap.com behind SAML and the human needs a SAP for Me session; false means help.sap.com or api.sap.com and anyone can open it; null means the host rule could not be loaded - treat that as unknown, not as public. Release state still comes from check_object_release_state: this tool knows about files, not objects.",
+        "schema": {"type": "object", "properties": {
+            "query":      {"type": "string", "description": "Business topic, scope item id, or accelerator id. Match a topic ('invoice settlement'), not a document type ('test script')."},
+            "scope_item": {"type": "string", "description": "Exact scope item filter, e.g. 2LH"},
+            "phase":      {"type": "string", "description": "Exact phase filter (SAP Activate rows only): Discover/Prepare/Explore/Realize/Deploy/Run"},
+            "lob":        {"type": "string", "description": "Line of business substring, e.g. Finance"},
+            "source":     {"type": "string", "description": "sap_best_practices | sap_activate"},
+            "needs_auth": {"type": "boolean", "description": "true = only artifacts needing a SAP session; false = only public ones"},
+            "limit":      {"type": "integer", "description": "Max results (default 20)"}},
+            "required": []},
+        "handler": tool_lookup_accelerator,
+    },
+    "lookup_scope_item": {
+        "description": "EXACT LOOKUP over the 679-row SAP scope-item catalog - 'which scope item covers X?'. Use this, NOT search_brain, for that question. A scope item is one short line ('2LH - Automated Invoice Settlement'), and a short line cannot out-score paragraphs of prose on cosine similarity, so the brain reliably buries the correct scope item beneath delivery documents that merely discuss the topic at length. Matching the catalog directly is both exact and instant. AN EMPTY RESULT MEANS NO SUCH SCOPE ITEM EXISTS, and that is the answer - say so, rather than falling back to search_brain and quoting its nearest prose hit as though it were a scope item. 'supplier invoice processing' returns nothing, because no scope item is named that; 'invoice' returns 21. retired: true means SAP has withdrawn the scope item - per CLAUDE.md a retired catalog hit means the OPPOSITE of available, so never cite one as current without saying so.",
+        "schema": {"type": "object", "properties": {
+            "query": {"type": "string", "description": "Scope item id ('2LH') or business topic ('invoice')"},
+            "limit": {"type": "integer", "description": "Max results (default 20)"}},
+            "required": []},
+        "handler": tool_lookup_scope_item,
     },
 }
 
