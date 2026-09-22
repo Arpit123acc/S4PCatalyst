@@ -1306,6 +1306,46 @@ def _ingest_one_local(f) -> int:
 
 
 # ── LOCAL MODE (POC — files already on EC2) ───────────────────────────────────
+def _report_empty(empty):
+    """Name the files that extracted to nothing, at the end of a run.
+
+    A document whose extraction yields no text still walks the whole happy path:
+    _ingest_one_local logs "Processing: X [0 chars...]", chunks the empty string
+    into nothing, logs "-> 0 chunks saved" and returns 0. It raises nothing, so
+    `skipped` never counts it and `total_files` counts it as a success. In the
+    run summary it is arithmetically identical to a document that ingested fine.
+
+    Measured 2026-09-22: 75 of 2,861 supported files -- 2.6% of the SharePoint
+    corpus -- are in raw/ and in no chunk, and 67 of those were never reported
+    as any kind of problem. Finding them took a set-difference between raw/ and
+    the index, because the run's own counters said everything was fine. The log
+    did contain "-> 0 chunks saved" 343 times across runs; nothing aggregated it,
+    and a line that appears on the happy path is not a line anyone reads.
+
+    Most of them are legitimately empty to a text extractor rather than broken:
+    image-only PowerPoint (NB Workshop Finance - Day 3.pptx is 11.9 MB and
+    yields nothing) and scanned PDFs. There is no OCR in this pipeline, so those
+    will keep yielding nothing -- which is exactly why the list has to be
+    visible. An 11.9 MB deck contributing zero to the brain is a fact about
+    coverage, and somebody should decide whether to OCR it, summarise it by
+    hand, or accept the gap. They cannot decide what they cannot see.
+
+    Reported as a WARNING with sizes, not an error: an empty extraction is not a
+    failed run, and a run must not start failing over a scanned PDF.
+    """
+    if not empty:
+        return
+    log.warning("%d file(s) produced NO chunks — extraction returned no text. They "
+                "are counted as processed but contribute nothing to the brain:",
+                len(empty))
+    for f in empty:
+        try:
+            size = f.stat().st_size
+        except OSError:
+            size = -1
+        log.warning("    %10d B  %s", size, _safe_str(str(f.relative_to(RAW_DIR))))
+
+
 def process_local(allow_shrink=False):
     """Process files already in brain/sharepoint/raw/ — no Graph API needed."""
     if not RAW_DIR.exists() or not any(RAW_DIR.iterdir()):
@@ -1315,7 +1355,7 @@ def process_local(allow_shrink=False):
     CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
     total_chunks, total_files = 0, 0
 
-    skipped = 0
+    skipped, empty = 0, []
     files = [f for f in sorted(RAW_DIR.rglob("*"))
              if f.is_file() and f.suffix.lower() in SUPPORTED_EXT]
     _PROGRESS["total"] = len(files)
@@ -1330,11 +1370,14 @@ def process_local(allow_shrink=False):
             log.warning("Skipping %s: %s", _safe_str(f.name), e)
             skipped += 1
             continue
+        if n == 0:
+            empty.append(f)
         total_chunks += n
         total_files  += 1
 
     if skipped:
         log.warning("Skipped %d file(s) due to errors — see warnings above.", skipped)
+    _report_empty(empty)
     # After the loop, so a document re-chunked during this run has already reclaimed
     # its own files and only genuinely absent sources remain.
     prune_orphan_chunks(expected_ids, allow_shrink=allow_shrink)
