@@ -233,6 +233,10 @@ def main():
                     help="only URLs whose title contains this (case-insensitive), "
                          "so a high-value subset can jump the queue")
     ap.add_argument("--rate", type=float, default=0.5, help="seconds between requests")
+    ap.add_argument("--include-duplicates", action="store_true",
+                    help="Also fetch secondary-country copies of scope items the "
+                         "primary country already covers (tripling near-identical "
+                         "test scripts). Off by default.")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
@@ -243,6 +247,17 @@ def main():
     for name in names:
         cfg = SOURCES[name]
         rows = load_rows(name, a.public_only)
+        # Honour the catalog's download flag. sapbp_catalog.mark_downloads
+        # decides it, because it is the only place that knows each row's country
+        # and which scope items the primary country already covers. A row marked
+        # False is a real artifact that lookup_accelerator still reports with its
+        # URL -- it is excluded from the CORPUS, not denied.
+        if not a.include_duplicates:
+            skipped = [r for r in rows if r.get("download") is False]
+            rows = [r for r in rows if r.get("download") is not False]
+            if skipped:
+                log.info("%s: skipping %d localized duplicate(s); --include-duplicates "
+                         "to fetch them", name, len(skipped))
         if a.match:
             m = a.match.lower()
             rows = [r for r in rows if m in (r.get("title") or "").lower()]

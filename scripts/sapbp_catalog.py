@@ -248,6 +248,55 @@ def resolve_scenario(stable_id, explicit=None):
     return guid, rel, ver
 
 
+def mark_downloads(manifest, procs, primary):
+    """Flag which rows are worth downloading, and say why the rest are not.
+
+    Decided HERE rather than in sapme_fetch because this is where the inputs
+    are: the country of each row and the set of scope items the primary country
+    already covers. A downloader given only titles cannot work it out, and a
+    rule split across two scripts is a rule that drifts.
+
+    WHY NOT SIMPLY DOWNLOAD EVERYTHING
+        The secondary countries exist for the 22 localized scope items DE lacks
+        (see SECONDARY_COUNTRIES). For every OTHER scope item they carry a
+        near-duplicate test script differing only in locale --
+        2LH_S4CLD2608_BPD_EN_BR.docx against ..._EN_DE.docx. Test scripts are
+        already 75% of the brain's corpus and needed a ranking penalty to stop
+        them crowding out everything else; tripling them would undo that for
+        almost no new content.
+
+        So: everything under XX (the accelerators and scenario-level
+        documentation, all of it new), everything under the primary country, and
+        from the secondary countries only the scope items the primary one does
+        not have.
+
+    The skipped rows stay in the manifest with a reason. They are real
+    artifacts, lookup_accelerator should still find them and report their URL,
+    and a human may well want one -- not downloading is a corpus decision, not a
+    claim the document does not exist.
+    """
+    home_items = {(p.get("externalId") or "").strip().upper()
+                  for p in procs
+                  if p.get("country_ID") == primary and p.get("externalId")}
+    tally = Counter()
+    for m in manifest:
+        ctry = m.get("country")
+        if ctry in (GENERIC_COUNTRY, primary):
+            m["download"], m["skip_reason"] = True, None
+        elif (m.get("scope_item") or "").upper() not in home_items:
+            m["download"], m["skip_reason"] = True, None
+        else:
+            m["download"] = False
+            m["skip_reason"] = ("duplicate of %s; localized copy of a scope "
+                                "item the primary country already covers" % primary)
+        tally[(ctry, m["download"])] += 1
+
+    keep = sum(1 for m in manifest if m["download"])
+    print("\n== download selection: %d of %d rows" % (keep, len(manifest)))
+    for (ctry, dl), n in sorted(tally.items(), key=lambda kv: (-kv[1], str(kv[0]))):
+        print(f"   {n:>6}  {ctry or '(none)':<4} {'download' if dl else 'skip'}")
+
+
 def fetch_l1(scenario, dry):
     """The three structured entities that make processes.json a graph.
 
@@ -408,6 +457,8 @@ def main():
             "host": host,
             "ext": os.path.splitext(urllib.parse.urlparse(url).path)[1].lower() or None,
         })
+
+    mark_downloads(manifest, procs, c)
 
     with_url = sum(1 for m in manifest if m["url"])
     with_scope = sum(1 for m in manifest if m["scope_item"])
