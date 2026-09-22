@@ -187,6 +187,9 @@ BULK_PENALTY = float(os.environ.get("BRAIN_BULK_PENALTY", "0.0"))
 # hold on one retrieval path and not the other, which is the failure this codebase
 # keeps meeting; deliverable_type is the field both halves actually carry.
 BULK_TYPES = frozenset({"test_script"})
+# Max chunks one document may hold in a result set. 0 disables. INERT AT 0
+# until swept -- see _cap_per_doc().
+DOC_CAP = int(os.environ.get("BRAIN_DOC_CAP", "0"))
 # Weight on the lexical half when fusing normalised scores. The dense retriever is
 # the better generalist, so BM25 gets the smaller share and earns its keep through
 # _promote() when it is decisively right.
@@ -455,6 +458,77 @@ def _demote_bulk(fused):
     return fused
 
 
+def _doc_key(hit):
+    """Identity of the DOCUMENT a hit came from.
+
+    relative_path, falling back to source. `source` alone is only a FILENAME and
+    127 files in this corpus share a name with a file in another folder, so two
+    hits reading "Learning Needs Analysis.xlsx" may be one document or two --
+    the reason relative_path is carried at all. Separators are normalised
+    because the field is produced by pathlib on two platforms, matching
+    keyword_search's own normalisation.
+    """
+    p = (hit.get("relative_path") or "").replace("\\", "/").strip().lower()
+    return p or (hit.get("source") or "").strip().lower()
+
+
+def _cap_per_doc(fused, cap=None):
+    """Keep at most `cap` chunks from any one document, preserving rank order.
+
+    WHY THIS EXISTS
+        Ranking treats chunks as independent, but a reader wants DOCUMENTS. A
+        long document contributes many chunks that each score similarly, so it
+        can occupy a whole result page while saying one thing -- and the pages
+        that matter are the first ten, which is the entire budget an agent sees.
+
+        Measured on R-020 ("scope item for supplier invoice processing",
+        2026-09-22). The wanted sap_scope_catalog entry sat at rank 19, and the
+        eighteen hits above it were about six distinct documents: an onboarding
+        kit held ranks 2, 7 and 11, a discovery assessment 1 and 6, and a RACI
+        matrix 9 and 10 on IDENTICAL scores (0.5363 / bm25 10.2989, i.e. near
+        duplicate chunks). Eight of the eighteen were test scripts, so the bulk
+        penalty alone could lift the catalog only to rank 11 -- still off the
+        page. Flooding, not bulk, is what buries it.
+
+    RELATION TO dedup_source
+        dedup_source is this with cap=1, and it is off by default because
+        collapsing to one chunk per document loses genuinely distinct passages
+        from long documents. A cap of 2-3 is the middle setting: it stops a
+        document owning the page without pretending it has only one relevant
+        passage.
+
+    Promoted hits are exempt. The quota is a guarantee that BM25's decisive hit
+    gets a slot; a cap that could evict it would make the guarantee conditional,
+    and two rules that silently disagree is the failure this file keeps meeting.
+
+    HOW TO SWEEP IT (delivery host)
+        for c in 0 2 3 5; do
+          BRAIN_DOC_CAP=$c python3.11 scripts/brain_regression.py
+        done
+
+        Watch mean overlap especially: this changes result COMPOSITION on every
+        query, not just the cases it targets, so it will move the baseline more
+        than a penalty does. Watch too for cases that legitimately want several
+        passages of one document -- a procedure spanning many chunks is the
+        shape this could damage, and it is the shape test scripts have.
+    """
+    cap = DOC_CAP if cap is None else cap
+    if cap <= 0 or not fused:
+        return fused
+    seen, out = {}, []
+    for h in fused:
+        if h.get("promoted"):
+            out.append(h)
+            continue
+        key = _doc_key(h)
+        n = seen.get(key, 0)
+        if n >= cap:
+            continue
+        seen[key] = n + 1
+        out.append(h)
+    return out
+
+
 def _lifecycle_for(ids):
     """Lifecycle records for these chunk ids, or {} if unavailable."""
     ids = [i for i in (ids or []) if i]
@@ -636,12 +710,20 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
     if mode == "hybrid":
         raw = _promote(raw, khits)
 
+    # After the quota so a promoted hit is never capped away, before the trim so a
+    # capped slot is refilled by the next document rather than left short.
+    raw = _cap_per_doc(raw)
+
     if dedup_source:
         seen, unique = set(), []
         for h in raw:                             # raw is rank-ordered → first wins
-            if h.get("source") in seen:
+            # _doc_key, not `source`: source is a filename and 127 of them are
+            # ambiguous across folders, so keying on it collapsed two distinct
+            # documents into one wherever the names happened to match.
+            key = _doc_key(h)
+            if key in seen:
                 continue
-            seen.add(h.get("source"))
+            seen.add(key)
             unique.append(h)
             if len(unique) >= k:
                 break
