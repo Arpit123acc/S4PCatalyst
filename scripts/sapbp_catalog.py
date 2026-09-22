@@ -451,7 +451,11 @@ def main():
             "parent_is_scenario": str(b.get("parentEntityGlobalId") or "").startswith("ERL-"),
             "group_id": b.get("bomItemGroup_ID"),
             "scenario_id": b.get("solutionScenario_ID"),
-            "country": c,
+            # The ROW's country, not the requested one. These were identical
+            # while the fetch was single-country, so stamping `c` looked right
+            # and was; it became wrong the moment the filter covered DE, BR, ES,
+            # US and XX at once, and every row then claimed to be German.
+            "country": b.get("country_ID") or c,
             "language": lang,
             "url": url,
             "host": host,
