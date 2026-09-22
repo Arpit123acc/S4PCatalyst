@@ -65,7 +65,19 @@ EMBED_DIM   = int(os.environ.get("TITAN_DIM", "1024"))     # v2 supports 256/512
 # to 2 chars/token, so 40,000 chars can be 16k+ tokens. A real chunk failed at
 # 8,248 tokens on 2026-09-08 and killed the run 26,000 items in. 14,000 chars is
 # safe even at 2 chars/token, and is still ~4x a normal 512-word chunk.
-MAX_CHARS   = 14_000
+# Titan v2 accepts 8,192 input TOKENS and this guard counts CHARACTERS, so the
+# ratio between them decides whether the guard works. 14,000 was safe while the
+# corpus was SharePoint prose at roughly 4 chars/token. It is not safe for the
+# SAP test-script workbooks: one 14,000-char chunk arrived as 9,707 tokens --
+# about 1.44 chars per token -- and Bedrock rejected the whole run with
+# "Too many input tokens". Cell text stripped of its HTML leaves punctuation and
+# fragments that each tokenise separately, so prose ratios do not hold.
+#
+# 8,000 keeps us under the limit even at 1 char/token, which no real text hits.
+# The cost is that a rare oversized chunk is indexed on its first 8,000
+# characters rather than all of it -- already this guard's documented behaviour,
+# and far better than a run that dies two hours in.
+MAX_CHARS   = 8_000
 
 # Metadata fields carried from each chunk into the index sidecar.
 _META_FIELDS = [
