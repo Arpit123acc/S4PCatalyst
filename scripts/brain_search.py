@@ -405,6 +405,15 @@ def _demote_bulk(fused):
         source, so the content is reachable; what regressed is what wins when
         nobody filters, and agents do not always filter.
 
+        MEASURED 2026-09-22, and R-020 is out of this lever's reach. The
+        penalty lifts its scope-catalog entry from rank 19 to 13 at 0.15, to 11
+        at 0.4, and no further at 0.6 -- ten of the hits above it are not test
+        scripts, so rank 11 is a ceiling, not a tuning problem. Sweep this
+        against R-034, which a test script genuinely holds at rank 1. R-020
+        needs a different instrument: it asks which scope item covers a topic,
+        which is a lookup against 679 curated rows, not a semantic search over
+        179,482 prose chunks.
+
     WHAT THIS CANNOT DO -- READ BEFORE SWEEPING
         Fusion only reorders the union of the two CAND_DEPTH-deep candidate lists.
         If the chunk that should win is outside BOTH the dense and the BM25 top
@@ -482,13 +491,31 @@ def _cap_per_doc(fused, cap=None):
         that matter are the first ten, which is the entire budget an agent sees.
 
         Measured on R-020 ("scope item for supplier invoice processing",
-        2026-09-22). The wanted sap_scope_catalog entry sat at rank 19, and the
-        eighteen hits above it were about six distinct documents: an onboarding
-        kit held ranks 2, 7 and 11, a discovery assessment 1 and 6, and a RACI
-        matrix 9 and 10 on IDENTICAL scores (0.5363 / bm25 10.2989, i.e. near
-        duplicate chunks). Eight of the eighteen were test scripts, so the bulk
-        penalty alone could lift the catalog only to rank 11 -- still off the
-        page. Flooding, not bulk, is what buries it.
+        2026-09-22), where flooding turned out to be REAL BUT SMALL. Across the
+        top 20, one document held 3 chunks (an onboarding kit, "TruFru ERP -
+        System Environment Readiness.xlsx", at ranks 2/7/11) and four held 2
+        each. Everything else was distinct.
+
+        So the cap moves this case barely: cap=2 lifted the wanted
+        sap_scope_catalog entry from rank 19 to 18, cap=3 moved it not at all,
+        and only cap=1 (dedup_source) plus the bulk penalty reached rank 11.
+        The bulk penalty alone reached rank 11 too, saturating there at 0.4 and
+        staying at 11 through 0.6.
+
+        Rank 11 is the arithmetic ceiling for BOTH levers: ten of the eighteen
+        hits above the catalog entry are neither test scripts nor duplicates,
+        so no amount of demoting the other eight can clear the page. R-020 is
+        not fixable by ranking, and this function is NOT its fix -- see
+        _demote_bulk for the same conclusion from the other direction.
+
+        The first version of this docstring claimed the eighteen were "about
+        six distinct documents" with a discovery assessment and a RACI matrix
+        each holding two slots. That was read off the FACET TAGS -- source_system,
+        phase, agent_role, deliverable_type -- which are not document identity:
+        three different onboarding kits print identically, and the `source:`
+        line that does name the document had been filtered out of the output
+        being read. Recorded because the mistake is easy to repeat: this file's
+        own tag line looks like an identifier and is not one.
 
     RELATION TO dedup_source
         dedup_source is this with cap=1, and it is off by default because
