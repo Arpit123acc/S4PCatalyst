@@ -29,20 +29,20 @@ WHAT FEEDS IT, AND WHAT DOES NOT
                         574 scope items; the rest are codes absent from this
                         country's process list, or untitled. Reported, not hidden.
 
-    capabilities.json   EXCLUDED, because SAP publishes none for this release.
-                        Measured 2026-09-22 against the live service:
-                        SolutionCapabilityHierarchy/$count is 175,802 overall,
-                        53,067 for the 2602 scenario and ZERO for 2608. Wiring it
-                        in would add a field that is empty for every scope item
-                        the brain holds.
+    capabilities_by_scope.json
+                        The four-level capability taxonomy per scope item,
+                        produced by sapbp_fetch_capabilities.py from
+                        BcmOccurrenceWithSolutionProcessFlat. MAY COME FROM AN
+                        EARLIER RELEASE than the rest of the index: SAP had
+                        published no capability rows for 2608, so the fetcher
+                        walks back and records which release it used. The join
+                        here is on the scope item, never the process GUID, which
+                        is what makes that possible.
 
-                        It is still checked at build time rather than assumed
-                        away -- if SAP publishes the hierarchy for a later
-                        release, this picks it up with no code change and says so.
-                        Do NOT substitute the 2602 rows: process GUIDs are
-                        per-release, so the join would have to go through the
-                        scope item, and the result would be a superseded
-                        release's capability model presented as current.
+                        NOT capabilities.json, which is the raw
+                        SolutionCapabilityHierarchy dump and the wrong entity --
+                        one row per process of bcmType "LOB", 13 distinct names,
+                        restating businessProcessGroupName and nothing more.
 
 Usage:
     python3.11 scripts/sapbp_build_process_index.py
@@ -64,7 +64,7 @@ OUT      = RAW / "process_index.json"
 PROCESSES    = RAW / "processes.json"
 APPLICATIONS = RAW / "applications.json"
 DIAGRAMS     = RAW / "diagram_steps.json"
-CAPABILITIES = RAW / "capabilities.json"
+CAPABILITIES = RAW / "capabilities_by_scope.json"
 SCOPE_CATALOG = BASE_DIR / "mcp-server" / "catalog" / "scope_items.json"
 
 # A scope item is three alphanumerics at the start of a diagram name.
@@ -218,17 +218,21 @@ def build(scenario):
         row["diagrams"].append(d.get("name"))
         matched += 1
 
-    # capabilities — checked, not assumed. See the module docstring.
-    caps = _load(CAPABILITIES)
+    # capabilities, already joined to scope items by sapbp_fetch_capabilities.py.
+    # Keyed on the scope item and NOT the process GUID, because the capability
+    # data may come from an earlier release than the rest of the index -- GUIDs
+    # are per release, scope item codes are not. Every row carries the release it
+    # came from so a consumer can see when they differ.
+    capdoc = _load(CAPABILITIES, {}) or {}
+    cap_src = (capdoc.get("_meta") or {}).get("source_release")
     cap_hits = 0
-    for c in caps:
-        ext = pid_scope.get(c.get("solutionProcess_ID"))
-        if not ext:
+    for ext, entries in (capdoc.get("by_scope_item") or {}).items():
+        row = by_scope.get(ext)
+        if not row:
             continue
-        nm, ty = c.get("bcmName"), c.get("bcmType")
-        if nm:
-            by_scope[ext].setdefault("capabilities", []).append({"name": nm, "type": ty})
-            cap_hits += 1
+        row["capabilities"] = entries
+        row["capability_source_release"] = cap_src
+        cap_hits += len(entries)
 
     # De-duplicate, preserving first-seen order so output is deterministic.
     def uniq(seq):
@@ -255,6 +259,9 @@ def build(scenario):
         "diagrams_unmatched": len(unmatched),
         "scope_items_with_steps": sum(1 for r in by_scope.values() if r["steps"]),
         "capability_rows_used": cap_hits,
+        "capability_source_release": cap_src,
+        "scope_items_with_capabilities": sum(
+            1 for r in by_scope.values() if r.get("capabilities")),
     }, unmatched
 
 
@@ -278,10 +285,17 @@ def main():
     for k, v in counts.items():
         print(f"   {k:<24} {v}")
 
-    if counts["capability_rows_used"] == 0 and CAPABILITIES.exists():
-        print("   NOTE: capabilities.json holds no rows for this scenario. SAP had not")
-        print("         published SolutionCapabilityHierarchy for 2608 as of 2026-09-22")
-        print("         (0 rows, against 53,067 for 2602). Not an error.")
+    if not CAPABILITIES.exists():
+        print("   NOTE: no capabilities_by_scope.json — run "
+              "sapbp_fetch_capabilities.py (needs SAPME_COOKIE).")
+    elif counts.get("capability_source_release") and \
+            counts["capability_source_release"] != release:
+        print("   NOTE: capability data is from release %s, the rest of this index "
+              "from %s." % (counts["capability_source_release"], release))
+        print("         SAP had published no capability rows for %s; the fetcher "
+              "walks back" % release)
+        print("         until it finds a release that has them. Every row carries "
+              "capability_source_release.")
     if unmatched:
         print(f"   {len(unmatched)} diagram(s) matched no scope item, e.g.:")
         for n in unmatched[:3]:

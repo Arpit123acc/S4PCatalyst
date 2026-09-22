@@ -161,14 +161,25 @@ class TestBuilder(unittest.TestCase):
         _, counts, _ = bld.build(OURS)
         self.assertEqual(counts["capability_rows_used"], 0)
 
-    def test_capabilities_are_picked_up_if_a_later_release_publishes_them(self):
-        bld.CAPABILITIES.write_text(json.dumps([
-            {"solutionProcess_ID": PID_A, "bcmName": "Invoice Management",
-             "bcmType": "LOB"}]), encoding="utf-8")
+    def test_capabilities_join_on_scope_item_and_carry_their_release(self):
+        """Keyed on the scope item, not the process GUID.
+
+        That is the only reason capability data from an earlier release can be
+        attached at all: GUIDs are per release, scope item codes are not. The
+        release is recorded on every row so nobody quotes 2602 taxonomy as 2608.
+        """
+        bld.CAPABILITIES.write_text(json.dumps({
+            "_meta": {"source_release": "2602"},
+            "by_scope_item": {"2LH": [{"solution_capability": "Invoice Processing (S/4)",
+                                       "business_capability": "Invoice Processing",
+                                       "business_area": "Invoice Management",
+                                       "line_of_business": "Finance"}]}}), encoding="utf-8")
         rows, counts, _ = bld.build(OURS)
         self.assertEqual(counts["capability_rows_used"], 1)
-        self.assertEqual(rows["2LH"]["capabilities"],
-                         [{"name": "Invoice Management", "type": "LOB"}])
+        self.assertEqual(counts["capability_source_release"], "2602")
+        self.assertEqual(rows["2LH"]["capabilities"][0]["business_area"], "Invoice Management")
+        self.assertEqual(rows["2LH"]["capability_source_release"], "2602")
+        self.assertNotIn("capabilities", rows["1GA"], "only scope items with data get the key")
 
     def test_values_are_deduplicated_and_deterministic(self):
         bld.DIAGRAMS.write_text(json.dumps(DIAGRAMS + [DIAGRAMS[0]]), encoding="utf-8")
@@ -188,6 +199,11 @@ class TestLookup(unittest.TestCase):
             "scope_items": [
                 {"scope_item": "2LH", "name": "Automated Invoice Settlement (2LH)",
                  "lob": "Finance", "change_category": "No Change", "target_release": "2608",
+                 "capability_source_release": "2602",
+                 "capabilities": [{"solution_capability": "Invoice Processing (S/4)",
+                                   "business_capability": "Invoice Processing",
+                                   "business_area": "Invoice Management",
+                                   "line_of_business": "Finance"}],
                  "applications": ["Create Purchase Order", "Post Goods Receipt for Inbound Delivery"],
                  "steps": ["Create Purchase Order"], "roles": ["Purchaser"]},
                 {"scope_item": "1GA", "name": "Accounting and Financial Close (1GA)",
@@ -225,6 +241,19 @@ class TestLookup(unittest.TestCase):
         r = pl.lookup(scope_item="2LH", with_steps=False)["results"][0]
         self.assertNotIn("steps", r)
         self.assertEqual(r["step_count"], 1, "the count survives even when the list is dropped")
+
+    def test_capability_filter_matches_any_level_of_the_taxonomy(self):
+        """A caller says "Invoice Management" without knowing it is a business area."""
+        for term in ("Invoice Management", "Invoice Processing", "invoice processing (s/4)"):
+            with self.subTest(term=term):
+                r = pl.lookup(capability=term)
+                self.assertEqual([x["scope_item"] for x in r["results"]], ["2LH"], term)
+        self.assertEqual(pl.lookup(capability="Warehousing")["total_matches"], 0)
+
+    def test_capability_source_release_is_surfaced(self):
+        """A consumer must be able to see the taxonomy is from another release."""
+        r = pl.lookup(scope_item="2LH")["results"][0]
+        self.assertEqual(r["capability_source_release"], "2602")
 
     def test_missing_index_names_the_command_that_builds_it(self):
         pl.INDEX, pl._CACHE = Path(self.tmp.name) / "nope.json", None

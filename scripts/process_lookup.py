@@ -24,10 +24,21 @@ HOW IT RELATES TO THE OTHER TWO LOOKUPS
 WHAT IS AND IS NOT IN THE INDEX
     Built by sapbp_build_process_index.py, which records its own coverage in
     _meta.counts — read it rather than assuming completeness. As of 2026-09-22:
-    537 of 657 scope items carry applications and 574 carry steps, so an empty
+    537 of 675 scope items carry applications and 592 carry steps, so an empty
     `applications` list means SAP published none for that process, not that the
-    lookup failed. Capabilities are absent entirely: SAP had published no
-    SolutionCapabilityHierarchy rows for the 2608 release.
+    lookup failed.
+
+    CAPABILITIES MAY CARRY AN EARLIER RELEASE than the rest of a row. SAP had
+    published none for 2608, so sapbp_fetch_capabilities.py walks back to the
+    newest release that has them -- 2602 at the time of writing -- and every row
+    reports `capability_source_release`. The join is on the scope item rather
+    than the process GUID, which is what makes that safe: GUIDs are per release,
+    scope item codes are not. 644 of 675 scope items carry capabilities.
+
+    Rows with `has_country_process: false` are scope items known to the catalog
+    that this country has no process for. They have steps and a name but no LoB,
+    changeCategory or applications, because those come from a process that does
+    not exist here.
 """
 
 import re
@@ -67,7 +78,7 @@ def _rank(row, needle):
     is ABOUT invoicing than its title being "Automated Invoice Settlement".
     """
     if not needle:
-        return 6
+        return 7
     if (row.get("scope_item") or "").casefold() == needle:
         return 0
     name = (row.get("name") or "").casefold()
@@ -79,14 +90,22 @@ def _rank(row, needle):
         return 3
     if any(needle in (a or "").casefold() for a in row.get("applications") or []):
         return 4
-    if any(needle in (s or "").casefold() for s in row.get("steps") or []):
+    if any(needle in (v or "").casefold()
+           for c in row.get("capabilities") or [] for v in c.values()):
         return 5
+    if any(needle in (s or "").casefold() for s in row.get("steps") or []):
+        return 6
     return 99
 
 
 def lookup(query=None, scope_item=None, lob=None, application=None,
-           with_steps=True, limit=10):
+           capability=None, with_steps=True, limit=10):
     """Scope items by id, name, application or step text, plus facet filters.
+
+    `capability` finds every scope item under a business area or capability --
+    "which scope items deliver Invoice Management" -- which is how a functional
+    lead scopes. Note capability data may carry an earlier release than the rest
+    of the row; `capability_source_release` says which.
 
     `application` is the REVERSE edge: pass a Fiori app name and get every scope
     item that uses it. Matched as a substring so "Purchase Order" finds "Create
@@ -95,6 +114,7 @@ def lookup(query=None, scope_item=None, lob=None, application=None,
     rows, meta, problems = load()
     needle = (query or "").strip().casefold()
     app_q  = (application or "").strip().casefold()
+    cap_q  = (capability or "").strip().casefold()
 
     out = []
     for r in rows:
@@ -104,6 +124,12 @@ def lookup(query=None, scope_item=None, lob=None, application=None,
             continue
         if app_q and not any(app_q in (a or "").casefold()
                              for a in r.get("applications") or []):
+            continue
+        # Matches ANY level of the taxonomy, because a caller says "Invoice
+        # Management" without knowing whether that is a business area, a
+        # capability or a solution capability -- and it is a business area here.
+        if cap_q and not any(cap_q in (v or "").casefold()
+                             for c in r.get("capabilities") or [] for v in c.values()):
             continue
         score = _rank(r, needle)
         if score == 99:
@@ -115,7 +141,9 @@ def lookup(query=None, scope_item=None, lob=None, application=None,
     for _, _, r in out[:max(1, int(limit or 10))]:
         item = {k: r.get(k) for k in
                 ("scope_item", "name", "lob", "change_category",
-                 "license_required", "target_release", "applications")}
+                 "license_required", "target_release", "applications",
+                 "capabilities", "capability_source_release",
+                 "has_country_process")}
         item["step_count"] = len(r.get("steps") or [])
         item["role_count"] = len(r.get("roles") or [])
         if with_steps:
@@ -136,11 +164,12 @@ def cli():
     ap.add_argument("--scope-item", dest="scope_item")
     ap.add_argument("--lob")
     ap.add_argument("--application", help="Reverse edge: which scope items use this app")
+    ap.add_argument("--capability", help="Business area / capability, any level")
     ap.add_argument("--no-steps", action="store_true")
     ap.add_argument("-k", type=int, default=10)
     a = ap.parse_args()
     res = lookup(a.query, scope_item=a.scope_item, lob=a.lob, application=a.application,
-                 with_steps=not a.no_steps, limit=a.k)
+                 capability=a.capability, with_steps=not a.no_steps, limit=a.k)
     for p in res["problems"]:
         print("!! %s" % p)
     print("%d match(es)" % res["total_matches"])
@@ -151,6 +180,10 @@ def cli():
                 if b]
         if bits:
             print("    %s" % " · ".join(bits))
+        for c in (r.get("capabilities") or [])[:2]:
+            print("    capability : %s / %s  [rel %s]"
+                  % (c.get("business_area"), c.get("business_capability"),
+                     r.get("capability_source_release")))
         if r["applications"]:
             print("    apps  (%d): %s" % (len(r["applications"]),
                                           ", ".join(r["applications"][:6])))
