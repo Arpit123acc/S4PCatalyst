@@ -97,6 +97,19 @@ DEFAULT_LANCODE = "en-US"
 # CATEGORY of scenario-level documentation, which is why nothing looked missing:
 # every scope item still had its test scripts.
 GENERIC_COUNTRY = "XX"
+# Only test scripts are skipped as locale duplicates, and they are 14,267 of the
+# 14,503 secondary-country rows (98.4%) -- so this one exclusion does essentially
+# all the work while the remaining 236 rows survive. Those 236 are the
+# localization: preconfigured tax codes, local YCOA G/L master data, Forms,
+# prerequisites matrices, and per-country SAP Notes for Norway, Sweden, Saudi
+# Arabia, Romania and others.
+#
+# Matched on the name because SAP's three test-script rows -- "Test script",
+# "Test script (SAP Cloud ALM)", "Test script (SAP Help Portal)" -- share the
+# prefix, and a name is legible where the bomType codes (BOM.115/169/175) are
+# not. A new test-script variant would need adding here; a new CONFIGURATION
+# document would not, which is the safer direction to fail in.
+TEST_SCRIPT_PREFIX = "Test script"
 
 
 def country_clause(countries):
@@ -291,6 +304,12 @@ def mark_downloads(manifest, primary):
     for m in manifest:
         ctry = m.get("country")
         if ctry in (GENERIC_COUNTRY, primary):
+            m["download"], m["skip_reason"] = True, None
+        elif not (m.get("name") or "").startswith(TEST_SCRIPT_PREFIX):
+            # Country-specific by nature. German and Brazilian "Preconfigured
+            # tax codes" share a name and a scope item precisely because each is
+            # its country's version of the same thing -- treating that as a
+            # duplicate discards the localization we added these countries for.
             m["download"], m["skip_reason"] = True, None
         elif ((m.get("scope_item") or "").strip().upper(), m.get("name")) not in home:
             m["download"], m["skip_reason"] = True, None

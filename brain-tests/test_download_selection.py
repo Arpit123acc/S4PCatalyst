@@ -39,6 +39,10 @@ def manifest():
         # same scope item as DE but a document DE does not have -> keep
         {"name": "SAP Note 3335519 (Brazil)", "country": "BR", "scope_item": "2LH"},
         {"name": "Test script", "country": "ES", "scope_item": "1GA"},
+        # country-specific configuration: same name AND scope item as DE, but
+        # each country's version differs -- that is what makes it localization
+        {"name": "Preconfigured tax codes", "country": "DE", "scope_item": "2LH"},
+        {"name": "Preconfigured tax codes", "country": "BR", "scope_item": "2LH"},
         {"name": "Highlights of finance", "country": "XX", "scope_item": None},
     ]
 
@@ -81,8 +85,8 @@ class TestDownloadSelection(unittest.TestCase):
         lookup_accelerator must still find them and report their URL: a human
         asking for the Brazilian variant should get a link, not silence.
         """
-        self.assertEqual(len(self.rows), 7)
-        self.assertEqual(sum(1 for r in self.rows if r["download"]), 5)
+        self.assertEqual(len(self.rows), 9)
+        self.assertEqual(sum(1 for r in self.rows if r["download"]), 7)
 
     def test_a_document_the_primary_country_lacks_is_kept(self):
         """Keyed on (scope item, name), so a country-specific DOCUMENT for a
@@ -92,6 +96,22 @@ class TestDownloadSelection(unittest.TestCase):
         self.assertIsNone(note["skip_reason"])
         # ...while the test script for that same scope item IS a duplicate
         self.assertFalse(self.row("BR", "2LH")["download"])
+
+    def test_country_specific_configuration_is_never_a_duplicate(self):
+        """Only TEST SCRIPTS are skipped as locale duplicates.
+
+        German and Brazilian "Preconfigured tax codes" share a name and a scope
+        item precisely because each is its country's version of the same thing.
+        An earlier rule keyed on (scope item, name) alone discarded all 236 such
+        rows -- tax codes, local YCOA G/L master data, Forms, prerequisites
+        matrices, per-country SAP Notes -- which is the localization these
+        countries were added for. Test scripts are 14,267 of the 14,503
+        secondary rows, so excluding only those still removes 98% of the bulk.
+        """
+        row = self.row("BR", "2LH", "Preconfigured tax codes")
+        self.assertTrue(row["download"])
+        self.assertIsNone(row["skip_reason"])
+        self.assertFalse(self.row("BR", "2LH")["download"], "the test script IS a duplicate")
 
     def test_every_row_is_decided(self):
         for r in self.rows:
