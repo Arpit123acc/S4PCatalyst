@@ -12,9 +12,11 @@ tool returns a helpful message instead of crashing.
 Exposes one tool:
     search_brain(query, top_k?, phase?, agent_role?, deliverable_type?,
                  source_system?, dedup?)
-        → top matching chunks from the SharePoint delivery docs + SAP scope
-          catalog, with phase/agent/source metadata. Deduplicates to distinct
-          source documents by default. All content was PII-masked at ingest.
+        → top matching chunks across all indexed sources, with phase/agent/
+          source metadata. Deduplicates to distinct source documents by
+          default. Client delivery documents are PII-masked at ingest; SAP's
+          own published material is not (it is not client data). Filter or
+          check `source_system` to know which you have.
 
 Run (registered via .mcp.json), or standalone:
     python3.11 mcp-server/brain_server.py --tool search_brain '{"query":"cutover plan"}'
@@ -35,9 +37,19 @@ PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME      = "s4pc-brain"
 SERVER_VERSION   = "1.0.0"
 
-_SOURCE = ("S4PC Public Cloud Brain — SharePoint delivery documents + SAP scope-item "
-           "catalog, embedded with Amazon Bedrock Titan. All content was client/person/PII "
-           "masked at ingest. Re-verify any SAP object name on api.sap.com / SAP Help before use.")
+# Named sources and an honest masking statement, because agents quote this line
+# into deliverables. It previously claimed two sources and blanket PII masking;
+# by 2026-09-22 the corpus was seven sources, 75% of it SAP's own published
+# material, which is deliberately NOT masked -- masking is for client documents,
+# per the same reasoning in webdocs_ingest.py. A provenance string that
+# understates its sources and overstates its handling is worse than none.
+_SOURCE = ("S4PC Public Cloud Brain — Accenture delivery documents (SharePoint), SAP Best "
+           "Practices process descriptions and test scripts (Signavio Process Navigator), "
+           "SAP Activate accelerators and configuration questionnaires (Roadmap Viewer), the "
+           "SAP scope-item catalog, and vendor developer documentation; embedded with Amazon "
+           "Bedrock Titan. Client delivery documents are PII-masked at ingest; SAP-published "
+           "material is indexed unmasked. Check the source_system field on each hit for its "
+           "origin, and re-verify any SAP object name on api.sap.com / SAP Help before use.")
 
 
 def tool_search_brain(args):
