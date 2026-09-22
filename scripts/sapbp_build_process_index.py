@@ -213,8 +213,16 @@ def main():
     a = ap.parse_args()
 
     scenario, release = fetched_scenario()
-    print(f"== scenario {scenario}  release {release}")
     rows, counts, unmatched = build(scenario)
+
+    # The manifest only started recording target_release on 2026-09-22, so a
+    # manifest written by an earlier fetch has none. The processes themselves
+    # carry it, and reporting null at the top of a result whose every row says
+    # 2608 reads like a defect. Derive it rather than show the contradiction.
+    if not release:
+        rel = Counter(r["target_release"] for r in rows.values() if r.get("target_release"))
+        release = rel.most_common(1)[0][0] if rel else None
+    print(f"== scenario {scenario}  release {release}")
 
     for k, v in counts.items():
         print(f"   {k:<24} {v}")
