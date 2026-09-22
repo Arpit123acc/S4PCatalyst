@@ -183,6 +183,22 @@ def _norm_act(r):
     }
 
 
+def _rel(path):
+    """Path relative to the repo when it is inside it, absolute when it is not.
+
+    relative_to() RAISES for a path outside BASE_DIR, and the only caller is the
+    branch that reports a missing catalog -- so the error handler crashed instead
+    of reporting, which is the one thing an error handler must not do. Found by
+    test_missing_catalog_reports_how_to_build_it pointing the catalog at a temp
+    dir; in production the paths are always inside the repo, so it would have
+    waited for whoever first ran with a relocated brain.
+    """
+    try:
+        return path.relative_to(BASE_DIR)
+    except ValueError:
+        return path
+
+
 def load(source=None):
     """Normalised rows from both catalogs. Returns (rows, problems)."""
     rows, problems = [], []
@@ -191,7 +207,7 @@ def load(source=None):
             continue
         if not path.exists():
             problems.append("%s catalog not built (%s missing) — run: %s"
-                            % (name, path.relative_to(BASE_DIR), BUILD_CMD[name]))
+                            % (name, _rel(path), BUILD_CMD[name]))
             continue
         if name not in _CACHE:
             try:
@@ -205,7 +221,7 @@ def load(source=None):
     if not SCOPE_CATALOG.exists():
         problems.append("scope catalog missing (%s) — Best Practices rows will "
                         "have no business topic to match on."
-                        % SCOPE_CATALOG.relative_to(BASE_DIR))
+                        % _rel(SCOPE_CATALOG))
     return rows, problems
 
 
