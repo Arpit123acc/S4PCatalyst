@@ -44,7 +44,27 @@ RAW = BASE_DIR / "brain" / "sapbp" / "raw"
 SRC = RAW / "diagrams.json"
 OUT = RAW / "diagram_steps.json"
 
-DEFAULT_SCENARIO = "5c293206-d436-4b73-af8b-55a6e80a79a3"
+# Second copy of a per-release GUID, and that is the problem it now guards
+# against. sapbp_catalog resolves its scenario at runtime from stableId, because
+# the GUID changes every release; this file pinned its own literal, so after the
+# next release --ours would filter freshly fetched diagrams against the PREVIOUS
+# scenario and keep none of them. Empty output, no error.
+#
+# manifest.json records the scenario the diagrams were actually fetched with, so
+# that is the source of truth here -- not a literal, and not a second network
+# lookup that could disagree with what is on disk. The literal survives only for
+# a manifest written before the field existed.
+FALLBACK_SCENARIO = "5c293206-d436-4b73-af8b-55a6e80a79a3"
+MANIFEST = RAW.parent / "manifest.json"
+
+
+def fetched_scenario():
+    """The scenario id recorded by the fetch that produced diagrams.json."""
+    try:
+        m = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except Exception:
+        return FALLBACK_SCENARIO
+    return m.get("scenario_id") or FALLBACK_SCENARIO
 
 # Only elements that mean something. Geometry, labels and Signavio metadata are
 # excluded by omission rather than by filtering, so a new noise element cannot
@@ -99,8 +119,9 @@ def distil(bpmn):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ours", action="store_true",
-                    help=f"keep only ss_ID {DEFAULT_SCENARIO[:8]}…")
-    ap.add_argument("--scenario", default=DEFAULT_SCENARIO)
+                    help="keep only the scenario manifest.json records for this fetch")
+    ap.add_argument("--scenario", default=None,
+                    help="Override; defaults to manifest.json's scenario_id")
     ap.add_argument("--drop-raw", action="store_true",
                     help="delete diagrams.json once distilled")
     a = ap.parse_args()
@@ -108,11 +129,15 @@ def main():
     if not SRC.exists():
         raise SystemExit(f"{SRC} missing — run sapbp_catalog.py --l1-only first")
 
+    scenario = a.scenario or fetched_scenario()
+    if a.ours:
+        print(f"== keeping only scenario {scenario}")
+
     src_mb = SRC.stat().st_size / 1048576
     out, tally = [], Counter()
     for rec in records(SRC):
         tally["read"] += 1
-        if a.ours and rec.get("ss_ID") != a.scenario:
+        if a.ours and rec.get("ss_ID") != scenario:
             tally["other_scenario"] += 1
             continue
         roles, steps, events = distil(rec.get("diagramContentBpmn"))
