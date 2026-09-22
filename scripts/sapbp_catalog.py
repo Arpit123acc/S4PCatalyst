@@ -68,6 +68,13 @@ SERVICE = "https://pr.alm.me.sap.com/ui/earl-pn-ui/v1/odata/v4/EAXService"
 # identity, not a detail -- a DE-localised process may not exist for another
 # country, and a brain that forgets which locale it indexed is confidently wrong.
 DEFAULT_SCENARIO = "5c293206-d436-4b73-af8b-55a6e80a79a3"
+# The GUID above is PER RELEASE, not per solution. stableId is what survives:
+# LatestSolutionScenarioIds shows EARL_SolS-013 as 5c293206 for targetRelease
+# 2608 (seq 1) and cfbe71c4 for 2602 (seq 2). Pinning the GUID therefore pins the
+# RELEASE, so once 2611 ships this script would keep fetching 2608 -- successfully,
+# with no error and no empty result, which is the failure shape this codebase
+# keeps meeting. The GUID stays only as the offline fallback.
+DEFAULT_STABLE_ID = "EARL_SolS-013"
 DEFAULT_COUNTRY = "DE"
 DEFAULT_LANGUAGE = "EN"
 DEFAULT_LANCODE = "en-US"
@@ -171,6 +178,51 @@ def fetch_all(entity, params, label, page=PAGE):
     return rows, total, etag
 
 
+def resolve_scenario(stable_id, explicit=None):
+    """Newest scenario GUID for a stableId, with its release.
+
+    Returns (guid, target_release, internal_version). `explicit` short-circuits
+    the lookup so --scenario still pins a specific release deliberately; the
+    point is that pinning should be a choice, not the default.
+
+    seq orders the releases, 1 being current. internalVersion moves WITHIN a
+    release too (11.4 against 10.8), so it is worth recording: content can change
+    without targetRelease changing, and a refresh that only watched the release
+    number would sit on a stale corpus until the next quarter.
+
+    Falls back to DEFAULT_SCENARIO if the lookup fails, and says so. A fetch that
+    silently used a stale GUID is exactly what this function exists to prevent, so
+    it must not fail silently itself.
+    """
+    if explicit:
+        return explicit, None, None
+    try:
+        rows, _, _ = fetch_all(
+            "LatestSolutionScenarioIds",
+            {"$filter": f"stableId eq '{stable_id}'", "$orderby": "seq"},
+            "scenario versions", page=50)
+    except Exception as exc:
+        print(f"!! could not resolve {stable_id}: {exc}")
+        print(f"!! falling back to the pinned GUID {DEFAULT_SCENARIO}")
+        return DEFAULT_SCENARIO, None, None
+    if not rows:
+        print(f"!! {stable_id} returned no versions; falling back to {DEFAULT_SCENARIO}")
+        return DEFAULT_SCENARIO, None, None
+    top = min(rows, key=lambda r: r.get("seq") or 99)
+    guid = top.get("ID") or DEFAULT_SCENARIO
+    rel, ver = top.get("targetRelease"), top.get("internalVersion")
+    others = ", ".join("%s(seq %s)" % (r.get("targetRelease"), r.get("seq"))
+                       for r in rows if r.get("ID") != guid)
+    print(f"== resolved {stable_id} -> release {rel} v{ver}  [{guid}]")
+    if others:
+        print(f"==   earlier: {others}")
+    if guid != DEFAULT_SCENARIO:
+        print(f"!! NOTE: newer than the pinned DEFAULT_SCENARIO ({DEFAULT_SCENARIO}).")
+        print( "!!   A new release has shipped. Update the constant, and expect a")
+        print( "!!   full re-fetch -- see docs/delta-refresh-design.md.")
+    return guid, rel, ver
+
+
 def fetch_l1(scenario, dry):
     """The three structured entities that make processes.json a graph.
 
@@ -233,7 +285,10 @@ def fetch_l1(scenario, dry):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scenario", default=DEFAULT_SCENARIO)
+    ap.add_argument("--scenario", default=None,
+                    help="Pin a specific scenario GUID. Default: resolve the "
+                         "newest for --stable-id.")
+    ap.add_argument("--stable-id", dest="stable_id", default=DEFAULT_STABLE_ID)
     ap.add_argument("--country", default=DEFAULT_COUNTRY)
     ap.add_argument("--language", default=DEFAULT_LANGUAGE)
     ap.add_argument("--lancode", default=DEFAULT_LANCODE)
@@ -245,17 +300,20 @@ def main():
     if a.l1_only:
         RAW_DIR.mkdir(parents=True, exist_ok=True)
         print(f"== service  {SERVICE}")
-        fetch_l1(a.scenario, a.dry_run)
+        guid, _, _ = resolve_scenario(a.stable_id, explicit=a.scenario)
+        fetch_l1(guid, a.dry_run)
         return 0
 
     c, lang = a.country, a.language
     print(f"== service  {SERVICE}")
-    print(f"== scenario {a.scenario}  country {c}  language {lang}")
+    scenario, target_release, internal_version = resolve_scenario(
+        a.stable_id, explicit=a.scenario)
+    print(f"== scenario {scenario}  country {c}  language {lang}")
 
     # --- Tier A: solution processes, each carrying its full HTML description -----
     # Reached through the navigation property rather than the entity set directly:
     # that is the path the UI itself uses, so it is the one SAP keeps working.
-    scen = f"SolutionScenarioTranslation(ID={a.scenario},lanCode='{a.lancode}')"
+    scen = f"SolutionScenarioTranslation(ID={scenario},lanCode='{a.lancode}')"
     procs, n_procs, etag = fetch_all(
         f"{scen}/solutionProcessTranslation",
         {"$filter": f"country_ID eq '{c}'", "$orderby": "name"},
@@ -348,7 +406,12 @@ def main():
     MANIFEST.write_text(json.dumps({
         "fetched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "service": SERVICE,
-        "scenario_id": a.scenario,
+        "scenario_id": scenario,
+        "stable_id": a.stable_id,
+        # Recorded so a later run can tell "same release, new content" from
+        # "new release" -- internalVersion moves without targetRelease moving.
+        "target_release": target_release,
+        "internal_version": internal_version,
         "country": c,
         "language": lang,
         # A changed etag means SAP altered the contract. 343 entity sets, several
