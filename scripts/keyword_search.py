@@ -92,8 +92,35 @@ def build_match(query):
     return " OR ".join('"%s"' % t for t in terms) if terms else ""
 
 
+def _member_sql(field):
+    """SQL testing that `field` contains the bound value as a list member."""
+    return ("(',' || replace(lower(coalesce(m.%s,'')), ', ', ',') || ',') "
+            "LIKE ? ESCAPE '\\'" % field)
+
+
+def _member_param(value):
+    return "%," + _like_literal(str(value).lower().strip()) + ",%"
+
+
+def _like_literal(v):
+    """Escape LIKE wildcards in a user-supplied value.
+
+    deliverable_type values contain underscores ("test_strategy"), and `_` is a
+    single-character wildcard in LIKE, so an unescaped value would match strings
+    it should not. Paired with ESCAPE below.
+    """
+    return str(v).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _where(filters):
-    """Build the filter SQL. Mirrors FaissStore.search()'s excluded() exactly."""
+    """Build the filter SQL. Mirrors vectorstore.value_matches() exactly.
+
+    LIST-AWARE, not equality. Multi-valued facets are stored ", "-joined, so the
+    column is padded with commas and matched on a delimited substring: a stored
+    "Prepare, Explore" must match a filter of "Explore". vectorstore does the
+    same thing in Python; brain-tests/test_filter_parity.py asserts the two
+    agree, because a rule implemented twice is a rule that drifts.
+    """
     clauses, params = [], []
     for field, value in (filters or {}).items():
         if not value or field not in FILTERABLE:
@@ -102,13 +129,13 @@ def _where(filters):
             # phase/agent_role describe delivery provenance. Vendor docs and SAP's
             # own catalogs have none, so a phase filter must not hide them.
             marks = ",".join("?" * len(PROVENANCE_EXEMPT_SOURCES))
-            clauses.append("(m.source_system IN (%s) OR lower(coalesce(m.%s,'')) = ?)"
-                           % (marks, field))
+            clauses.append("(m.source_system IN (%s) OR %s)"
+                           % (marks, _member_sql(field)))
             params.extend(sorted(PROVENANCE_EXEMPT_SOURCES))
-            params.append(str(value).lower())
+            params.append(_member_param(value))
         else:
-            clauses.append("lower(coalesce(m.%s,'')) = ?" % field)
-            params.append(str(value).lower())
+            clauses.append(_member_sql(field))
+            params.append(_member_param(value))
     return (" AND " + " AND ".join(clauses) if clauses else ""), params
 
 

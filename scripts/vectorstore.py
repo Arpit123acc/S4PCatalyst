@@ -53,8 +53,64 @@ INDEX_DIR = BASE_DIR / "brain" / "index"
 # documents can carry a client name, so brain_regression keeps their names hashed in
 # the committed baseline. Provenance-exemption and name-publicity are separate
 # decisions and this source is the case where they diverge.
-PROVENANCE_EXEMPT_SOURCES = {"developer_docs", "sap_scope_catalog", "abap_guidance"}
+# sap_best_practices and sap_bpd added 2026-09-22. The set above was measured on
+# 2026-09-04 against a 49,857-chunk corpus where it covered 954 chunks (1.9%).
+# The SAP Best Practices ingest then added 133,871 chunks that carry NO phase at
+# all -- sapme_ingest emits no phase key for the sapbp branch, because the
+# Process Navigator publishes none -- so from that day a phase filter silently
+# hid 75% of the corpus. Same failure as the publish guard in embed_chunks: a
+# list that was correct for the old corpus and never revisited when the corpus
+# quadrupled, failing by returning less, which looks exactly like a correct
+# empty result.
+#
+# sap_activate is deliberately NOT exempt: SAP publishes a real phase for those
+# accelerators, so filtering them by phase is meaningful and must keep working.
+PROVENANCE_EXEMPT_SOURCES = {"developer_docs", "sap_scope_catalog", "abap_guidance",
+                             "sap_best_practices", "sap_bpd"}
 PROVENANCE_FIELDS = {"phase", "agent_role"}
+
+
+def value_matches(stored, wanted):
+    """Whether a filter value matches a stored field that may hold a JOINED LIST.
+
+    sapme_ingest stores multi-valued facets as ", "-joined strings, because an
+    accelerator can serve several phases: 163 of 731 SAP Activate accelerators
+    carry values like "Prepare, Explore" or "Explore, Realize, Deploy, Run".
+    Its comment states the intent -- "an accelerator that serves both Prepare and
+    Explore must be findable from either" -- but both filter paths compared the
+    whole string for equality, so phase="Explore" matched none of those 163 rows.
+    The data was multi-valued and the predicate was not.
+
+    Splitting on comma is safe for these fields: phase values are single words,
+    and agent_role values ("Integration Implementation Expert") contain spaces
+    but never commas. Internal spaces are preserved -- only the separator is
+    normalised.
+
+    keyword_search._where implements this same rule in SQL and must agree with
+    it exactly; brain-tests/test_filter_parity.py asserts that they do.
+    """
+    s_ = str(stored or "").lower()
+    w_ = str(wanted or "").lower().strip()
+    if s_ == w_:
+        return True
+    return w_ in [part.strip() for part in s_.split(",")]
+
+
+def row_excluded(meta, active):
+    """Whether a row is filtered OUT by `active`. The one Python definition.
+
+    Module-level rather than a closure inside FaissStore.search so that the
+    parity test can call the real predicate instead of a copy of it. A rule
+    reimplemented for a test is a rule that can pass the test and fail in
+    production.
+    """
+    exempt = meta.get("source_system") in PROVENANCE_EXEMPT_SOURCES
+    for f, v in (active or {}).items():
+        if exempt and f in PROVENANCE_FIELDS:
+            continue              # not phase-specific; a phase filter must not hide it
+        if not value_matches(meta.get(f, ""), v):
+            return True
+    return False
 
 
 # ── Interface ──────────────────────────────────────────────────────────────────
@@ -183,13 +239,7 @@ class FaissStore(VectorStore):
         total = len(self.metas)
 
         def excluded(m):
-            exempt = m.get("source_system") in PROVENANCE_EXEMPT_SOURCES
-            for f, v in active.items():
-                if exempt and f in PROVENANCE_FIELDS:
-                    continue          # not phase-specific; a phase filter must not hide it
-                if str(m.get(f, "")).lower() != str(v).lower():
-                    return True
-            return False
+            return row_excluded(m, active)
 
         def window(fetch):
             scores, ids = self.index.search(qv, min(fetch, total))
