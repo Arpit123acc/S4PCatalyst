@@ -732,7 +732,14 @@ def main():
         print("No matches (check filters or that the index is built).")
         return
     for i, h in enumerate(hits, 1):
-        tags = " · ".join(str(h[f]) for f in ("phase", "agent_role", "deliverable_type") if h.get(f))
+        # source_system leads the tag line because it is the facet `--source`
+        # filters on: without it printed, a result set gives no way to see WHICH
+        # source won, which is the first question asked of any ranking change and
+        # the reason a `grep sap_scope_catalog` over this output silently matched
+        # nothing on 2026-09-22.
+        tags = " · ".join(str(h[f]) for f in
+                          ("source_system", "phase", "agent_role", "deliverable_type")
+                          if h.get(f))
         # `via` is the diagnostic that matters: "both" means the semantic and the
         # lexical retriever agreed, which is a much stronger hit than either alone.
         via = "+".join(sorted(set(h.get("retrievers") or []))) or "?"
