@@ -34,6 +34,7 @@ USAGE
 """
 
 import argparse
+import html
 import json
 import re
 from collections import Counter
@@ -102,7 +103,18 @@ def records(path):
 def distil(bpmn):
     roles, steps, events, seen = [], [], [], set()
     for kind, name in SEMANTIC.findall(bpmn or ""):
-        name = name.strip()
+        # BPMN is XML, so a name arrives escaped: "Service &amp; Material",
+        # "View P&amp;L Actual", and 115 cases of &#10; where SAP put a newline
+        # inside a label. Pulling names out with a regex skips the unescaping an
+        # XML parser would have done, and the entity then survives all the way
+        # into the index -- 167 of 19,122 strings (0.87%).
+        #
+        # It is a matching bug, not just an ugly one: a search for "P&L" cannot
+        # match "P&amp;L", so those steps are unfindable by the text they are
+        # supposed to contain. Whitespace is collapsed after unescaping because
+        # &#10; becomes a real newline, and a step label spanning two lines
+        # breaks every consumer that prints one per line.
+        name = " ".join(html.unescape(name).split())
         key = (kind, name)
         if not name or key in seen:
             continue
