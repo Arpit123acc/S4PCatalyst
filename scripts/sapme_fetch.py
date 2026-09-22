@@ -223,6 +223,39 @@ def load_rows(name, public_only):
     return deduped
 
 
+def session_is_live(rows, cookie):
+    """Fetch ONE authenticated row to prove the session works. True/False/None.
+
+    None when there is nothing to test with -- no cookie, or no row needing one.
+
+    WHY BEFORE THE LOOP
+        A support.sap.com session expires in minutes, so the common case is
+        pasting a cookie that has already died. The run then announces "12,044
+        to go", fetches one document, discovers a login page and stops. Nothing
+        is damaged -- the guard works -- but the operator has spent a paste
+        cycle to learn one bit of information, and on a corpus this size that
+        happened repeatedly.
+
+        Checking first turns a two-minute round trip into a one-second answer,
+        and lets the run carry on with the public rows instead of doing nothing
+        at all, which is the outcome that actually wastes an evening.
+
+    Deliberately NOT a substitute for the in-loop check. A session can expire
+    during a run of ten thousand files, and that is exactly when it matters
+    most that a login page is never written into the corpus.
+    """
+    if not cookie:
+        return None
+    probe = next((r for r in rows if r.get("needs_auth") and r.get("url")), None)
+    if not probe:
+        return None
+    try:
+        body, _status, kind = fetch(probe["url"], cookie, attempts=1)
+    except Exception:
+        return None          # transient: let the real loop retry properly
+    return kind != "login"
+
+
 def save_state(path, state):
     """Write the state file, MERGING whatever is on disk first.
 
@@ -303,6 +336,20 @@ def main():
         if need_auth and not cookie and not a.public_only:
             print("   WARNING: SAPME_COOKIE unset — those will return login pages.")
             print("   Use --public-only, or export a support.sap.com cookie.")
+        elif need_auth and not a.public_only and not a.dry_run:
+            live = session_is_live(todo, cookie)
+            if live is False:
+                print("   SESSION IS DEAD — the cookie returns a login page.")
+                print(f"   Skipping the {need_auth} rows that need one and fetching "
+                      f"the {len(todo) - need_auth} public rows instead.")
+                print("   Re-capture SAPME_COOKIE from a support.sap.com request "
+                      "and re-run to get the rest.")
+                todo = [r for r in todo if not r.get("needs_auth")]
+                if not todo:
+                    print("   Nothing left to do without a session.")
+                    continue
+            elif live:
+                print("   session ok")
         if a.dry_run:
             for h, n in Counter(r["host"] for r in todo).most_common(10):
                 print(f"   {n:>5}  {h}")
