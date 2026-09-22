@@ -248,7 +248,7 @@ def resolve_scenario(stable_id, explicit=None):
     return guid, rel, ver
 
 
-def mark_downloads(manifest, procs, primary):
+def mark_downloads(manifest, primary):
     """Flag which rows are worth downloading, and say why the rest are not.
 
     Decided HERE rather than in sapme_fetch because this is where the inputs
@@ -275,20 +275,29 @@ def mark_downloads(manifest, procs, primary):
     and a human may well want one -- not downloading is a corpus decision, not a
     claim the document does not exist.
     """
-    home_items = {(p.get("externalId") or "").strip().upper()
-                  for p in procs
-                  if p.get("country_ID") == primary and p.get("externalId")}
+    # Keyed on (scope item, document name), which is a DIRECT duplicate test:
+    # "are we already downloading this exact document for the primary country?"
+    #
+    # The first version asked instead whether the scope item was in the primary
+    # country's PROCESS list, and that conflated two different things. This
+    # manifest spans all 99 solution scenarios SAP publishes, while the process
+    # list covers only ours, so every other product's BR/ES/US rows read as
+    # "not in DE" and were kept -- 2,525 test scripts that have nothing to do
+    # with localization. Comparing like with like avoids needing to know which
+    # scenario a row belongs to at all.
+    home = {((m.get("scope_item") or "").strip().upper(), m.get("name"))
+            for m in manifest if m.get("country") == primary}
     tally = Counter()
     for m in manifest:
         ctry = m.get("country")
         if ctry in (GENERIC_COUNTRY, primary):
             m["download"], m["skip_reason"] = True, None
-        elif (m.get("scope_item") or "").upper() not in home_items:
+        elif ((m.get("scope_item") or "").strip().upper(), m.get("name")) not in home:
             m["download"], m["skip_reason"] = True, None
         else:
             m["download"] = False
-            m["skip_reason"] = ("duplicate of %s; localized copy of a scope "
-                                "item the primary country already covers" % primary)
+            m["skip_reason"] = ("duplicate of %s; the same document for the same "
+                                "scope item is already being fetched" % primary)
         tally[(ctry, m["download"])] += 1
 
     keep = sum(1 for m in manifest if m["download"])
@@ -462,7 +471,7 @@ def main():
             "ext": os.path.splitext(urllib.parse.urlparse(url).path)[1].lower() or None,
         })
 
-    mark_downloads(manifest, procs, c)
+    mark_downloads(manifest, c)
 
     with_url = sum(1 for m in manifest if m["url"])
     with_scope = sum(1 for m in manifest if m["scope_item"])

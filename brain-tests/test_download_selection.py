@@ -29,17 +29,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import sapbp_catalog as k                                   # noqa: E402
 
-# DE covers 2LH and 1GA. 2UU exists only in BR — one of the localized 22.
-PROCS = [{"externalId": "2LH", "country_ID": "DE"},
-         {"externalId": "1GA", "country_ID": "DE"},
-         {"externalId": "2UU", "country_ID": "BR"}]
-
 
 def manifest():
     return [
         {"name": "Test script", "country": "DE", "scope_item": "2LH"},
+        {"name": "Test script", "country": "DE", "scope_item": "1GA"},
         {"name": "Test script", "country": "BR", "scope_item": "2LH"},
         {"name": "Test script", "country": "BR", "scope_item": "2UU"},
+        # same scope item as DE but a document DE does not have -> keep
+        {"name": "SAP Note 3335519 (Brazil)", "country": "BR", "scope_item": "2LH"},
         {"name": "Test script", "country": "ES", "scope_item": "1GA"},
         {"name": "Highlights of finance", "country": "XX", "scope_item": None},
     ]
@@ -49,8 +47,9 @@ class TestDownloadSelection(unittest.TestCase):
 
     def setUp(self):
         self.rows = manifest()
-        k.mark_downloads(self.rows, PROCS, "DE")
-        self.by = {(r["country"], r["scope_item"]): r for r in self.rows}
+        k.mark_downloads(self.rows, "DE")
+        self.by = {(r["country"], r["scope_item"]): r for r in self.rows
+                   if r["name"] == "Test script"}
 
     def test_primary_country_is_always_downloaded(self):
         self.assertTrue(self.by[("DE", "2LH")]["download"])
@@ -77,8 +76,17 @@ class TestDownloadSelection(unittest.TestCase):
         lookup_accelerator must still find them and report their URL: a human
         asking for the Brazilian variant should get a link, not silence.
         """
-        self.assertEqual(len(self.rows), 5)
-        self.assertEqual(sum(1 for r in self.rows if r["download"]), 3)
+        self.assertEqual(len(self.rows), 7)
+        self.assertEqual(sum(1 for r in self.rows if r["download"]), 5)
+
+    def test_a_document_the_primary_country_lacks_is_kept(self):
+        """Keyed on (scope item, name), so a country-specific DOCUMENT for a
+        shared scope item survives -- SAP Note 3335519 exists only for Brazil."""
+        note = [r for r in self.rows if r["name"].startswith("SAP Note")][0]
+        self.assertTrue(note["download"], "BR-only document for a shared scope item")
+        self.assertIsNone(note["skip_reason"])
+        # ...while the test script for that same scope item IS a duplicate
+        self.assertFalse(self.by[("BR", "2LH")]["download"])
 
     def test_every_row_is_decided(self):
         for r in self.rows:
