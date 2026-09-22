@@ -81,6 +81,13 @@ PUBLIC_HOSTS = {
 SAML_MARKERS = ("samlform", "accounts.sap.com/saml2", "login.support.html",
                 "j_security_check", "samlrequest")
 
+# Hosts SAPME_COOKIE is actually for. A login page from one of these means the
+# session died and the run must stop. A login page from anywhere else means that
+# third party wants its own sign-in, which is a per-document dead end, not a
+# reason to abandon the other 6,000.
+SESSION_HOSTS = {"support.sap.com", "launchpad.support.sap.com", "me.sap.com",
+                 "pr.alm.me.sap.com"}
+
 # A page shorter than this is a shell, a cookie wall or an error -- not prose.
 # Borrowed from webdocs_ingest.py, which measured it.
 MIN_USEFUL_HTML = 800
@@ -277,6 +284,18 @@ def main():
                     continue
 
                 kind = classify(body, r["url"])
+                # A login page only means OUR session died if it came from a host
+                # our cookie is for. The catalogue also links third-party sites
+                # with their own sign-in -- a BTP Fiori launchpad
+                # (flpnwc-*.dispatcher.hana.ondemand.com), WalkMe, Mural. Treating
+                # those as session expiry aborted a run 200 documents in, on a
+                # host we never had a session for and never will.
+                if kind == "login" and r["host"] not in SESSION_HOSTS:
+                    tally["needs_other_login"] += 1
+                    state[r["url"]] = {"status": "needs_other_login", "id": r["id"],
+                                       "host": r["host"]}
+                    time.sleep(a.rate)
+                    continue
                 if kind == "login":
                     # Stop. An expired session does not recover, and every further
                     # request would write another copy of the same login page.
