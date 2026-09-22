@@ -172,6 +172,21 @@ CAND_DEPTH   = int(os.environ.get("BRAIN_CAND_DEPTH", "100"))
 # revisions, not to hide them -- an old revision is often the only place some detail
 # survives -- so the cheapest value that does the job is the correct one.
 SUPERSEDED_PENALTY = float(os.environ.get("BRAIN_SUPERSEDED_PENALTY", "0.2"))
+# Down-rank factor for BULK TEMPLATE material. INERT AT 0.0 until swept on the
+# delivery host -- see _demote_bulk() for what to measure and why it is not
+# already set. A constant whose value has not been measured against the
+# regression set does not belong live in this file, and this one acts on 75% of
+# the corpus.
+BULK_PENALTY = float(os.environ.get("BRAIN_BULK_PENALTY", "0.0"))
+# Which deliverable_type values count as bulk.
+#
+# deliverable_type, NOT content_type. sapme_ingest sets BOTH to "test_script" on
+# the same line, so either looks correct here -- but keyword_search.SELECT_COLS
+# returns deliverable_type and not content_type, so a damp keyed on content_type
+# would apply to dense hits and silently skip every BM25-only hit. The rule would
+# hold on one retrieval path and not the other, which is the failure this codebase
+# keeps meeting; deliverable_type is the field both halves actually carry.
+BULK_TYPES = frozenset({"test_script"})
 # Weight on the lexical half when fusing normalised scores. The dense retriever is
 # the better generalist, so BM25 gets the smaller share and earns its keep through
 # _promote() when it is decisively right.
@@ -364,6 +379,82 @@ def _demote_superseded(fused):
     return fused
 
 
+def _demote_bulk(fused):
+    """Multiply a bulk-template hit's fused score by (1 - BULK_PENALTY).
+
+    WHY THIS EXISTS
+        The SAP Best Practices ingest took the corpus from 49,857 chunks to
+        179,482, of which 133,871 -- 75% -- are test scripts. They are real
+        content and must stay searchable, but they are TEMPLATE prose: the same
+        scaffolding ("Log on to the SAP Fiori launchpad as...", "Choose Enter to
+        confirm") repeated across thousands of scope items. That shape scores
+        moderately well against almost any procedural query without answering it,
+        and at 75% of the corpus a moderate score held by 133,871 chunks crowds
+        out a strong score held by eight.
+
+        Two regression cases show it. R-034 ("released BAdI implementation for
+        custom logic") puts a test script first at bm25=32.21 while the guidance
+        document that answers it, RAP_Code_Review_ABAP_Cloud, sits lower on a
+        HIGHER bm25 of 32.76 -- the dense half is outvoting a keyword half that
+        was right. R-020 ("scope item for supplier invoice processing") returns
+        Digital Discovery material at ~0.60 while the scope-catalog entries that
+        are the answer sit at ~0.55. Both recover when the caller filters by
+        source, so the content is reachable; what regressed is what wins when
+        nobody filters, and agents do not always filter.
+
+    WHAT THIS CANNOT DO -- READ BEFORE SWEEPING
+        Fusion only reorders the union of the two CAND_DEPTH-deep candidate lists.
+        If the chunk that should win is outside BOTH the dense and the BM25 top
+        100, no value of this penalty will surface it, because it was never a
+        candidate. A penalty that demotes bulk material would then just promote
+        the next-best wrong answer and the case would still fail, with the sweep
+        looking active rather than flat.
+
+        So establish the rank of the WANTED chunk in each retriever's own list
+        before reading anything into a sweep:
+
+            BRAIN_CAND_DEPTH=400 python3.11 scripts/brain_search.py                 "scope item for supplier invoice processing" -k 400                 | grep -n sap_scope_catalog | head
+
+        In the dense list but low  -> this penalty is the right lever.
+        Only in the BM25 list      -> _promote()'s quota is the right lever, and
+                                      KW_QUOTA / KW_QUOTA_POS are what to sweep.
+        In neither                 -> the lever is CAND_DEPTH or retrieval itself,
+                                      and damping is the wrong fix.
+
+    HOW TO SWEEP IT (delivery host, index loaded)
+        for p in 0 0.1 0.15 0.25 0.4; do
+          BRAIN_BULK_PENALTY=$p python3.11 scripts/brain_regression.py
+        done
+
+        Watch the assertions, the mean overlap, and R-034 / R-020 specifically.
+        Also watch the cases that SHOULD return test scripts -- a test-design
+        query is entitled to them -- because this penalty's failure mode is
+        making the largest source in the corpus unreachable without a filter.
+        As with SUPERSEDED_PENALTY: take the floor of whatever window passes, not
+        the midpoint. This demotes bulk material, it does not hide it.
+
+        A flat result here means the set does not exercise the constant, not that
+        the constant is safe. That mistake has already been made once on this
+        file, with the first SUPERSEDED_PENALTY sweep.
+
+    Multiplicative for the same reason the supersession penalty is: fused scores
+    are min-max normalised into [0,1], so a flat subtraction would annihilate
+    mid-ranked hits and barely move the top one. Harmless when the caller has
+    already filtered to a bulk type -- every hit then takes the same factor and
+    the ordering is unchanged.
+    """
+    if BULK_PENALTY <= 0 or not fused:
+        return fused
+    factor = max(0.0, 1.0 - BULK_PENALTY)
+    for h in fused:
+        if (h.get("deliverable_type") or "") in BULK_TYPES:
+            h["rrf"] = round((h.get("rrf") or 0.0) * factor, 6)
+            h["demoted"] = True
+    fused.sort(key=lambda h: (-(h.get("rrf") or 0.0),
+                              -(h.get("score") or 0.0), str(h.get("id"))))
+    return fused
+
+
 def _lifecycle_for(ids):
     """Lifecycle records for these chunk ids, or {} if unavailable."""
     ids = [i for i in (ids or []) if i]
@@ -537,6 +628,9 @@ def search(query, k=5, phase=None, agent_role=None, deliverable_type=None,
     # Before the quota: the quota is a guarantee, so a hit it promotes should keep
     # its slot even if it is a superseded revision.
     raw = _demote_superseded(raw)
+    # Same slot, same reason: applied before the quota so that a bulk hit BM25 is
+    # decisively right about keeps the place the quota guarantees it.
+    raw = _demote_bulk(raw)
     # Applied BEFORE the trim to k, so a promoted hit displaces a weaker one rather
     # than being appended out of view. Only meaningful when both halves ran.
     if mode == "hybrid":
