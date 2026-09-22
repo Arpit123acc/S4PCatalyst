@@ -223,6 +223,34 @@ def load_rows(name, public_only):
     return deduped
 
 
+def save_state(path, state):
+    """Write the state file, MERGING whatever is on disk first.
+
+    Each run loads the whole state dict at startup and rewrites it wholesale, so
+    two concurrent fetches used to clobber each other: the second writer's copy
+    never contained the first's entries. That is not hypothetical -- a second
+    help-fetch started alongside a running one on 2026-09 left 236 files on disk
+    against 196 in the manifest.
+
+    The damage was always bounded, because the files themselves survive and
+    sapme_ingest adopts orphans from disk. What was lost was the RECORD, so a
+    later resume re-downloaded thousands of files it already had and the
+    manifest stopped describing reality.
+
+    Re-reading before each write makes concurrent runs safe: entries are keyed
+    by URL, two fetches work on disjoint URLs, so a merge cannot conflict. The
+    on-disk copy wins only for keys this process never touched.
+    """
+    merged = {}
+    try:
+        merged = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    merged.update(state)
+    path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+    return merged
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", choices=[*SOURCES, "all"], default="all")
@@ -315,7 +343,7 @@ def main():
                     # Stop. An expired session does not recover, and every further
                     # request would write another copy of the same login page.
                     state[r["url"]] = {"status": "login_page", "id": r["id"]}
-                    cfg["state"].write_text(json.dumps(state, indent=2), encoding="utf-8")
+                    save_state(cfg["state"], state)
                     raise SessionExpired(
                         f"{name}: got a login page for {r['url'][:90]}\n"
                         "   The support.sap.com session is missing or expired. Refresh\n"
@@ -337,13 +365,13 @@ def main():
                 if i % 25 == 0 or i == len(todo):
                     print(f"   {i}/{len(todo)}  " +
                           "  ".join(f"{k}={v}" for k, v in tally.most_common()), flush=True)
-                    cfg["state"].write_text(json.dumps(state, indent=2), encoding="utf-8")
+                    save_state(cfg["state"], state)
                 time.sleep(a.rate)
         except SessionExpired as exc:
             print(f"\nSTOPPED: {exc}")
             rc = 1
         finally:
-            cfg["state"].write_text(json.dumps(state, indent=2), encoding="utf-8")
+            save_state(cfg["state"], state)
             ok = sum(1 for v in state.values() if v.get("status") == "ok")
             print(f"   -> {ok} usable files in {cfg['files']}")
             print(f"   -> state: {cfg['state']}")
