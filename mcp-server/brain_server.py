@@ -9,7 +9,7 @@ retrieval-augmented search using Amazon Bedrock Titan embeddings + a FAISS index
 instance profile. It degrades gracefully: if the deps or index are missing, the
 tool returns a helpful message instead of crashing.
 
-Exposes three tools - one retrieval, two exact lookups:
+Exposes four tools - one retrieval, three exact lookups:
     search_brain(query, top_k?, phase?, agent_role?, deliverable_type?,
                  source_system?, dedup?)
         → top matching chunks across all indexed sources, with phase/agent/
@@ -23,6 +23,9 @@ Exposes three tools - one retrieval, two exact lookups:
           session. Exact, no embeddings.
     lookup_scope_item(query?, limit?)
         -> scope items by id or business topic; retired ones flagged.
+    lookup_process(query?, scope_item?, lob?, application?, limit?)
+        -> what a scope item DOES: Fiori apps, process steps, roles; and the
+          reverse edge, which scope items use a given app.
 
 Run (registered via .mcp.json), or standalone:
     python3.11 mcp-server/brain_server.py --tool search_brain '{"query":"cutover plan"}'
@@ -141,6 +144,32 @@ def tool_lookup_scope_item(args):
     return res
 
 
+def tool_lookup_process(args):
+    try:
+        import process_lookup                               # noqa: PLC0415
+    except Exception as exc:
+        return {"error": "process lookup unavailable: %s" % exc}
+    try:
+        res = process_lookup.lookup(
+            query=args.get("query"),
+            scope_item=args.get("scope_item"),
+            lob=args.get("lob"),
+            application=args.get("application"),
+            with_steps=bool(args.get("with_steps", True)),
+            limit=int(args.get("limit") or 10),
+        )
+    except Exception as exc:
+        return {"error": "lookup failed: %s" % exc}
+    res["verified"] = False
+    res["note"] = ("Exact index over SAP Best Practices processes, built from the "
+                   "Process Navigator. An empty applications or steps list means SAP "
+                   "published none for that process, not that the lookup failed - see "
+                   "`coverage` for how many scope items carry each. Fiori app names are "
+                   "SAP's; they are not release-state claims, which still come from "
+                   "check_object_release_state.")
+    return res
+
+
 TOOLS = {
     "search_brain": {
         "description": ("HYBRID search over the S4PC Public Cloud Brain: a dense vector ranking (Bedrock "
@@ -204,6 +233,18 @@ TOOLS = {
             "limit": {"type": "integer", "description": "Max results (default 20)"}},
             "required": []},
         "handler": tool_lookup_scope_item,
+    },
+    "lookup_process": {
+        "description": "EXACT LOOKUP over the 657 SAP Best Practices processes for this release: what a scope item DOES. Returns its Fiori applications, its process steps, the roles that perform them, its line of business, and its changeCategory for the release. Use this, NOT search_brain, for 'what does 2LH involve' - the authoritative record is structured and short, so it loses on cosine similarity to any document that merely discusses the topic at length. ALSO ANSWERS THE REVERSE EDGE, which nothing else here can: pass `application` to get every scope item that uses a given Fiori app ('Post Goods Receipt for Inbound Delivery' returns 16). That is the impact-analysis question asked whenever an app is being extended or replaced. Matched as a substring, so a partial label works. COVERAGE IS REPORTED, NOT ASSUMED. 537 of 657 scope items carry applications and 574 carry steps, so an empty list means SAP published none for that process rather than the lookup failing; the `coverage` block gives the current numbers. Capabilities are absent entirely because SAP had published no SolutionCapabilityHierarchy rows for the 2608 release - 0, against 53,067 for 2602. Pairs with lookup_scope_item (which scope item covers a topic) and lookup_accelerator (which documents describe it, and their URLs). App names are SAP's labels and are not release contracts: object release state still comes from check_object_release_state.",
+        "schema": {"type": "object", "properties": {
+            "query":       {"type": "string", "description": "Scope item id ('2LH'), process name, app name, or step text"},
+            "scope_item":  {"type": "string", "description": "Exact scope item filter, e.g. 2LH"},
+            "lob":         {"type": "string", "description": "Line of business substring, e.g. Finance"},
+            "application": {"type": "string", "description": "REVERSE EDGE: return every scope item using this Fiori app (substring match)"},
+            "with_steps":  {"type": "boolean", "description": "Include the full step and role lists (default true)"},
+            "limit":       {"type": "integer", "description": "Max results (default 10)"}},
+            "required": []},
+        "handler": tool_lookup_process,
     },
 }
 
