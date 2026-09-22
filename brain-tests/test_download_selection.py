@@ -48,25 +48,30 @@ class TestDownloadSelection(unittest.TestCase):
     def setUp(self):
         self.rows = manifest()
         k.mark_downloads(self.rows, "DE")
-        self.by = {(r["country"], r["scope_item"]): r for r in self.rows
-                   if r["name"] == "Test script"}
+    def row(self, country, scope_item, name="Test script"):
+        """One row. Name included because BR carries two rows for 2LH: the
+        duplicate test script and the Brazil-only SAP Note."""
+        hits = [r for r in self.rows if r["country"] == country
+                and r["scope_item"] == scope_item and r["name"] == name]
+        self.assertEqual(len(hits), 1, (country, scope_item, name))
+        return hits[0]
 
     def test_primary_country_is_always_downloaded(self):
-        self.assertTrue(self.by[("DE", "2LH")]["download"])
+        self.assertTrue(self.row("DE", "2LH")["download"])
 
     def test_generic_country_is_always_downloaded(self):
         """XX holds the accelerators — the whole reason it was added."""
-        self.assertTrue(self.by[("XX", None)]["download"])
+        self.assertTrue(self.row("XX", None, "Highlights of finance")["download"])
 
     def test_secondary_country_duplicate_is_skipped_with_a_reason(self):
-        row = self.by[("BR", "2LH")]
+        row = self.row("BR", "2LH")
         self.assertFalse(row["download"])
         self.assertIn("duplicate of DE", row["skip_reason"])
-        self.assertFalse(self.by[("ES", "1GA")]["download"])
+        self.assertFalse(self.row("ES", "1GA")["download"])
 
     def test_secondary_country_localized_scope_item_is_kept(self):
         """The 22 scope items BR/ES/US were added for must survive the filter."""
-        row = self.by[("BR", "2UU")]
+        row = self.row("BR", "2UU")
         self.assertTrue(row["download"], "2UU exists only in BR; skipping it loses it")
         self.assertIsNone(row["skip_reason"])
 
@@ -86,7 +91,7 @@ class TestDownloadSelection(unittest.TestCase):
         self.assertTrue(note["download"], "BR-only document for a shared scope item")
         self.assertIsNone(note["skip_reason"])
         # ...while the test script for that same scope item IS a duplicate
-        self.assertFalse(self.by[("BR", "2LH")]["download"])
+        self.assertFalse(self.row("BR", "2LH")["download"])
 
     def test_every_row_is_decided(self):
         for r in self.rows:
