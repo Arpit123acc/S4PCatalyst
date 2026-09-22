@@ -206,6 +206,14 @@ def main():
             url = r.get("url") or ""
             if urllib.parse.urlparse(url).netloc != "help.sap.com":
                 continue
+            # Same locale-duplicate rule sapme_fetch honours, set by
+            # sapbp_catalog.mark_downloads. The note above argues help pages are
+            # worth taking despite overlapping the xlsx for the same scope item,
+            # and that still holds -- but it was written before the fetch covered
+            # four countries, and a Brazilian help page for a scope item Germany
+            # also has is a locale duplicate rather than a different rendering.
+            if r.get("download") is False:
+                continue
             prod, deliv = split_doc_url(url)
             if not prod or url in seen:
                 continue
