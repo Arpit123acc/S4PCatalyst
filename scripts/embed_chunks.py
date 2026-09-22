@@ -304,12 +304,26 @@ def main():
     # 8 threads keeps well inside Bedrock Titan's per-second concurrency limit
     # while cutting wall time from ~2 hours (sequential) to ~15 minutes.
     from concurrent.futures import ThreadPoolExecutor
+
+    import numpy as np                                 # noqa: PLC0415
+
     total = len(all_texts)
     log.info("Embedding %d items with %d workers ...", total, args.workers)
-    vectors = [None] * total
+
+    # A preallocated float32 array, NOT a list of lists. Bedrock returns each
+    # embedding as a Python list of 1024 floats, and a Python float is a 24-byte
+    # object rather than 4 bytes -- so holding 179,482 of them costs about 6 GB
+    # against 735 MB for the equivalent array. Measured 2026-09-22: a full build
+    # reached 179,000 of 179,482 embedded and was then OOM-killed on an 8 GB host
+    # at the moment it started flushing, leaving no traceback and no index. The
+    # list form was fine at 50k vectors and fails at 180k; it is the corpus that
+    # changed, not the code.
+    vectors = np.zeros((total, args.dim), dtype="float32")
+    filled = bytearray(total)                          # 180 KB, tracks real holes
 
     def _one(i):
         vectors[i] = embed_text(client, all_texts[i], args.dim)
+        filled[i] = 1
         if (i + 1) % 500 == 0:
             log.info("  %d/%d embedded", i + 1, total)
 
@@ -319,7 +333,10 @@ def main():
     # A hole here would misalign every vector after it against metadata, which is
     # positional -- silently wrong hits rather than a clean failure. Same guard as
     # mcp-server/vector/engine.py:_build_bedrock.
-    missing = [i for i, v in enumerate(vectors) if v is None]
+    # `filled` rather than a None check: a numpy row cannot be None, and testing
+    # for an all-zero row would also reject a legitimate (if improbable) zero
+    # embedding. The flag records what actually returned.
+    missing = [i for i, ok in enumerate(filled) if not ok]
     if missing:
         sys.exit("%d embeddings came back empty (first at index %d). Nothing written; "
                  "the live index is untouched." % (len(missing), missing[0]))
