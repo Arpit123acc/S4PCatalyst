@@ -79,6 +79,15 @@ DEFAULT_COUNTRY = "DE"
 DEFAULT_LANGUAGE = "EN"
 DEFAULT_LANCODE = "en-US"
 
+# SAP files cross-country material under the pseudo-country XX, and the whole
+# Accelerators panel lives there: "Availability and dependencies of solution
+# processes", the 16 "Highlights of ..." decks, set-up instructions, task
+# tutorials, product assistance. Filtering Tier B/C on the real country alone
+# dropped 762 rows for this scenario -- not a country subset but an entire
+# CATEGORY of scenario-level documentation, which is why nothing looked missing:
+# every scope item still had its test scripts.
+GENERIC_COUNTRY = "XX"
+
 PAGE = 1000          # CAP caps a page well below the row counts here; we page regardless
 RATE_LIMIT_S = 0.4   # polite against someone else's service, and these are cheap reads
 TIMEOUT_S = 90       # the process list carries an HTML document per row and is slow
@@ -322,7 +331,8 @@ def main():
     # --- Tier B: the accelerator inventory --------------------------------------
     boms, n_boms, _ = fetch_all(
         "BomItemURLsWithMultiLanguage",
-        {"$filter": f"country_ID eq '{c}' and isValid eq true and isArchive eq false"},
+        {"$filter": f"(country_ID eq '{c}' or country_ID eq '{GENERIC_COUNTRY}') "
+                    f"and isValid eq true and isArchive eq false"},
         "bom items")
 
     # --- Tier C: the download URLs ----------------------------------------------
@@ -332,7 +342,8 @@ def main():
     # keyed (bomItem_ID, country_ID, language_ID) and is the real link table.
     urls, n_urls, _ = fetch_all(
         "BomItemUrl",
-        {"$filter": f"country_ID eq '{c}' and language_ID eq '{lang}'"},
+        {"$filter": f"(country_ID eq '{c}' or country_ID eq '{GENERIC_COUNTRY}') "
+                    f"and language_ID eq '{lang}'"},
         "urls")
 
     by_item = {u["bomItem_ID"]: u["url"] for u in urls if u.get("url")}
