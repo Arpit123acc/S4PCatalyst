@@ -74,7 +74,13 @@ DIAGRAMS = [
     # unmatched: no scope-item prefix
     {"name": "Warehouse Outbound Processing", "scenario_id": OURS,
      "steps": ["x"], "roles": [], "events": []},
+    # known scope item, but no process in THIS country — must still contribute
+    {"name": "1WQ - 01 - Bill of Exchange", "scenario_id": OURS,
+     "steps": ["Present a Check to a Bank"], "roles": ["Cash Manager"], "events": []},
 ]
+CATALOG = {"scope_items": [
+    {"scope_item_id": "2LH", "description": "Automated Invoice Settlement"},
+    {"scope_item_id": "1WQ", "description": "Bill of Exchange"}]}
 
 
 class TestBuilder(unittest.TestCase):
@@ -83,12 +89,14 @@ class TestBuilder(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         self._saved = (bld.PROCESSES, bld.APPLICATIONS, bld.DIAGRAMS,
-                       bld.CAPABILITIES, bld.MANIFEST, bld.OUT)
+                       bld.CAPABILITIES, bld.MANIFEST, bld.OUT, bld.SCOPE_CATALOG)
         bld.PROCESSES    = d / "processes.json"
         bld.APPLICATIONS = d / "applications.json"
         bld.DIAGRAMS     = d / "diagram_steps.json"
         bld.CAPABILITIES = d / "capabilities.json"
         bld.MANIFEST     = d / "manifest.json"
+        bld.SCOPE_CATALOG = d / "scope_items.json"
+        bld.SCOPE_CATALOG.write_text(json.dumps(CATALOG), encoding="utf-8")
         bld.OUT          = d / "process_index.json"
         bld.PROCESSES.write_text(json.dumps(PROCESSES), encoding="utf-8")
         bld.APPLICATIONS.write_text(json.dumps(APPLICATIONS), encoding="utf-8")
@@ -98,7 +106,7 @@ class TestBuilder(unittest.TestCase):
 
     def tearDown(self):
         (bld.PROCESSES, bld.APPLICATIONS, bld.DIAGRAMS,
-         bld.CAPABILITIES, bld.MANIFEST, bld.OUT) = self._saved
+         bld.CAPABILITIES, bld.MANIFEST, bld.OUT, bld.SCOPE_CATALOG) = self._saved
         self.tmp.cleanup()
 
     def test_comma_joined_app_names_are_split(self):
@@ -123,11 +131,27 @@ class TestBuilder(unittest.TestCase):
         self.assertIn("Create Purchase Order", rows["2LH"]["steps"])
         self.assertNotIn("WRONG RELEASE", rows["2LH"]["steps"],
                          "another scenario's diagram must not contribute steps")
-        self.assertEqual(counts["diagrams_for_scenario"], 3)
+        self.assertEqual(counts["diagrams_for_scenario"], 4)
+
+    def test_diagram_for_a_scope_item_without_a_country_process_is_kept(self):
+        """The 2026-09-22 recovery: 74 diagrams, 18 scope items, 406 steps.
+
+        The process list is per country, so a scope item with no German process
+        is absent from it while its diagrams still exist. Keying the join on the
+        process list discarded them silently -- 1WQ "Bill of Exchange" lost 112
+        steps that way.
+        """
+        rows, counts, _ = bld.build(OURS)
+        self.assertIn("1WQ", rows, "a catalog scope item with diagrams must appear")
+        self.assertEqual(rows["1WQ"]["steps"], ["Present a Check to a Bank"])
+        self.assertEqual(rows["1WQ"]["name"], "Bill of Exchange", "named from the catalog")
+        self.assertFalse(rows["1WQ"]["has_country_process"])
+        self.assertTrue(rows["2LH"]["has_country_process"])
+        self.assertEqual(counts["scope_items_from_catalog_only"], 1)
 
     def test_unmatched_diagrams_are_counted_not_hidden(self):
         _, counts, unmatched = bld.build(OURS)
-        self.assertEqual(counts["diagrams_matched"], 2)
+        self.assertEqual(counts["diagrams_matched"], 3)
         self.assertEqual(counts["diagrams_unmatched"], 1)
         self.assertIn("Warehouse Outbound Processing", unmatched)
 

@@ -65,6 +65,7 @@ PROCESSES    = RAW / "processes.json"
 APPLICATIONS = RAW / "applications.json"
 DIAGRAMS     = RAW / "diagram_steps.json"
 CAPABILITIES = RAW / "capabilities.json"
+SCOPE_CATALOG = BASE_DIR / "mcp-server" / "catalog" / "scope_items.json"
 
 # A scope item is three alphanumerics at the start of a diagram name.
 SCOPE_PREFIX = re.compile(r"^\s*([0-9A-Z]{3})\b")
@@ -106,6 +107,29 @@ def _load(path, default=None):
         return default if default is not None else []
 
 
+def scope_catalog():
+    """{scope_item_id: description} across active AND retired items, 822 of them.
+
+    Wider than the 657 processes on purpose. The process list is per COUNTRY, so
+    a scope item with no German process is absent from it while its diagrams,
+    its accelerators and its catalog entry all still exist. Keying the diagram
+    join on the process list therefore threw away real content: 74 diagrams
+    across 18 scope items and 406 steps, 1WQ "Bill of Exchange" alone holding
+    203 of them.
+    """
+    try:
+        d = json.loads(SCOPE_CATALOG.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    out = {}
+    for key in ("scope_items", "retired_scope_items"):
+        for i in d.get(key) or []:
+            sid = (i.get("scope_item_id") or "").strip().upper()
+            if sid:
+                out[sid] = i.get("description")
+    return out
+
+
 def fetched_scenario():
     """The scenario the fetch recorded — one source, same as the BPMN distiller."""
     m = _load(MANIFEST, {})
@@ -132,6 +156,7 @@ def build(scenario):
             "change_category": p.get("changeCategory"),
             "license_required": p.get("licenseRequired"),
             "target_release": p.get("solutionScenarioTargetRelease"),
+            "has_country_process": True,
             "process_ids": [],
             "applications": [],
             "steps": [],
@@ -152,16 +177,41 @@ def build(scenario):
         if names:
             app_hits += 1
 
-    # diagram steps, joined on the scope-item prefix of the diagram name
+    # diagram steps, joined on the scope-item prefix of the diagram name.
+    # Falls back to the 822-row scope catalog when the code names a scope item
+    # this COUNTRY has no process for -- see scope_catalog() for why that is not
+    # the same as the scope item not existing.
+    catalog = scope_catalog()
     diags = _load(DIAGRAMS)
     mine = [d for d in diags if not scenario or d.get("scenario_id") == scenario]
-    matched, unmatched = 0, []
+    matched, from_catalog, unmatched = 0, 0, []
     for d in mine:
         m = SCOPE_PREFIX.match(d.get("name") or "")
         ext = m.group(1) if m else None
-        if not ext or ext not in by_scope:
+        if not ext:
             unmatched.append(d.get("name"))
             continue
+        if ext not in by_scope:
+            if ext not in catalog:
+                unmatched.append(d.get("name"))
+                continue
+            # Known scope item, no process in this country. Emit a partial row
+            # rather than discarding its steps; has_country_process says which.
+            by_scope[ext] = {
+                "scope_item": ext,
+                "name": catalog.get(ext),
+                "lob": None,
+                "change_category": None,
+                "license_required": None,
+                "target_release": None,
+                "has_country_process": False,
+                "process_ids": [],
+                "applications": [],
+                "steps": [],
+                "roles": [],
+                "diagrams": [],
+            }
+            from_catalog += 1
         row = by_scope[ext]
         row["steps"].extend(d.get("steps") or [])
         row["roles"].extend(d.get("roles") or [])
@@ -201,6 +251,7 @@ def build(scenario):
         "distinct_applications": len({a for r in by_scope.values() for a in r["applications"]}),
         "diagrams_for_scenario": len(mine),
         "diagrams_matched": matched,
+        "scope_items_from_catalog_only": from_catalog,
         "diagrams_unmatched": len(unmatched),
         "scope_items_with_steps": sum(1 for r in by_scope.values() if r["steps"]),
         "capability_rows_used": cap_hits,
