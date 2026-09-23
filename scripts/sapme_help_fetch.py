@@ -130,10 +130,29 @@ def api(path, params, attempts=3):
 
 
 def split_doc_url(url):
-    """/docs/{product}/{deliverable} -> (product, deliverable). None if not that shape."""
+    """(product, deliverable) for every help.sap.com shape we see. product may be "".
+
+    THREE LAYOUTS, one content API. help.sap.com has accumulated URL forms and
+    the catalogue contains all of them:
+
+        /docs/{product}/{deliverable}/{topic}      the modern one
+        /viewer/{deliverable}/latest/en-US/{topic} the older viewer
+        /whats-new/{deliverable}                   release-note collections
+
+    Only the first carries a product segment, and deliverableMetadata does not
+    need one: probed 2026-09-23, product_url="" resolves a viewer deliverable to
+    the same id and filePath as passing the right product does. So the other two
+    return an empty product rather than being rejected.
+
+    Handling only /docs/ left ten scenario-level accelerators stored as SPA
+    shells -- Product assistance, What's new, SAP Activate methodology -- which
+    look like fetched documents on disk and carry no content.
+    """
     parts = [p for p in urllib.parse.urlparse(url).path.split("/") if p]
     if len(parts) >= 3 and parts[0] == "docs":
         return parts[1], parts[2]
+    if len(parts) >= 2 and parts[0] in ("viewer", "whats-new"):
+        return "", parts[1]
     return None, None
 
 
@@ -215,7 +234,9 @@ def main():
             if r.get("download") is False:
                 continue
             prod, deliv = split_doc_url(url)
-            if not prod or url in seen:
+            # `deliv`, not `prod`: /viewer/ and /whats-new/ have no product
+            # segment and do not need one, so testing prod skipped them all.
+            if not deliv or url in seen:
                 continue
             seen.add(url)
             todo.append((r.get("id"), r.get(title_key), url, prod, deliv))
