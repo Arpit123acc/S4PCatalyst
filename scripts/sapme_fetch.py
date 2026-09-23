@@ -244,6 +244,9 @@ def load_rows(name, public_only, include_duplicates=False):
     return deduped
 
 
+PROBE_N = 3
+
+
 def session_is_live(rows, cookie):
     """Fetch ONE authenticated row to prove the session works. True/False/None.
 
@@ -261,20 +264,33 @@ def session_is_live(rows, cookie):
         and lets the run carry on with the public rows instead of doing nothing
         at all, which is the outcome that actually wastes an evening.
 
+    SEVERAL probes, not one. needs_auth is inferred from the HOST, and not every
+    support.sap.com asset actually demands a session -- some DAM files serve
+    anonymously. A single probe that happened to land on one of those reported
+    "session ok" against a cookie that then failed on the very next document,
+    which is worse than no check at all: it moved the blame from the cookie to
+    everything else. Any login page among the probes is conclusive; only if none
+    of them is does the session pass.
+
     Deliberately NOT a substitute for the in-loop check. A session can expire
     during a run of ten thousand files, and that is exactly when it matters
     most that a login page is never written into the corpus.
     """
     if not cookie:
         return None
-    probe = next((r for r in rows if r.get("needs_auth") and r.get("url")), None)
-    if not probe:
+    probes = [r for r in rows if r.get("needs_auth") and r.get("url")][:PROBE_N]
+    if not probes:
         return None
-    try:
-        body, _status, kind = fetch(probe["url"], cookie, attempts=1)
-    except Exception:
-        return None          # transient: let the real loop retry properly
-    return kind != "login"
+    seen = 0
+    for r in probes:
+        try:
+            _body, _status, kind = fetch(r["url"], cookie, attempts=1)
+        except Exception:
+            continue         # transient: does not tell us about the session
+        if kind == "login":
+            return False
+        seen += 1
+    return True if seen else None
 
 
 def save_state(path, state):
