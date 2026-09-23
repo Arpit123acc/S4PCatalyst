@@ -172,16 +172,16 @@ CAND_DEPTH   = int(os.environ.get("BRAIN_CAND_DEPTH", "100"))
 # revisions, not to hide them -- an old revision is often the only place some detail
 # survives -- so the cheapest value that does the job is the correct one.
 SUPERSEDED_PENALTY = float(os.environ.get("BRAIN_SUPERSEDED_PENALTY", "0.2"))
-# Down-rank factor for BULK TEMPLATE material. Swept 2026-09-22 against all 43
-# regression cases on the delivery host: 0.1 FAILS, and everything from 0.15 to
-# 0.8 passes 43/43. See _demote_bulk() for the table.
+# Down-rank factor for BULK TEMPLATE material. RE-SWEPT 2026-09-23 after the
+# corpus grew: 0.4 fails, 0.5-0.7 pass 43/43, and test-script recall breaks at
+# 0.8. 0.6 is the middle of that band. See _demote_bulk() for both sweeps.
 #
-# 0.25, not the floor. SUPERSEDED_PENALTY's precedent would take 0.15 -- above it
-# nothing improves -- but 0.15 sits directly against a failing value, which is the
-# fragility KW_WEIGHT's comment picks a midpoint to avoid. Standing clear of that
-# edge costs nothing measurable here: R-020's catalog entry lands on rank 10 at
-# 0.15, 0.25 and 0.4 alike, and test-script recall is identical at all three.
-BULK_PENALTY = float(os.environ.get("BRAIN_BULK_PENALTY", "0.25"))
+# THIS VALUE TRACKS THE CORPUS AND HAS TO BE RE-SWEPT WHEN IT MOVES. 0.25 was
+# correct on 2026-09-22 against 133,871 test scripts; the next ingest took them
+# to 191,700 -- 81% of the corpus -- and 0.25 stopped being enough the same day.
+# A refresh that adds bulk material should re-run the sweep in _demote_bulk and
+# expect the number to move, rather than treating it as settled.
+BULK_PENALTY = float(os.environ.get("BRAIN_BULK_PENALTY", "0.6"))
 # Which deliverable_type values count as bulk.
 #
 # deliverable_type, NOT content_type. sapme_ingest sets BOTH to "test_script" on
@@ -409,7 +409,29 @@ def _demote_bulk(fused):
         source, so the content is reachable; what regressed is what wins when
         nobody filters, and agents do not always filter.
 
-        SWEPT 2026-09-22 (delivery host, 43 cases, production CAND_DEPTH=100):
+        RE-SWEPT 2026-09-23, after the SAP accelerator ingest took the corpus
+        from 179,482 vectors to 237,311 and test scripts from 133,871 to
+        191,700 (81% of everything):
+
+            penalty   gate      test scripts in top 5   R-020 catalog rank
+            0.25      42/43     5 of 5                  not in top 10
+            0.4       42/43     --                      not in top 10
+            0.5       43/43     --                      --
+            0.6       43/43     5 of 5                  8
+            0.7       43/43     --                      --
+            0.8       43/43     4 of 5                  8
+
+        Bounded below by a gate failure and above by test scripts becoming
+        unreachable, so the band is [0.5, 0.7] and 0.6 is its middle.
+
+        The previous value did not degrade -- the corpus moved under it. 0.25
+        was measured against 133,871 test scripts and was correct then; at
+        191,700 the same fraction of the ranking is no longer enough to keep a
+        679-row reference source on the page. Expect to re-sweep after any
+        ingest that adds bulk material, and treat a constant that survives one
+        untouched as luck rather than stability.
+
+        FIRST SWEEP, 2026-09-22 (43 cases, production CAND_DEPTH=100):
 
             penalty   gate     overlap   R-020: rank of the catalog entry
             0         42/43     76%      not in top 10
@@ -425,7 +447,12 @@ def _demote_bulk(fused):
         10 -- the LAST SLOT -- at every passing value, and more penalty does not
         improve it, because the nine hits above it are not test scripts and this
         lever cannot touch them. The gate passes with zero margin, so R-020 will
-        fail again on any ingest that adds one better-scoring document. The
+        fail again on any ingest that adds one better-scoring document.
+
+        IT DID, the next day, when the ingest added 57,829. Recorded because the
+        prediction was worth more than the fix: a green gate with no margin is a
+        gate that will go red on schedule, and knowing which case and why turned
+        a morning of debugging into a re-sweep. The
         durable fix is a lookup, not a ranking constant: the case asks which
         scope item covers a topic, which is 679 curated rows, not a semantic
         search over 179,482 prose chunks.
