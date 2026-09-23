@@ -194,12 +194,23 @@ def fetch(url, cookie, attempts=3):
     raise last
 
 
-def load_rows(name, public_only):
+def load_rows(name, public_only, include_duplicates=False):
+    """Manifest rows as download tasks.
+
+    THE FILTER LIVES HERE, not in main(). It used to sit after this call, testing
+    r.get("download") on the dicts built below -- which never carry that key, so
+    the test was `None is False` and silently matched nothing. Every locale
+    duplicate and every foreign solution scenario went into the queue anyway, and
+    the only symptom was a log line that never printed.
+
+    Filtering where the source row is still whole removes the chance to test a
+    field that was already thrown away.
+    """
     cfg = SOURCES[name]
     if not cfg["manifest"].exists():
         sys.exit(f"{cfg['manifest']} missing — run the catalogue fetcher first.")
     rows = json.loads(cfg["manifest"].read_text(encoding="utf-8"))
-    out = []
+    out, skipped = [], 0
     for r in rows:
         url = r.get("url") or ""
         if not url.startswith("http"):
@@ -210,10 +221,20 @@ def load_rows(name, public_only):
             needs_auth = host not in PUBLIC_HOSTS
         if public_only and needs_auth:
             continue
+        # Set by sapbp_catalog.mark_downloads: locale duplicates and rows
+        # belonging to another solution scenario. Absent on sources that have no
+        # such notion, and absent is not False.
+        if not include_duplicates and r.get("download") is False:
+            skipped += 1
+            continue
         out.append({"id": r.get("id"), "title": cfg["title"](r), "url": url,
                     "host": host, "needs_auth": needs_auth})
     # One URL, one download. The Process Navigator manifest repeats a URL across
     # rows, and fetching the same bytes twice is pure waste.
+    if skipped:
+        print(f"   {name}: {skipped} row(s) excluded by the catalogue "
+              f"(locale duplicates or another solution scenario); "
+              f"--include-duplicates to fetch them")
     seen, deduped = set(), []
     for r in out:
         if r["url"] in seen:
@@ -307,18 +328,7 @@ def main():
 
     for name in names:
         cfg = SOURCES[name]
-        rows = load_rows(name, a.public_only)
-        # Honour the catalog's download flag. sapbp_catalog.mark_downloads
-        # decides it, because it is the only place that knows each row's country
-        # and which scope items the primary country already covers. A row marked
-        # False is a real artifact that lookup_accelerator still reports with its
-        # URL -- it is excluded from the CORPUS, not denied.
-        if not a.include_duplicates:
-            skipped = [r for r in rows if r.get("download") is False]
-            rows = [r for r in rows if r.get("download") is not False]
-            if skipped:
-                log.info("%s: skipping %d localized duplicate(s); --include-duplicates "
-                         "to fetch them", name, len(skipped))
+        rows = load_rows(name, a.public_only, a.include_duplicates)
         if a.match:
             m = a.match.lower()
             rows = [r for r in rows if m in (r.get("title") or "").lower()]
