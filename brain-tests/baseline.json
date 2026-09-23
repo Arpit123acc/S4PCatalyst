@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-09-22T12:22:29.882166+00:00",
+  "recorded_utc": "2026-09-23T06:23:17.691239+00:00",
   "top_k": 10,
   "cases": [
     {
@@ -52,18 +52,18 @@
           "score": 0.3206
         },
         {
-          "id": "62b27a213ba2_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/62b27a213ba2_0000.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — list-binding-and-tree-binding-aggregation-binding-91f0577",
-          "source_system": "developer_docs",
-          "score": 0.3518
-        },
-        {
           "id": "1ac00c537e22_0000",
           "chunk_file": "webdocs/chunks/ui5_docs/1ac00c537e22_0000.json",
           "source": "SAPUI5 — Fiori Elements (annotations, list report, object page) — sorting-and-filtering-in-custom-columns-73fb9c4",
           "source_system": "developer_docs",
           "score": 0.3954
+        },
+        {
+          "id": "62b27a213ba2_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/62b27a213ba2_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — list-binding-and-tree-binding-aggregation-binding-91f0577",
+          "source_system": "developer_docs",
+          "score": 0.3518
         },
         {
           "id": "4308698b9b18_0000",
@@ -303,18 +303,18 @@
           "score": 0.369
         },
         {
-          "id": "461a2349faa5_0000",
-          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
-          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
-          "source_system": "developer_docs",
-          "score": 0.3414
-        },
-        {
           "id": "8d73808be43b_0000",
           "chunk_file": "webdocs/chunks/ui5_docs/8d73808be43b_0000.json",
           "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — property-binding-91f0652",
           "source_system": "developer_docs",
           "score": 0.3643
+        },
+        {
+          "id": "461a2349faa5_0000",
+          "chunk_file": "webdocs/chunks/ui5_docs/461a2349faa5_0000.json",
+          "source": "SAPUI5 — Essentials (data binding, OData models, filtering, sorting) — data-binding-68b9644",
+          "source_system": "developer_docs",
+          "score": 0.3414
         }
       ]
     },
@@ -670,18 +670,18 @@
           "score": 0.5389
         },
         {
-          "id": "6710e5631dfa_0006",
-          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0006.json",
-          "source": "CAP — authorization and access control",
-          "source_system": "developer_docs",
-          "score": 0.4507
-        },
-        {
           "id": "6710e5631dfa_0003",
           "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0003.json",
           "source": "CAP — authorization and access control",
           "source_system": "developer_docs",
           "score": 0.4866
+        },
+        {
+          "id": "6710e5631dfa_0006",
+          "chunk_file": "webdocs/chunks/cap_docs/6710e5631dfa_0006.json",
+          "source": "CAP — authorization and access control",
+          "source_system": "developer_docs",
+          "score": 0.4507
         },
         {
           "id": "6710e5631dfa_0014",
@@ -828,13 +828,6 @@
           "score": 0.5835
         },
         {
-          "id": "redacted:90766b47362a",
-          "chunk_file": "redacted:9e9caf105520",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.5937
-        },
-        {
           "id": "redacted:98258df4e131",
           "chunk_file": "redacted:3e62bbe98351",
           "source": "redacted:b93a639f9244",
@@ -849,13 +842,6 @@
           "score": 0.5693
         },
         {
-          "id": "redacted:2e361f91d35e",
-          "chunk_file": "redacted:54cf4ad254dc",
-          "source": "redacted:a1b7e84a5ea7",
-          "source_system": "sap_best_practices",
-          "score": 0.5852
-        },
-        {
           "id": "redacted:560b9884d247",
           "chunk_file": "redacted:497c6b38c8bf",
           "source": "redacted:ff967a13aa7a",
@@ -868,6 +854,20 @@
           "source": "SAP Scope Item Catalog",
           "source_system": "sap_scope_catalog",
           "score": 0.5555
+        },
+        {
+          "id": "redacted:78adabc998fd",
+          "chunk_file": "redacted:a9de28cebb21",
+          "source": "redacted:5d63dd5ea6c2",
+          "source_system": "sharepoint",
+          "score": 0.5363
+        },
+        {
+          "id": "redacted:34a3acad7d85",
+          "chunk_file": "redacted:bdde9652bb28",
+          "source": "redacted:5d63dd5ea6c2",
+          "source_system": "sharepoint",
+          "score": 0.5363
         }
       ]
     },
@@ -886,20 +886,6 @@
           "score": 0.7242
         },
         {
-          "id": "redacted:24b22626a13e",
-          "chunk_file": "redacted:b15409909ae5",
-          "source": "redacted:3bc678eba68e",
-          "source_system": "sap_best_practices",
-          "score": 0.6648
-        },
-        {
-          "id": "redacted:f8b00d583441",
-          "chunk_file": "redacted:ed86635d54a9",
-          "source": "redacted:04f0661896ef",
-          "source_system": "sap_best_practices",
-          "score": 0.6626
-        },
-        {
           "id": "redacted:f0afec8655d4",
           "chunk_file": "redacted:795b2453bd1b",
           "source": "redacted:3a5e48deb3ff",
@@ -914,27 +900,6 @@
           "score": 0.5957
         },
         {
-          "id": "redacted:09ff946243ca",
-          "chunk_file": "redacted:f2f23683ba16",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.6135
-        },
-        {
-          "id": "redacted:9a2a07992291",
-          "chunk_file": "redacted:f42fdd261394",
-          "source": "redacted:04f0661896ef",
-          "source_system": "sap_best_practices",
-          "score": 0.6087
-        },
-        {
-          "id": "redacted:529bbfe1d795",
-          "chunk_file": "redacted:58b2d832f8ff",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.6086
-        },
-        {
           "id": "scope_2TX",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -947,6 +912,41 @@
           "source": "redacted:4ab2bf53b29e",
           "source_system": "sap_best_practices",
           "score": 0.5835
+        },
+        {
+          "id": "scope_41F",
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5824
+        },
+        {
+          "id": "redacted:f8b00d583441",
+          "chunk_file": "redacted:ed86635d54a9",
+          "source": "redacted:04f0661896ef",
+          "source_system": "sap_best_practices",
+          "score": 0.6626
+        },
+        {
+          "id": "redacted:6e478003f528",
+          "chunk_file": "redacted:21a94b892bc3",
+          "source": "redacted:70327c5a22a5",
+          "source_system": "sap_best_practices",
+          "score": 0.6591
+        },
+        {
+          "id": "redacted:24b22626a13e",
+          "chunk_file": "redacted:b15409909ae5",
+          "source": "redacted:3bc678eba68e",
+          "source_system": "sap_best_practices",
+          "score": 0.6591
+        },
+        {
+          "id": "redacted:efbc2fdbef5e",
+          "chunk_file": "redacted:d4ec82aa143c",
+          "source": "redacted:b93a639f9244",
+          "source_system": "sharepoint",
+          "score": 0.4397
         }
       ]
     },
@@ -979,6 +979,13 @@
           "score": 0.588
         },
         {
+          "id": "redacted:125d9dd239fd",
+          "chunk_file": "redacted:b402dc5117e8",
+          "source": "redacted:e148a5b4c328",
+          "source_system": "sharepoint",
+          "score": 0.5681
+        },
+        {
           "id": "redacted:0a9a769a055d",
           "chunk_file": "redacted:f1fd50c20a5b",
           "source": "redacted:04f0661896ef",
@@ -993,39 +1000,32 @@
           "score": 0.6112
         },
         {
+          "id": "redacted:7209970bb998",
+          "chunk_file": "redacted:502560c0efdf",
+          "source": "redacted:030cf5f17215",
+          "source_system": "sap_best_practices",
+          "score": 0.5958
+        },
+        {
           "id": "redacted:1ab220e7cc00",
           "chunk_file": "redacted:6e3ee5fb92a6",
           "source": "redacted:026c11b97826",
           "source_system": "sap_best_practices",
-          "score": 0.5935
+          "score": 0.5958
         },
         {
-          "id": "redacted:125d9dd239fd",
-          "chunk_file": "redacted:b402dc5117e8",
-          "source": "redacted:e148a5b4c328",
+          "id": "redacted:6d91fd830377",
+          "chunk_file": "redacted:5e96b9dc21ce",
+          "source": "redacted:5f5c16c80c23",
           "source_system": "sharepoint",
-          "score": 0.5681
+          "score": 0.5436
         },
         {
-          "id": "redacted:71be5022b379",
-          "chunk_file": "redacted:98fafaf40c54",
-          "source": "redacted:04f0661896ef",
-          "source_system": "sap_best_practices",
-          "score": 0.5532
-        },
-        {
-          "id": "redacted:a95c96780b69",
-          "chunk_file": "redacted:b5608ea32f41",
-          "source": "redacted:04f0661896ef",
-          "source_system": "sap_best_practices",
-          "score": 0.5532
-        },
-        {
-          "id": "redacted:ce690fb3c3b2",
-          "chunk_file": "redacted:340e6b03fde5",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.5388
+          "id": "scope_77V",
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5426
         }
       ]
     },
@@ -1353,13 +1353,6 @@
       "failures": [],
       "hits": [
         {
-          "id": "redacted:e0aaf4e426b4",
-          "chunk_file": "redacted:dc4a696161c5",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.5434
-        },
-        {
           "id": "redacted:edc21261c64b",
           "chunk_file": "redacted:4028efc9fdd3",
           "source": "redacted:0c04b35c068c",
@@ -1374,13 +1367,6 @@
           "score": 0.4624
         },
         {
-          "id": "redacted:87a457c674e1",
-          "chunk_file": "redacted:e1f09c1cd4b5",
-          "source": "redacted:cc5d0a161a73",
-          "source_system": "sap_best_practices",
-          "score": 0.4913
-        },
-        {
           "id": "redacted:b9e16229133d",
           "chunk_file": "redacted:abfe15791b5a",
           "source": "redacted:0c04b35c068c",
@@ -1393,13 +1379,6 @@
           "source": "redacted:76c6c2d6a6fa",
           "source_system": "sharepoint",
           "score": 0.4756
-        },
-        {
-          "id": "redacted:84d5bdc4996e",
-          "chunk_file": "redacted:2c31933b22d1",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.4534
         },
         {
           "id": "redacted:3a5140cc9d9e",
@@ -1421,6 +1400,27 @@
           "source": "redacted:0c04b35c068c",
           "source_system": "abap_guidance",
           "score": 0.4466
+        },
+        {
+          "id": "redacted:94c2182dd44f",
+          "chunk_file": "redacted:d29a11403d71",
+          "source": "redacted:cacc86f544b0",
+          "source_system": "sharepoint",
+          "score": 0.3879
+        },
+        {
+          "id": "redacted:e0aaf4e426b4",
+          "chunk_file": "redacted:dc4a696161c5",
+          "source": "redacted:7ec38120bbc0",
+          "source_system": "sap_best_practices",
+          "score": 0.5434
+        },
+        {
+          "id": "redacted:8bf280015e7e",
+          "chunk_file": "redacted:f977598d7497",
+          "source": "redacted:e4986b38beeb",
+          "source_system": "sharepoint",
+          "score": 0.3971
         }
       ]
     },
@@ -1511,6 +1511,13 @@
       "failures": [],
       "hits": [
         {
+          "id": "redacted:d0250d7637cd",
+          "chunk_file": "redacted:f16e44c957d8",
+          "source": "redacted:cd9c0d0cc4e8",
+          "source_system": "sap_best_practices",
+          "score": 0.4894
+        },
+        {
           "id": "redacted:9e0ba9a854f6",
           "chunk_file": "redacted:66b8f307920a",
           "source": "redacted:c98e74dfd86b",
@@ -1567,18 +1574,11 @@
           "score": 0.4714
         },
         {
-          "id": "redacted:17bdac864f82",
-          "chunk_file": "redacted:2c95d557a29c",
+          "id": "redacted:7a4bf8fdc688",
+          "chunk_file": "redacted:669f00bae4ae",
           "source": "redacted:e7ef6d4d0ad5",
-          "source_system": "sap_activate",
-          "score": 0.4397
-        },
-        {
-          "id": "redacted:00d8e89d20f0",
-          "chunk_file": "redacted:ae00c109e8c5",
-          "source": "redacted:e7ef6d4d0ad5",
-          "source_system": "sap_activate",
-          "score": 0.4397
+          "source_system": "sap_best_practices",
+          "score": 0.4714
         }
       ]
     },
@@ -1924,20 +1924,6 @@
           "score": 0.6004
         },
         {
-          "id": "redacted:90766b47362a",
-          "chunk_file": "redacted:9e9caf105520",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.5937
-        },
-        {
-          "id": "redacted:2e361f91d35e",
-          "chunk_file": "redacted:54cf4ad254dc",
-          "source": "redacted:a1b7e84a5ea7",
-          "source_system": "sap_best_practices",
-          "score": 0.5852
-        },
-        {
           "id": "scope_4N6",
           "chunk_file": "catalog:scope_items",
           "source": "SAP Scope Item Catalog",
@@ -1945,25 +1931,11 @@
           "score": 0.5555
         },
         {
-          "id": "redacted:a07a91ab34c0",
-          "chunk_file": "redacted:4a85d860b0bb",
+          "id": "redacted:90766b47362a",
+          "chunk_file": "redacted:9e9caf105520",
           "source": "redacted:7ec38120bbc0",
           "source_system": "sap_best_practices",
-          "score": 0.5622
-        },
-        {
-          "id": "redacted:48fddb9c847e",
-          "chunk_file": "redacted:6f8ef7485441",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.5601
-        },
-        {
-          "id": "redacted:8307627bca56",
-          "chunk_file": "redacted:3c18124f85ff",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.5593
+          "score": 0.5937
         },
         {
           "id": "redacted:6ea4ff694bf2",
@@ -1980,11 +1952,39 @@
           "score": 0.5467
         },
         {
-          "id": "redacted:853a315f66f9",
-          "chunk_file": "redacted:12bde81f634a",
-          "source": "redacted:7ec38120bbc0",
+          "id": "redacted:971782219b87",
+          "chunk_file": "redacted:8862c7e79dba",
+          "source": "redacted:15ed01cb66a0",
           "source_system": "sap_best_practices",
-          "score": 0.5569
+          "score": 0.5885
+        },
+        {
+          "id": "redacted:2e361f91d35e",
+          "chunk_file": "redacted:54cf4ad254dc",
+          "source": "redacted:a1b7e84a5ea7",
+          "source_system": "sap_best_practices",
+          "score": 0.5885
+        },
+        {
+          "id": "scope_2LG",
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5456
+        },
+        {
+          "id": "scope_4A1",
+          "chunk_file": "catalog:scope_items",
+          "source": "SAP Scope Item Catalog",
+          "source_system": "sap_scope_catalog",
+          "score": 0.5454
+        },
+        {
+          "id": "redacted:58f6694d4653",
+          "chunk_file": "redacted:98ea9c694c94",
+          "source": "redacted:1e39e7723e94",
+          "source_system": "sap_best_practices",
+          "score": 0.4107
         }
       ]
     },
@@ -2432,6 +2432,27 @@
           "score": 0.4222
         },
         {
+          "id": "redacted:b327c980c09c",
+          "chunk_file": "redacted:2a1a61b6fe35",
+          "source": "redacted:61a9f5f58486",
+          "source_system": "sap_activate",
+          "score": 0.388
+        },
+        {
+          "id": "redacted:95171eda060d",
+          "chunk_file": "redacted:239e3975903c",
+          "source": "redacted:e10fd8b03158",
+          "source_system": "sap_activate",
+          "score": 0.3724
+        },
+        {
+          "id": "redacted:b7d9ae756be5",
+          "chunk_file": "redacted:22c26918ad3f",
+          "source": "redacted:29ff7dccc993",
+          "source_system": "sharepoint",
+          "score": 0.3615
+        },
+        {
           "id": "redacted:2d993918bce5",
           "chunk_file": "redacted:4076e8930a0e",
           "source": "redacted:7ec38120bbc0",
@@ -2444,27 +2465,6 @@
           "source": "redacted:7ec38120bbc0",
           "source_system": "sap_best_practices",
           "score": 0.4359
-        },
-        {
-          "id": "redacted:e43fa61d9ad0",
-          "chunk_file": "redacted:54a2b1466e59",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.4359
-        },
-        {
-          "id": "redacted:b8e20603ed81",
-          "chunk_file": "redacted:24703785a5c9",
-          "source": "redacted:7ec38120bbc0",
-          "source_system": "sap_best_practices",
-          "score": 0.4356
-        },
-        {
-          "id": "redacted:213799aadcf3",
-          "chunk_file": "redacted:67ea68d0ce0d",
-          "source": "redacted:04f0661896ef",
-          "source_system": "sap_best_practices",
-          "score": 0.4356
         }
       ]
     },
@@ -2755,18 +2755,18 @@
           "score": 0.3472
         },
         {
-          "id": "446f3ce06cf1_0000",
-          "chunk_file": "webdocs/chunks/clean_abap_docs/446f3ce06cf1_0000.json",
-          "source": "Clean ABAP — abap-cleaner rule reference — AlignFormDeclarationRule",
-          "source_system": "developer_docs",
-          "score": 0.3459
-        },
-        {
           "id": "0d6a77912e2c_0001",
           "chunk_file": "webdocs/chunks/clean_abap_docs/0d6a77912e2c_0001.json",
           "source": "Clean ABAP — abap-cleaner rule reference — rules",
           "source_system": "developer_docs",
           "score": 0.3662
+        },
+        {
+          "id": "446f3ce06cf1_0000",
+          "chunk_file": "webdocs/chunks/clean_abap_docs/446f3ce06cf1_0000.json",
+          "source": "Clean ABAP — abap-cleaner rule reference — AlignFormDeclarationRule",
+          "source_system": "developer_docs",
+          "score": 0.3459
         },
         {
           "id": "467f60eee36b_0001",
@@ -3096,11 +3096,11 @@
           "score": 0.4594
         },
         {
-          "id": "redacted:ca6ed8bf1251",
-          "chunk_file": "redacted:2b1960015119",
-          "source": "redacted:7ec38120bbc0",
+          "id": "redacted:b10c42e23bbe",
+          "chunk_file": "redacted:c8c1e640ba9f",
+          "source": "redacted:26d4c07988cc",
           "source_system": "sap_best_practices",
-          "score": 0.4531
+          "score": 0.4496
         }
       ]
     },
@@ -3412,11 +3412,11 @@
           "score": 0.5652
         },
         {
-          "id": "redacted:4159afa359d5",
-          "chunk_file": "redacted:4ffda7d0e21b",
-          "source": "redacted:5accb9005b88",
-          "source_system": "sharepoint",
-          "score": 0.5713
+          "id": "redacted:5d7e0c4f61ee",
+          "chunk_file": "redacted:edd0ae7c0eaf",
+          "source": "redacted:c075c74de9ed",
+          "source_system": "sap_best_practices",
+          "score": 0.5609
         }
       ]
     }
