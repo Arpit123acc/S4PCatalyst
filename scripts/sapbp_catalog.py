@@ -261,7 +261,7 @@ def resolve_scenario(stable_id, explicit=None):
     return guid, rel, ver
 
 
-def mark_downloads(manifest, primary):
+def mark_downloads(manifest, primary, scenario=None):
     """Flag which rows are worth downloading, and say why the rest are not.
 
     Decided HERE rather than in sapme_fetch because this is where the inputs
@@ -303,7 +303,21 @@ def mark_downloads(manifest, primary):
     tally = Counter()
     for m in manifest:
         ctry = m.get("country")
-        if ctry in (GENERIC_COUNTRY, primary):
+        if scenario and m.get("scenario_id") != scenario:
+            # Another SOLUTION, not another country. This manifest covers all 99
+            # scenarios SAP publishes -- S/4HANA on-premise (Sol_Pack/S4O),
+            # Integrated Business Planning (IBP), Ariba (ARB), public sector --
+            # because Tier B filters on country and validity, never on scenario.
+            #
+            # Downloading them is wrong twice: this brain is about S/4HANA Cloud
+            # Public Edition and says so in CLAUDE.md, and a support contract for
+            # Cloud does not entitle you to the on-premise library, so SAP
+            # answers with a SAML page that looks exactly like an expired
+            # session. 11,483 of 13,841 rows were other products.
+            m["download"] = False
+            m["skip_reason"] = "belongs to solution scenario %s, not %s" % (
+                m.get("scenario_id"), scenario)
+        elif ctry in (GENERIC_COUNTRY, primary):
             m["download"], m["skip_reason"] = True, None
         elif not (m.get("name") or "").startswith(TEST_SCRIPT_PREFIX):
             # Country-specific by nature. German and Brazilian "Preconfigured
@@ -490,7 +504,7 @@ def main():
             "ext": os.path.splitext(urllib.parse.urlparse(url).path)[1].lower() or None,
         })
 
-    mark_downloads(manifest, c)
+    mark_downloads(manifest, c, scenario)
 
     with_url = sum(1 for m in manifest if m["url"])
     with_scope = sum(1 for m in manifest if m["scope_item"])

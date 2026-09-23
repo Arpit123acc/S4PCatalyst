@@ -43,7 +43,11 @@ def manifest():
         # each country's version differs -- that is what makes it localization
         {"name": "Preconfigured tax codes", "country": "DE", "scope_item": "2LH"},
         {"name": "Preconfigured tax codes", "country": "BR", "scope_item": "2LH"},
-        {"name": "Highlights of finance", "country": "XX", "scope_item": None},
+        {"name": "Highlights of finance", "country": "XX", "scope_item": None,
+         "scenario_id": "ours"},
+        # a different SOLUTION, not a different country: on-premise / IBP / Ariba
+        {"name": "Test script", "country": "DE", "scope_item": "9ZZ",
+         "scenario_id": "some-other-product"},
     ]
 
 
@@ -51,7 +55,9 @@ class TestDownloadSelection(unittest.TestCase):
 
     def setUp(self):
         self.rows = manifest()
-        k.mark_downloads(self.rows, "DE")
+        for r in self.rows:
+            r.setdefault("scenario_id", "ours")
+        k.mark_downloads(self.rows, "DE", "ours")
     def row(self, country, scope_item, name="Test script"):
         """One row. Name included because BR carries two rows for 2LH: the
         duplicate test script and the Brazil-only SAP Note."""
@@ -85,7 +91,7 @@ class TestDownloadSelection(unittest.TestCase):
         lookup_accelerator must still find them and report their URL: a human
         asking for the Brazilian variant should get a link, not silence.
         """
-        self.assertEqual(len(self.rows), 9)
+        self.assertEqual(len(self.rows), 10)
         self.assertEqual(sum(1 for r in self.rows if r["download"]), 7)
 
     def test_a_document_the_primary_country_lacks_is_kept(self):
@@ -112,6 +118,18 @@ class TestDownloadSelection(unittest.TestCase):
         self.assertTrue(row["download"])
         self.assertIsNone(row["skip_reason"])
         self.assertFalse(self.row("BR", "2LH")["download"], "the test script IS a duplicate")
+
+    def test_another_solution_scenario_is_never_downloaded(self):
+        """bom_manifest spans all 99 scenarios SAP publishes, because Tier B
+        filters on country and validity but never on scenario. 11,483 of 13,841
+        rows marked for download were other products -- S/4HANA on-premise, IBP,
+        Ariba. A Cloud support contract does not entitle you to the on-premise
+        library, so SAP answers with a SAML page indistinguishable from an
+        expired session, which is how this surfaced.
+        """
+        row = self.row("DE", "9ZZ")
+        self.assertFalse(row["download"])
+        self.assertIn("solution scenario", row["skip_reason"])
 
     def test_every_row_is_decided(self):
         for r in self.rows:
