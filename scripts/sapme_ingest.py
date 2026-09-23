@@ -324,10 +324,17 @@ def ingest_files(source, dry, tally):
     if not dry:
         out.mkdir(parents=True, exist_ok=True)
 
-    for url, st in state.items():
-        if st.get("status") != "ok":
-            continue
+    # ANNOUNCED BEFORE THE WORK, not after. Extraction is the slow part -- one
+    # Cloud ALM workbook renders to 116,522 characters -- so logging only on
+    # completion leaves the run silent for minutes at a time with nothing to
+    # distinguish it from a hang. It was read as one. sharepoint_ingest carries
+    # the same note and the same fix; this is the file that still lacked it.
+    todo = [(u, v) for u, v in state.items() if v.get("status") == "ok"]
+    total = len(todo)
+    for i, (url, st) in enumerate(todo, 1):
         path = files_d / st["file"]
+        if i == 1 or i % 250 == 0 or i == total:
+            print("   [%d/%d] %s" % (i, total, str(st.get("file"))[:64]), flush=True)
         if not path.exists():
             tally["missing_file"] += 1
             continue
