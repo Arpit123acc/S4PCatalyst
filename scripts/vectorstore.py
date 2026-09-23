@@ -66,7 +66,7 @@ INDEX_DIR = BASE_DIR / "brain" / "index"
 # sap_activate is deliberately NOT exempt: SAP publishes a real phase for those
 # accelerators, so filtering them by phase is meaningful and must keep working.
 PROVENANCE_EXEMPT_SOURCES = {"developer_docs", "sap_scope_catalog", "abap_guidance",
-                             "sap_best_practices", "sap_bpd"}
+                             "sap_best_practices", "sap_bpd", "sap_process_flow"}
 PROVENANCE_FIELDS = {"phase", "agent_role"}
 
 
