@@ -113,6 +113,9 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '30s',
       restart_delay: 5000,
+      // Measured on the host: ~2.2G resident at 180k chunks, so 3G leaves
+      // headroom without letting a genuine leak run. The corpus has since
+      // grown to ~208k chunks, so re-measure before assuming this still fits.
       max_memory_restart: '3G',    // FAISS index is held in memory
       out_file: '/home/ec2-user/.pm2/logs/s4pc-mcp-out.log',
       error_file: '/home/ec2-user/.pm2/logs/s4pc-mcp-err.log',
