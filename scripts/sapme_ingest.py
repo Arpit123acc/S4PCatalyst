@@ -47,56 +47,16 @@ import json
 import re
 import sys
 from collections import Counter
-from html.parser import HTMLParser
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from html_to_text import html_text       # noqa: E402  ONE html->text rule
 from sharepoint_ingest import chunk            # noqa: E402  same chunk size as the corpus
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 BRAIN = BASE_DIR / "brain"
 
 MIN_USEFUL_CHARS = 400          # below this it is a stub, a shell or a bad extract
-
-
-class _Text(HTMLParser):
-    """Visible text from HTML. Drops script/style, keeps block boundaries."""
-
-    SKIP = {"script", "style", "noscript", "svg", "head"}
-    BLOCK = {"p", "div", "li", "tr", "h1", "h2", "h3", "h4", "br", "section"}
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.out, self.skip = [], 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self.SKIP:
-            self.skip += 1
-        elif tag in self.BLOCK:
-            self.out.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in self.SKIP and self.skip:
-            self.skip -= 1
-        elif tag in self.BLOCK:
-            self.out.append("\n")
-
-    def handle_data(self, data):
-        if not self.skip:
-            self.out.append(data)
-
-    def text(self):
-        t = re.sub(r"[ \t]+", " ", "".join(self.out))
-        return re.sub(r"\n{3,}", "\n\n", t).strip()
-
-
-def html_text(raw):
-    p = _Text()
-    try:
-        p.feed(raw.decode("utf-8", errors="replace"))
-    except Exception:                                   # noqa: BLE001
-        return ""
-    return p.text()
 
 
 def docx_text(path):

@@ -53,6 +53,9 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from html_to_text import html_text     # noqa: E402  ONE html->text rule
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 BRAIN = BASE_DIR / "brain"
 
@@ -510,8 +513,13 @@ def main():
                         "   That streak is the evidence -- a single login page is an\n"
                         "   unentitled document, not an expiry. Refresh SAPME_COOKIE and\n"
                         "   re-run; everything already fetched is kept.")
-                if kind == "html" and len(re.sub(r"<[^>]+>", " ", body.decode(
-                        "utf-8", errors="replace"))) < MIN_USEFUL_HTML:
+                # Same html->text rule the INGEST uses. This was a regex that
+                # stripped tags but kept the body of every inline <script>, so
+                # an SPA shell -- mostly JavaScript -- read as prose and was
+                # stored as content, while the ingest's parser extracted zero
+                # characters from the identical file. Eleven copies of the SAP
+                # Discovery Center shell got through that gap.
+                if kind == "html" and len(html_text(body)) < MIN_USEFUL_HTML:
                     kind = "shell"
 
                 if kind in ("zip", "pdf", "html"):
