@@ -1,8 +1,10 @@
 # Delta refresh after an SAP release
 
 How the brain picks up a new S/4HANA Cloud release without re-fetching everything.
-Design, plus the service contract it rests on — **verified against the live
-EAXService `$metadata` and live data on 2026-09-22**, not inferred.
+
+**Built 2026-09-24** as `scripts/sapbp_delta.py`, against a service contract
+verified on the live EAXService rather than inferred. This document now describes
+what exists; the runbook is at the end.
 
 ## The problem
 
@@ -125,16 +127,30 @@ etag means SAP altered the contract, and a delta run should then **refuse and as
 for a human** — field semantics may have shifted under the filters, and a delta on
 a changed contract fails quietly rather than loudly.
 
-## Step 2 — artifact delta
+## Step 2 — artifact delta, as built
 
-| change | action |
-|---|---|
-| new BOM item id | download |
-| `contentReleaseVersion_ID` changed | download, replace chunks |
-| process `changeCategory` ≠ `No Change` | re-fetch the process description |
-| `In_Deprecation` | keep, flag `deprecated: true` |
-| `Retired`, or absent from the new manifest | **mark retired, do not delete** |
-| otherwise | skip — the ~77% saving |
+The delta is computed by **diffing two manifest snapshots**, not by filtering at
+the OData layer. `sapbp_catalog.py` keeps the previous run as
+`bom_manifest.prev.json`; `sapbp_delta.py` compares it to the current one.
+
+That choice matters. Filtering server-side would have meant trusting
+`changeCategory` semantics we had only just discovered — including the
+comma-compound `Addition,Upgrade` — on a service whose own manifest comment
+says it "may move without notice". Diffing snapshots needs no such trust: a
+field changed or it did not.
+
+| class | what the fetcher does | needs `--apply`? |
+|---|---|---|
+| **new** — id absent from the previous run | fetched anyway; absent from the state | no |
+| **content_changed** — same URL, new `contentReleaseVersion_ID` | **skipped forever** unless its state entry is cleared | **yes** |
+| **url_changed** — new URL for a known id | fetched anyway; the new URL is absent from the state | no |
+| **retired** — id gone from the catalogue | flagged, never deleted | n/a |
+| unchanged | skipped — the saving | no |
+
+Only `content_changed` needs intervention, and it is the entire reason this
+exists: the URL is stable across releases while the file behind it changes, so
+the fetch state reports "already have it" and the corpus holds the old release.
+Clearing the whole state would also work, and would re-download 13,600 files.
 
 **Deprecation is not deletion, and neither is it nothing.** A delta that only adds
 leaves the brain serving withdrawn content indefinitely, which CLAUDE.md treats as
@@ -174,6 +190,34 @@ SharePoint source went missing for two weeks without anyone noticing.
 
 Re-record the baseline only if the gate moved for a reason you can name, then
 `pm2 restart s4pc-mcp`.
+
+## Runbook
+
+```bash
+# 1. has SAP shipped anything? one request, safe unattended (needs pr.alm cookie)
+python3.11 scripts/sapbp_delta.py --check        # exit 0 = no change, 1 = something moved
+
+# 2. if it moved — refresh the catalogue (keeps the previous snapshot automatically)
+python3.11 scripts/sapbp_catalog.py
+
+# 3. see what changed, offline, no cookie
+python3.11 scripts/sapbp_delta.py
+
+# 4. queue the republished documents for re-download
+python3.11 scripts/sapbp_delta.py --apply
+
+# 5. fetch (support.sap.com cookie), then rebuild
+python3.11 scripts/sapme_fetch.py --source sapbp
+python3.11 scripts/sapme_ingest.py
+python3.11 scripts/sapbp_build_process_index.py
+python3.11 scripts/sapbp_build_flow_chunks.py
+python3.11 scripts/embed_chunks.py
+python3.11 scripts/brain_regression.py
+pm2 restart s4pc-mcp
+```
+
+Step 1 is the only one a cron should run. It reports; it never starts a download
+that needs a human session.
 
 ## What is deliberately not automated
 
