@@ -10,10 +10,10 @@ what exists; the runbook is at the end.
 
 `sapbp_catalog.py` fetches all three tiers in full on every run: ~657 processes,
 6,204 BOM items and 6,234 URL rows. `sapme_fetch.py` then downloads ~6,650
-artifacts from `support.sap.com`, which is behind SAML and needs a browser session
-pasted in by a human. A full refresh is therefore not something a cron job can do
-unattended — the download is the part that needs a person, and also the part that
-takes hours.
+artifacts from `support.sap.com`. That was long believed to need a human-pasted
+browser session; measurement on 2026-09-24 showed ~99.5% of it is public and
+needs no cookie at all (see Step 3). What remains expensive is the volume,
+not the authentication.
 
 SAP ships roughly quarterly. **77% of solution processes are `No Change` between
 releases** (measured: 614 of 800 sampled), so most of that cost buys nothing.
@@ -119,8 +119,10 @@ query LatestSolutionScenarioIds?$filter=stableId eq 'EARL_SolS-013'&$orderby=seq
      changed   → proceed to step 2.
 ```
 
-One cheap request, and the only part safe to run fully unattended. It must **not**
-start a download: that needs a human session.
+One cheap request. It is the only step that still needs a session at all --
+`connect.sid` for `pr.alm.me.sap.com` -- because the download turned out not to
+(Step 3). Keep it separate from the download anyway: a release check that
+silently kicks off hours of fetching is a surprise nobody wants on a cron.
 
 Compare `metadata_etag` too, which `sapbp_catalog.py` already records. A changed
 etag means SAP altered the contract, and a delta run should then **refuse and ask
@@ -163,14 +165,62 @@ Carry the flag into chunk metadata so `search_brain` surfaces it the way it
 surfaces `is_current`, and so `lookup_accelerator` can report it next to
 `scope_item_retired`.
 
-## Step 3 — download, with a human in the loop
+## Step 3 — download, unattended
 
-Unchanged: `sapme_fetch.py` with a pasted session cookie, given only the delta list
-via its existing `--match` flag. Cannot be automated — `support.sap.com` is behind
-SAML and the project holds no service credentials by design.
+**This section said the download could not be automated. That was wrong, and it
+was wrong because nobody measured it.** Corrected 2026-09-24.
 
-Expect a few hundred files rather than 6,650: minutes instead of hours, which is
-what makes this something a person will actually do on release day.
+`sapme_fetch` never tested whether a document needs authentication. It inferred
+it from the hostname:
+
+```python
+needs_auth = host not in PUBLIC_HOSTS
+```
+
+Everything on `support.sap.com` was therefore assumed private, and that single
+assumption is what put a human in the loop for the whole corpus.
+
+`scripts/probe_public_access.py` measured it instead, over a 200-row stratified
+sample fetched with **no cookie at all**:
+
+| stratum | rows in pool | result |
+|---|---|---|
+| `support.sap.com /dam/` | ~1,339 | **188 of 189 served anonymously**, 1 login |
+| `me.sap.com` | 7 (all tested) | 721–723 B JS shells — not content, cookie irrelevant |
+| `education.hana.ondemand.com` | 1 | 753 B shell |
+| `roadmaps.sap.com` | 1 | 879 B, no title — shell |
+| `learnsap.enable-now.cloud.sap` | 1 | 11 KB, real content |
+| `support.sap.com` (non-`/dam/`) | 1 | 139 KB, real content |
+
+Round-robin stratification exhausted every small stratum, so those non-`/dam/`
+rows are the whole population, not a sample.
+
+**~99.5% of the download needs no session, no cookie and no credential.** The
+remainder is a named list the fetcher prints at the end of a run.
+
+What had made that impossible in practice was a second conflation: a login page
+from a `SESSION_HOST` raised `SessionExpired` and aborted, so one gated document
+in 1,339 killed an unattended run. `login_means()` now distinguishes four cases,
+and only one is fatal:
+
+| situation | verdict | run continues? |
+|---|---|---|
+| no cookie held | `needs_session` — measured, not inferred | yes |
+| third-party host (BTP launchpad, WalkMe) | `needs_other_login` | yes |
+| cookie held, isolated login page | `no_access` — unentitled content | yes |
+| cookie held, `LOGIN_STREAK` consecutive | `session_expired` | **no** |
+
+The streak is the point. SAP answers *unentitled* content with a login page
+rather than a 403, and one such row was diagnosed as "expired session" three
+separate times, each costing a cookie re-capture that fixed nothing. A session
+that fetched the previous document has not expired between two requests, so an
+isolated login page is an inaccessible document and only a streak is a dead
+session. The costs are asymmetric: mislabelling a dead session wastes three
+requests that write nothing, while mislabelling an unentitled document sends
+someone to re-run 13,600 downloads.
+
+So the download now runs unattended. Export a cookie only to collect whatever
+the previous run listed as `needs_session`.
 
 Note the two sessions are **different**: `connect.sid` for `pr.alm.me.sap.com`
 (steps 1–2) and `SUPPORT_IDS_PROD` for `support.sap.com` (step 3). A `me.sap.com`
@@ -194,7 +244,8 @@ Re-record the baseline only if the gate moved for a reason you can name, then
 ## Runbook
 
 ```bash
-# 1. has SAP shipped anything? one request, safe unattended (needs pr.alm cookie)
+# 1. has SAP shipped anything? one request (needs a pr.alm cookie -- the only
+#    step that does)
 python3.11 scripts/sapbp_delta.py --check        # exit 0 = no change, 1 = something moved
 
 # 2. if it moved — refresh the catalogue (keeps the previous snapshot automatically)
@@ -206,7 +257,9 @@ python3.11 scripts/sapbp_delta.py
 # 4. queue the republished documents for re-download
 python3.11 scripts/sapbp_delta.py --apply
 
-# 5. fetch (support.sap.com cookie), then rebuild
+# 5. fetch. NO cookie needed: ~99.5% of the corpus is public (measured).
+#    Rows that truly need a session are recorded as needs_session, listed at
+#    the end of the run, and collected on a later pass with a cookie exported.
 python3.11 scripts/sapme_fetch.py --source sapbp
 python3.11 scripts/sapme_ingest.py
 python3.11 scripts/sapbp_build_process_index.py
@@ -216,14 +269,36 @@ python3.11 scripts/brain_regression.py
 pm2 restart s4pc-mcp
 ```
 
-Step 1 is the only one a cron should run. It reports; it never starts a download
-that needs a human session.
+Step 1 reports and never starts a download -- keep it that way. Steps 5-8 can
+now run unattended too, since the fetch needs no cookie; the reason to keep a
+person near them is the ~30 minute embed and the regression gate, not auth.
 
-## What is deliberately not automated
+## What still needs a human, and what no longer does
 
-The download needs a human SAML session, so "one-click refresh" cannot mean
-unattended. What a UI button can honestly do is **step 1**: check whether a new
-release exists and report it. The human then supplies a cookie and runs the rest.
-Anything promising more would need stored SAP credentials — which this project
-explicitly does not hold — or would fail silently the first time a session expired,
-on a job nobody is watching.
+**No longer:** the download. ~99.5% of it is public (measured above), and a gated
+row no longer aborts the run. No stored credential, nothing to rotate, and no
+automated job acting under a named person's S-user.
+
+**Still, but cheaply:** release detection. `--check` calls `pr.alm.me.sap.com`,
+which does need `connect.sid`. `scripts/probe_sap_login.py` proved on 2026-09-24
+that a headless browser can mint that session — bot detection does not block it,
+the two-step SAML form completes, and the exported cookie replays outside the
+browser as HTTP 200. So it *could* be automated.
+
+**It should not be, yet.** That needs a stored SAP password, and the only account
+available is a personal S-user. Putting it in a secret store means a cron job
+acting as a named human: SAP's audit trail attributes every call to them, the job
+dies the next time the password rotates, and it outlives their access if they
+change role. CLAUDE.md's rule is "SAP credentials only via environment variables
+(communication user)"; a personal S-user in Secrets Manager is not that.
+
+Ask SAP for a technical user first. Until then `--check` is one cheap call a
+person can run, or skip entirely — SAP ships quarterly, and the release number is
+public.
+
+**Genuinely out of reach:** the 122 rows that come back as JS shells (721–723 B,
+no title). `me.sap.com` renders SAP Notes and the roadmap viewer client-side, so
+no cookie and no browser automation short of scraping the rendered DOM will
+produce text. These need their own content API, and the fetcher already detects
+them and declines to write them — they are absent from the corpus, not silently
+corrupting it.
