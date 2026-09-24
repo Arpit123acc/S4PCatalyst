@@ -48,6 +48,7 @@ Usage:
     python3.11 scripts/probe_public_access.py --all-hosts  # include public rows too
 """
 
+import re
 import sys
 import time
 import random
@@ -89,6 +90,28 @@ def stratified(rows, n, seed=7):
     return out
 
 
+def describe_page(body):
+    """Characterise a non-document response without pretending to classify it.
+
+    classify() returns "login" only on SERVER-SIDE SAML markers. me.sap.com
+    does not use those -- it answers 200 with a JS shell and decides about
+    authentication in the browser -- so a login wall from that host arrives
+    here labelled "html", indistinguishable from real content.
+
+    This does not try to settle it. It reports the two facts that let a person
+    settle it in one glance: how big the body is, and what the title says. A
+    shell is small and titled like an app; an article is large and titled like
+    an article. Guessing with a keyword list would just add a third unreliable
+    opinion to a question that a title answers outright.
+    """
+    from sapme_fetch import MIN_USEFUL_HTML                      # noqa: PLC0415
+    head = body[:4000].decode("utf-8", errors="replace")
+    m = re.search(r"<title[^>]*>(.*?)</title>", head, re.I | re.S)
+    title = re.sub(r"\s+", " ", m.group(1)).strip()[:44] if m else "(no title)"
+    flag = "SHELL" if len(body) < MIN_USEFUL_HTML else "     "
+    return "%s %6dB  %s" % (flag, len(body), title)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", type=int, default=40, help="sample size (default 40)")
@@ -114,19 +137,30 @@ def main():
     print("")
 
     tally = collections.defaultdict(collections.Counter)
-    failures = []
+    failures, pages = [], []
     for i, (stratum, r) in enumerate(sample, 1):
         host, dam = stratum
         label = "%s%s" % (host, " /dam/" if dam else "")
+        note = ""
         try:
             body, _ctype, _final = fetch(r["url"], "", attempts=1)
             kind = classify(body, r["url"])
+            if kind not in ("zip", "pdf"):
+                # "html" is NOT a clean bill of health. classify only calls
+                # something a login page when it finds SERVER-SIDE SAML
+                # markers, and me.sap.com's login is JS-driven -- it answers
+                # 200 with no form and no redirect. So an undetectable login
+                # wall and real content both land here. Record enough to tell
+                # them apart by eye rather than guessing.
+                note = describe_page(body)
+                pages.append((label, r["url"], len(body), note))
         except Exception as exc:
             kind = "error:%s" % type(exc).__name__
             failures.append((r["url"], str(exc)[:70]))
         tally[label][kind] += 1
-        print("   %3d/%d  %-34s %-6s %s"
-              % (i, len(sample), label[:34], kind, r["url"].rsplit("/", 1)[-1][:46]))
+        print("   %3d/%d  %-34s %-6s %-46s %s"
+              % (i, len(sample), label[:34], kind,
+                 r["url"].rsplit("/", 1)[-1][:46], note))
         time.sleep(PAUSE)
 
     print("")
@@ -155,14 +189,38 @@ def main():
         for u, e in failures[:4]:
             print("      %s  %s" % (u.rsplit("/", 1)[-1][:40], e))
 
+    if pages:
+        print("")
+        print("== the %d non-document responses, which prove NOTHING either way" % len(pages))
+        print("   classify() cannot see a JS-driven login wall, so these are")
+        print("   unresolved rather than public. Judge by size and title:")
+        for label, url, _sz, note in pages[:14]:
+            print("   %-30s %s" % (label[:30], note))
+            print("   %-30s   %s" % ("", url[:88]))
+
     print("")
     if n and tot_login == 0 and tot_public:
-        print("   VERDICT: nothing in this sample needed a session. needs_auth is")
-        print("   inferred from the host and looks WRONG for these rows. Before")
-        print("   acting on that, widen the sample (-n 200) -- absence of evidence")
-        print("   over 40 rows is a weak claim about 1,350.")
-        print("   If it holds, the download needs no credential and no human, and")
-        print("   the right fix is to MEASURE needs_auth rather than infer it.")
+        # Report the two populations separately. Folding them together is how
+        # a strong result about documents becomes an unsupported claim about
+        # everything, and the whole point of this probe is not to do that.
+        print("   VERDICT, in two parts -- they are not equally settled.")
+        print("")
+        print("   1. DOCUMENTS (%d of %d): served with no cookie, no session, no" % (tot_public, n))
+        print("      login page anywhere. These are real files by magic bytes, so")
+        print("      there is no ambiguity. needs_auth is inferred from the host")
+        print("      and is WRONG for them. Widen to -n 200 before acting: zero")
+        print("      logins over %d rows is still a weak claim about the rest." % n)
+        print("")
+        print("   2. PAGES (%d of %d): UNRESOLVED, not public. classify() only" % (tot_other, n))
+        print("      detects server-side SAML, and me.sap.com decides")
+        print("      authentication in JavaScript -- it answers 200 with a shell.")
+        print("      A login wall from that host is indistinguishable here from")
+        print("      an article. Anything marked SHELL above is also a candidate")
+        print("      for the zero-text documents already sitting in the corpus.")
+        print("")
+        print("   If part 1 holds at a larger n, the bulk download needs no")
+        print("   credential and no human, and the fix is to MEASURE needs_auth")
+        print("   rather than infer it from the host.")
     elif tot_login and tot_public:
         print("   VERDICT: mixed. %d of %d need a session. Fetch the rest"
               % (tot_login, n))
