@@ -23,6 +23,7 @@ Usage:
 """
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -53,12 +54,21 @@ def _corpus(chunks):
 
 
 def _run(chunks_dir, *extra):
-    # Decoded explicitly as UTF-8: with text=True subprocess uses the locale codepage,
-    # and on Windows that turns the script's em-dashes into mojibake, so assertions
-    # written against the real message fail for a reason that has nothing to do with
-    # masking. errors="replace" keeps a mangled byte from raising instead.
+    # BOTH ENDS MUST AGREE ON UTF-8, and only one of them used to.
+    #
+    # Decoding as UTF-8 here was half a fix: the CHILD still encoded stdout with
+    # the locale codepage, so on Windows an em-dash left the script as cp1252
+    # 0x97, which is not valid UTF-8, and errors="replace" turned it into U+FFFD.
+    # Assertions quoting the real message -- "none — every structural rule" --
+    # could then never match, and the suite reported a masking failure on a run
+    # where the script had exited 0 and found nothing. A red test blamed the
+    # thing it was watching instead of its own plumbing.
+    #
+    # PYTHONIOENCODING makes the child emit UTF-8 whatever the console codepage
+    # is, so the decode below finally matches what was encoded.
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
     p = subprocess.run([sys.executable, str(SCRIPT), "--chunks", str(chunks_dir),
-                        *extra], capture_output=True, cwd=str(REPO))
+                        *extra], capture_output=True, cwd=str(REPO), env=env)
     out = (p.stdout + p.stderr).decode("utf-8", "replace")
     return p.returncode, out
 
