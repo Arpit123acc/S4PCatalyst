@@ -47,6 +47,7 @@ Usage:
 import sys
 import json
 import argparse
+import collections
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -67,6 +68,33 @@ REQUIRED_HEADINGS = ("Overview", "Key Process Flow", "Business Benefits")
 # Key Process Flow section today, and a threshold that fails on real data gets
 # switched off. Well above what a markup change would leave standing.
 MIN_HEADING_SHARE = 0.90
+
+
+# ONE ROW PER SCOPE ITEM. processes.json carries a row per scope item PER
+# COUNTRY: on the production brain 2,456 rows collapse to 679 scope items, up
+# to four variants each. Fulcrum's catalogue has no country dimension -- its
+# generator emits 15 KDD questions per entry -- so shipping the variants
+# un-collapsed produces ~36,800 questions instead of ~10,000, the same scope
+# item repeated under different localisations. Plausible-looking and wrong.
+#
+# Preference order, most general first. XX is SAP's cross-country marker; DE
+# is this brain's primary fetch country, so it is the variant with the fullest
+# history behind it.
+COUNTRY_PREFERENCE = ("XX", "DE", "US", "GB")
+
+
+def pick_variant(variants):
+    """The single row to publish for one scope item. Returns (row, country)."""
+    for want in COUNTRY_PREFERENCE:
+        for v in variants:
+            if (v.get("country_ID") or "").strip().upper() == want:
+                return v, want
+    # No preferred country present. Take the longest description -- the most
+    # content -- and break ties on country code so the choice is stable across
+    # runs rather than depending on dict ordering.
+    best = max(variants, key=lambda v: (len(v.get("description") or ""),
+                                        (v.get("country_ID") or "")))
+    return best, (best.get("country_ID") or "?")
 
 
 def load(p, what):
@@ -98,12 +126,24 @@ def build():
         scope_rows.setdefault(sid, dict(r, retired="True"))
     retired_ids = {str(r.get("scope_item_id", "")).strip() for r in gone}
 
-    rows, no_prose, no_scope_row = [], [], []
+    # Collapse country variants BEFORE anything else, so every count below
+    # reports scope items rather than localisations.
+    by_id = {}
     for p in procs:
         sid = (p.get("externalId") or "").strip()
+        if sid:
+            by_id.setdefault(sid, []).append(p)
+    chosen, country_used = [], collections.Counter()
+    for sid, variants in by_id.items():
+        v, c = pick_variant(variants)
+        chosen.append(v)
+        country_used[c] += 1
+    collapsed = len(procs) - len(chosen)
+
+    rows, no_prose, no_scope_row = [], [], []
+    for p in chosen:
+        sid = (p.get("externalId") or "").strip()
         text = html_text((p.get("description") or "").encode("utf-8"))
-        if not sid:
-            continue
         if not text.strip():
             no_prose.append(sid)
             continue
@@ -129,6 +169,8 @@ def build():
 
     rows.sort(key=lambda r: r["id"])
     report = {"processes": len(procs), "written": len(rows),
+              "scope_items": len(by_id), "collapsed": collapsed,
+              "country_used": country_used,
               "dropped_no_prose": no_prose, "no_scope_row": no_scope_row,
               "retired": sum(1 for r in rows if r["retired"])}
     return rows, report
@@ -165,7 +207,16 @@ def main():
     counts, worst = verify(rows)
 
     print("== source")
-    print("   solution processes      %d" % rep["processes"])
+    print("   process rows            %d" % rep["processes"])
+    print("   distinct scope items    %d" % rep["scope_items"])
+    if rep["collapsed"]:
+        # Not a footnote. processes.json is per scope item PER COUNTRY, and
+        # Fulcrum's catalogue has no country dimension, so this line is the
+        # difference between ~10,000 KDD questions and ~36,800 with the same
+        # scope item repeated under four localisations.
+        print("   collapsed country variants %d  -> kept %s"
+              % (rep["collapsed"],
+                 ", ".join("%s:%d" % kv for kv in rep["country_used"].most_common())))
     print("   scope items joined      %d" % (len(rows) - len(rep["no_scope_row"])))
     print("   written                 %d" % rep["written"])
     if rep["dropped_no_prose"]:
@@ -193,6 +244,22 @@ def main():
         print("   extractOverview/extractSteps/extractBenefits before using --force.")
         if not a.force:
             return 1
+
+    # Enforced, not assumed. The unit test asserted unique ids and passed,
+    # because the snapshot it ran against happened to hold one country. The
+    # production brain holds four, and the check that mattered was the one
+    # nothing ran against real data. So assert it here, on every export.
+    ids = [r["id"] for r in rows]
+    dupes = [i for i, n in collections.Counter(ids).items() if n > 1]
+    print("   unique scope item ids   %d of %d rows   %s"
+          % (len(set(ids)), len(ids), "OK" if not dupes else "FAIL"))
+    if dupes:
+        print("\n   %d id(s) appear more than once: %s"
+              % (len(dupes), ", ".join(sorted(dupes)[:10])))
+        print("   Fulcrum emits 15 KDD questions per entry, so duplicates")
+        print("   multiply the output and repeat the same scope item.")
+        print("   Refusing to write.")
+        return 1
 
     if a.verify_only:
         print("\n   --verify-only: nothing written.")

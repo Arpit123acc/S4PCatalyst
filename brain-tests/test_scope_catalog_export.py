@@ -113,5 +113,54 @@ class Export(unittest.TestCase):
         self.assertGreater(len(cat["retired_scope_items"]), 0)
 
 
+class CountryVariants(unittest.TestCase):
+    """One row per scope item, whatever the fetch's country coverage.
+
+    test_ids_are_unique below asserted this and PASSED -- against a snapshot
+    that happened to hold a single country (657 rows, 657 ids). The
+    production brain holds four: 2,456 rows, 679 scope items, 658 of them
+    duplicated up to four times. The assertion was right; it had simply never
+    met real data.
+
+    So these cases build the multi-country shape explicitly rather than
+    trusting whichever snapshot is on the host. That is the difference
+    between a test that would have caught this and one that did not.
+    """
+
+    def test_generic_country_wins(self):
+        """XX is SAP's cross-country marker -- the most broadly true variant."""
+        v = [{"externalId": "1AB", "country_ID": "US", "description": "us"},
+             {"externalId": "1AB", "country_ID": "XX", "description": "xx"},
+             {"externalId": "1AB", "country_ID": "DE", "description": "de"}]
+        self.assertEqual(ex.pick_variant(v)[1], "XX")
+
+    def test_falls_back_through_the_preference_order(self):
+        v = [{"externalId": "1AB", "country_ID": "US", "description": "us"},
+             {"externalId": "1AB", "country_ID": "DE", "description": "de"}]
+        self.assertEqual(ex.pick_variant(v)[1], "DE")
+
+    def test_unlisted_countries_pick_the_longest_description(self):
+        v = [{"externalId": "x", "country_ID": "BR", "description": "short"},
+             {"externalId": "x", "country_ID": "ES", "description": "a much longer one"}]
+        self.assertEqual(ex.pick_variant(v)[1], "ES")
+
+    def test_the_choice_is_stable_across_runs(self):
+        """Equal-length descriptions must not depend on dict ordering."""
+        a = [{"externalId": "x", "country_ID": "BR", "description": "same"},
+             {"externalId": "x", "country_ID": "ES", "description": "same"}]
+        self.assertEqual(ex.pick_variant(a)[1], ex.pick_variant(list(reversed(a)))[1])
+
+    def test_a_single_variant_is_returned_unchanged(self):
+        v = [{"externalId": "1AB", "country_ID": "DE", "description": "de"}]
+        self.assertIs(ex.pick_variant(v)[0], v[0])
+
+    def test_no_country_field_at_all(self):
+        """Older snapshots may not carry country_ID. Must not raise."""
+        v = [{"externalId": "1AB", "description": "text"}]
+        row, country = ex.pick_variant(v)
+        self.assertIs(row, v[0])
+        self.assertEqual(country, "?")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
