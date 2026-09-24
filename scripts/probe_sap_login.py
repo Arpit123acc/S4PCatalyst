@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""PROBE: can a headless browser complete the SAP login and mint a session?
+"""PROBE: can a headless browser mint the sessions the refresh needs?
 
-This answers one question and builds nothing. If it fails we stop; if it passes,
-unattended refresh becomes worth building properly.
+Builds nothing and stores nothing. It answers one question so we know whether
+an unattended refresh is worth building properly.
+
+TWO SESSIONS, NOT ONE
+    The refresh needs two, on different hosts, and they are not interchangeable:
+      pr.alm.me.sap.com  connect.sid       -- release detection (delta --check)
+      support.sap.com    SUPPORT_IDS_PROD  -- the document download
+    A me.sap.com portal cookie authenticates neither. Proving one says nothing
+    about the other, so this probe tests both on a single login: the login is
+    the expensive part, and both hosts federate to the same IdP, so the second
+    should come free via SSO. If it does not, that is the finding.
 
 WHY A BROWSER AT ALL
     me.sap.com returns 200 with no form and no server-side redirect -- the SAML
@@ -11,37 +20,43 @@ WHY A BROWSER AT ALL
     Storing the password in Secrets Manager does not change that; the thing that
     expires is a SESSION, and only a login can mint a new one.
 
-WHAT THE FIRST RUN ALREADY SETTLED (2026-09-24)
-    Bot detection does NOT block this. That was the one risk that could have
-    closed the route outright -- blogs.sap.com returns 403 to a scripted request
-    even with full browser headers, so accounts.sap.com refusing a headless
-    browser was the likely outcome. It did not: the two-step form was found and
-    filled, SAML completed, and the browser landed back on Process Navigator.
+WHAT EARLIER RUNS SETTLED (2026-09-24)
+    Bot detection does NOT block this -- the one risk that could have closed the
+    route outright. blogs.sap.com returns 403 to a scripted request even with
+    full browser headers, so accounts.sap.com refusing a headless browser was
+    the likely outcome. It did not: two-step form found and filled, SAML
+    completed, landed back on Process Navigator.
 
-    What the first run did NOT settle is whether the resulting session can be
-    exported. Cookies were harvested the instant login finished, before the SPA
-    had called pr.alm.me.sap.com at all, and the replay returned 401. That is
-    the gap this version closes: it now drives one real service call from
-    inside the browser first, and reports the in-browser status separately from
-    the replayed one. A 401 that the browser also gets means no entitlement; a
-    401 the browser does not get means the export is missing something.
+    Then the cookie replay 401'd, for a reason the probe's own comment had
+    already named: connect.sid is issued by pr.alm.me.sap.com, and cookies were
+    harvested before the SPA had called that host at all. Driving one real
+    service call from inside the browser first fixed it -- HTTP 200 with a row,
+    replayed OUTSIDE the browser. That is the pr.alm half proven.
+
+THE RULE THIS FOLLOWS
+    A session is proven by REPLAYING it outside the browser, never by the
+    browser succeeding. The browser carries state a cookie export does not, so
+    an in-browser 200 is necessary and nowhere near sufficient. Both halves
+    below report the two numbers separately, because a failure that only the
+    replay sees needs the opposite response from one the browser sees too.
 
 WHAT IT DOES NOT DO
     No credential storage, no Secrets Manager, no IAM change, nothing written to
     disk but a failure screenshot. The password is prompted for and held in
-    memory. The minted cookie is never printed -- only its length and whether it
-    works.
+    memory. Minted cookies are never printed -- only their length and whether
+    they work.
 
 Install first (on the host that runs the fetch). On Amazon Linux 2023 the OS
 libraries are NOT pulled in by pip, and Chromium fails at launch on
 libatk-1.0.so.0 with no hint that the cause is packaging:
-    sudo dnf install -y atk at-spi2-atk cups-libs libXcomposite libXdamage \
-         libXrandr libgbm pango alsa-lib nss
+    sudo dnf install -y atk at-spi2-atk cups-libs libXcomposite libXdamage
+    sudo dnf install -y libXrandr libgbm pango alsa-lib nss
     pip3.11 install playwright && python3.11 -m playwright install chromium
 
 Usage:
-    python3.11 scripts/probe_sap_login.py                 # prompts for both
-    python3.11 scripts/probe_sap_login.py --user S0001234 # prompts for password
+    python3.11 scripts/probe_sap_login.py                 # both halves
+    python3.11 scripts/probe_sap_login.py --only pralm    # release detection only
+    python3.11 scripts/probe_sap_login.py --only support  # download only
 """
 
 import sys
@@ -51,17 +66,19 @@ import argparse
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 ENTRY  = "https://me.sap.com/processnavigator/SolS/EARL_SolS-013/2608?region=DE"
 VERIFY = ("https://pr.alm.me.sap.com/ui/earl-pn-ui/v1/odata/v4/EAXService/"
           "LatestSolutionScenarioIds?%24top=1")
 SHOT   = Path("/tmp/sap-login-probe.png")
 
 # Confirmed against the live SAP IdP on 2026-09-24: the form is TWO-STEP and
-# matched j_username -> #logOnFormSubmit -> j_password, i.e. the first entry
-# in each list. The rest are kept because SAP has used several login UIs
-# (Customer Data Cloud, IAS, the classic form) and swapping between them is
-# not something we would be told about. A probe that says "none of these
-# matched" is more useful than a timeout.
+# matched j_username -> #logOnFormSubmit -> j_password, i.e. the first entry in
+# each list. The rest are kept because SAP has used several login UIs (Customer
+# Data Cloud, IAS, the classic form) and swapping between them is not something
+# we would be told about. A probe that says "none of these matched" is more
+# useful than a timeout.
 USER_SEL = ["input[name='j_username']", "#j_username", "input[name='identifier']",
             "input[type='email']", "input[name='username']", "#logonId"]
 PASS_SEL = ["input[name='j_password']", "#j_password", "input[type='password']",
@@ -82,8 +99,73 @@ def first_visible(page, selectors, timeout=8000):
     return None, None
 
 
-def verify(cookie):
-    """Does the minted session actually open the OData service?"""
+def do_login(page, user, pwd):
+    """Complete the SAML login. Returns None on success, else why not."""
+    print("1. opening Process Navigator ...")
+    page.goto(ENTRY, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(4000)                 # let the SPA redirect
+    print("   landed on: %s" % page.url[:95])
+
+    print("2. looking for the login form ...")
+    usel, uel = first_visible(page, USER_SEL, timeout=12000)
+    if not uel:
+        SHOT.parent.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(SHOT))
+        return ("no login field found.\n   url    : %s\n   title  : %s\n   shot   : %s\n"
+                "   If that page is a bot challenge, this route is closed.\n"
+                "   If it is a login UI we have no selector for, add it to USER_SEL."
+                % (page.url[:95], page.title(), SHOT))
+    print("   user field: %s" % usel)
+
+    uel.fill(user)
+    # Some SAP logins ask for the user first and reveal the password after.
+    psel, pel = first_visible(page, PASS_SEL, timeout=4000)
+    if not pel:
+        nsel, nel = first_visible(page, NEXT_SEL, timeout=4000)
+        if nel:
+            print("   two-step form; advancing via %s" % nsel)
+            nel.click()
+            page.wait_for_timeout(2500)
+        psel, pel = first_visible(page, PASS_SEL, timeout=10000)
+    if not pel:
+        return "found a user field but no password field - login UI unrecognised"
+    print("   pass field: %s" % psel)
+    pel.fill(pwd)
+
+    print("3. submitting ...")
+    _ssel, sel_el = first_visible(page, NEXT_SEL, timeout=6000)
+    if sel_el:
+        sel_el.click()
+    else:
+        pel.press("Enter")
+    page.wait_for_timeout(9000)                 # SAML round trip
+    print("   now on: %s" % page.url[:95])
+    return None
+
+
+def mint(page, ctx, url, suffix):
+    """Call a host from inside the browser, then export its cookies.
+
+    The navigation is not incidental. A host the browser has never contacted
+    has set no cookies for it, so harvesting straight after login yields IdP
+    state that 401s. This is the step that was missing when the first run
+    looked like a failure.
+    """
+    try:
+        resp = page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        status = resp.status if resp else None
+    except Exception as exc:
+        # Navigating to a downloadable file aborts the navigation without that
+        # being a failure -- the cookies are set by then regardless. Carry on
+        # and let the replay be the judge.
+        status = "nav aborted (%s)" % type(exc).__name__
+    got = [c for c in ctx.cookies() if c["domain"].endswith(suffix)]
+    header = "; ".join("%s=%s" % (c["name"], c["value"]) for c in got)
+    return status, header, got
+
+
+def replay_odata(cookie):
+    """Does the exported session open the OData service, outside the browser?"""
     r = urllib.request.Request(VERIFY)
     r.add_header("Cookie", cookie)
     r.add_header("Accept", "application/json")
@@ -96,24 +178,98 @@ def verify(cookie):
         return False, str(exc)[:90]
 
 
+_ROWS = None
+
+
+def fetch_rows():
+    """The fetcher's own row list, loaded once. Returns (rows, why_not).
+
+    Cached because load_rows prints a line about excluded duplicates, and
+    calling it twice would print it twice and invite the reader to think two
+    different row sets are in play.
+
+    SystemExit is caught deliberately: load_rows calls sys.exit when the
+    manifest is missing, and SystemExit does not inherit from Exception, so the
+    obvious `except Exception` would let it straight through and abort the
+    probe with no hint that --only pralm is still available.
+    """
+    global _ROWS
+    if _ROWS is None:
+        try:
+            from sapme_fetch import load_rows                  # noqa: PLC0415
+            _ROWS = (load_rows("sapbp", False), None)
+        except SystemExit as exc:
+            _ROWS = (None, str(exc)[:120])
+        except Exception as exc:
+            _ROWS = (None, "%s: %s" % (type(exc).__name__, str(exc)[:100]))
+    return _ROWS
+
+
+def replay_support(cookie):
+    """Reuse the fetcher's OWN session check rather than writing a second one.
+
+    session_is_live already probes several rows, because needs_auth is inferred
+    from the host and some support.sap.com assets serve anonymously -- a single
+    probe once reported "session ok" against a cookie that was already dead.
+    Re-implementing that here would give this project two definitions of a live
+    session, and the copy is always the one that drifts.
+    """
+    rows, why = fetch_rows()
+    if rows is None:
+        return None, why
+    from sapme_fetch import session_is_live                     # noqa: PLC0415
+    auth = [r for r in rows if r.get("needs_auth") and r.get("url")]
+    if not auth:
+        return None, "no rows need auth - nothing to test with"
+    live = session_is_live(rows, cookie)
+    if live is None:
+        return None, "inconclusive (every probe was a transient failure)"
+    return live, "%d authenticated row(s) in the manifest; probed the first few" % len(auth)
+
+
+def support_nav_url():
+    """A real URL the fetcher will actually use, not an invented one."""
+    rows, why = fetch_rows()
+    if rows is None:
+        return None, why
+    for r in rows:
+        if r.get("needs_auth") and r.get("url"):
+            return r["url"], None
+    return None, "no authenticated rows in the manifest"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--user", help="S-user / P-user; prompted if omitted")
+    ap.add_argument("--only", choices=("pralm", "support"),
+                    help="test one half only (default: both)")
     ap.add_argument("--headed", action="store_true",
                     help="show the browser (needs a display; not on EC2)")
     a = ap.parse_args()
 
     try:
-        from playwright.sync_api import sync_playwright
+        from playwright.sync_api import sync_playwright         # noqa: PLC0415
     except ImportError:
         return ("playwright not installed. On the fetch host:\n"
                 "  pip3.11 install playwright && python3.11 -m playwright install chromium")
+
+    do_pralm   = a.only in (None, "pralm")
+    do_support = a.only in (None, "support")
+
+    nav_url = None
+    if do_support:
+        nav_url, why = support_nav_url()
+        if not nav_url:
+            # Fail before asking for a password rather than after.
+            return ("cannot test the support half: %s\n"
+                    "   Run sapbp_catalog.py first, or use --only pralm." % why)
 
     user = a.user or input("SAP user: ").strip()
     pwd  = getpass.getpass("SAP password (not stored, not echoed): ")
     if not user or not pwd:
         return "need both a user and a password"
 
+    results = {}
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not a.headed)
         # A real UA and viewport: the default headless fingerprint is the most
@@ -125,114 +281,79 @@ def main():
             viewport={"width": 1440, "height": 900}, locale="en-US")
         page = ctx.new_page()
 
-        print("1. opening Process Navigator …")
-        page.goto(ENTRY, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(4000)                 # let the SPA redirect
-        print("   landed on: %s" % page.url[:95])
-
-        print("2. looking for the login form …")
-        usel, uel = first_visible(page, USER_SEL, timeout=12000)
-        if not uel:
-            SHOT.parent.mkdir(parents=True, exist_ok=True)
-            page.screenshot(path=str(SHOT))
-            title = page.title()
+        err = do_login(page, user, pwd)
+        if err:
             browser.close()
-            return ("no login field found.\n"
-                    "   url    : %s\n   title  : %s\n   shot   : %s\n"
-                    "   If that page is a bot challenge, this route is closed.\n"
-                    "   If it is a login UI we do not have a selector for, add it "
-                    "to USER_SEL." % (page.url[:95], title, SHOT))
-        print("   user field: %s" % usel)
+            return err
 
-        uel.fill(user)
-        # Some SAP logins ask for the user first and reveal the password after.
-        psel, pel = first_visible(page, PASS_SEL, timeout=4000)
-        if not pel:
-            nsel, nel = first_visible(page, NEXT_SEL, timeout=4000)
-            if nel:
-                print("   two-step form; advancing via %s" % nsel)
-                nel.click()
-                page.wait_for_timeout(2500)
-            psel, pel = first_visible(page, PASS_SEL, timeout=10000)
-        if not pel:
-            browser.close()
-            return "found a user field but no password field — login UI unrecognised"
-        print("   pass field: %s" % psel)
-        pel.fill(pwd)
+        if do_pralm:
+            print("4. pr.alm: calling the OData service from inside the browser ...")
+            status, header, got = mint(page, ctx, VERIFY, "me.sap.com")
+            names = sorted(c["name"] for c in got)
+            print("   in-browser status : %s" % status)
+            print("   cookies (%d)       : %s" % (len(names), ", ".join(names)))
+            print("   connect.sid       : %s" % ("connect.sid" in names))
+            print("   header            : %d chars, not printed" % len(header))
+            results["pralm"] = (status, header)
 
-        print("3. submitting …")
-        ssel, sel_el = first_visible(page, NEXT_SEL, timeout=6000)
-        if sel_el:
-            sel_el.click()
-        else:
-            pel.press("Enter")
-        page.wait_for_timeout(9000)                 # SAML round trip
-        print("   now on: %s" % page.url[:95])
+        if do_support:
+            print("5. support.sap.com: opening a real document URL ...")
+            print("   %s" % nav_url[:95])
+            status, header, got = mint(page, ctx, nav_url, "sap.com")
+            names = sorted({c["name"] for c in got})
+            print("   in-browser status : %s" % status)
+            print("   cookies (%d)       : %s" % (len(names), ", ".join(names)[:180]))
+            print("   SUPPORT_IDS_PROD  : %s" % ("SUPPORT_IDS_PROD" in names))
+            print("   header            : %d chars, not printed" % len(header))
+            results["support"] = (status, header)
 
-        # THE SESSION IS NOT USABLE THE MOMENT LOGIN COMPLETES. connect.sid is
-        # issued by pr.alm.me.sap.com, and until the SPA makes its first OData
-        # call that host has not seen the browser at all -- so cookies harvested
-        # here authenticate against accounts.sap.com and 401 against the service.
-        # Driving one real service call from inside the browser is what
-        # establishes it, and it doubles as the proof that the session works.
-        print("4. making the browser call the service …")
-        try:
-            resp = page.goto(VERIFY, wait_until="domcontentloaded", timeout=45000)
-            in_browser = resp.status if resp else None
-            body = page.content()[:400]
-        except Exception as exc:
-            in_browser, body = None, str(exc)[:200]
-        print("   in-browser status: %s" % in_browser)
-
-        jar = ctx.cookies()
-        names = sorted({c["name"] for c in jar})
-        has_sid = any(c["name"] == "connect.sid" for c in jar)
-        print("   cookies (%d): %s" % (len(names), ", ".join(names)))
-        print("   connect.sid present: %s" % has_sid)
-        if not has_sid:
+        if not any(h for _s, h in results.values()):
             SHOT.parent.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(SHOT))
             browser.close()
-            return ("logged in, but pr.alm never issued connect.sid.\n"
-                    "   in-browser status: %s\n   shot: %s\n   page: %s"
-                    % (in_browser, SHOT, body[:160]))
-
-        # Only the cookies pr.alm will actually be sent. Shipping the whole
-        # sap.com jar works too, but a 2 KB header of accounts.sap.com state
-        # makes it impossible to tell which cookie the service actually needs.
-        want = [c for c in jar if c["domain"].endswith("me.sap.com")]
-        cookie = "; ".join("%s=%s" % (c["name"], c["value"]) for c in want)
+            return "logged in but exported no cookies at all. shot: %s" % SHOT
         browser.close()
 
-    print("   header : %d chars from %d me.sap.com cookie(s), not printed"
-          % (len(cookie), len(want)))
+    verdict = {}
+    if do_pralm:
+        print("6. pr.alm: replaying the cookie OUTSIDE the browser ...")
+        ok, detail = replay_odata(results["pralm"][1])
+        print("   %s - %s" % ("OK" if ok else "FAILED", detail))
+        verdict["pralm"] = (ok, results["pralm"][0], detail)
 
-    print("5. replaying the cookie OUTSIDE the browser ...")
-    ok, detail = verify(cookie)
-    print("   %s - %s" % ("OK" if ok else "FAILED", detail))
+    if do_support:
+        print("7. support: replaying the cookie OUTSIDE the browser ...")
+        ok, detail = replay_support(results["support"][1])
+        label = {True: "OK", False: "FAILED", None: "INCONCLUSIVE"}[ok]
+        print("   %s - %s" % (label, detail))
+        verdict["support"] = (ok, results["support"][0], detail)
 
-    # The two failures below need completely different responses, and the
-    # in-browser status is the only thing that tells them apart. Without it a
-    # 401 here is unattributable -- which is what made the first run look like
-    # a dead end when the login had in fact worked.
-    if ok:
-        verdict = ("PASS - a headless login mints a session that works outside the "
-                   "browser. Unattended refresh is feasible; next step is Secrets "
-                   "Manager plus a narrow IAM grant.")
-    elif in_browser == 200:
-        verdict = ("PARTIAL - the browser opens the service (HTTP 200) but the "
-                   "exported cookie does not. The login is NOT the problem: something "
-                   "the browser sends is missing from the replay. Likeliest is a "
-                   "header rather than a cookie - check whether the SPA sends "
-                   "x-csrf-token or an Authorization bearer, and if so drive the "
-                   "fetch from inside the browser instead of exporting cookies.")
-    else:
-        verdict = ("FAIL - the browser itself gets HTTP %s from the service, so this "
-                   "is not a cookie-export problem. Either the account lacks "
-                   "entitlement to this content, or the service wants a token the "
-                   "SAML login alone does not grant." % in_browser)
     print("")
-    print(verdict)
+    print("== VERDICT")
+    # The failures below need opposite responses, and the in-browser status is
+    # the only thing that separates them. Without it a 401 is unattributable --
+    # which is what made a working login read as a dead end on the first run.
+    for half, (ok, status, _detail) in verdict.items():
+        if ok:
+            print("   %-8s PASS - the session replays outside the browser" % half)
+        elif status == 200:
+            print("   %-8s EXPORT PROBLEM - the browser opens it (200), the exported" % half)
+            print("            cookie does not. Login is NOT the issue; look for a")
+            print("            header (x-csrf-token, bearer) that the replay drops.")
+        else:
+            print("   %-8s CLOSED - the browser itself gets %s, so this is not a"
+                  % (half, status))
+            print("            cookie-export problem. Entitlement, or a token that")
+            print("            the SAML login alone does not grant.")
+
+    if len(verdict) == 2 and all(v[0] for v in verdict.values()):
+        print("")
+        print("   Both halves replay, so a full unattended refresh is technically")
+        print("   possible. Weigh what it COSTS before building it: it needs a stored")
+        print("   SAP password, and a personal S-user in a secret store means an")
+        print("   automated job acting as a named human. Audit trails attribute it to")
+        print("   them, and the job dies when they rotate the password or leave.")
+        print("   Ask SAP for a technical user before wiring this to a cron.")
     return None
 
 
