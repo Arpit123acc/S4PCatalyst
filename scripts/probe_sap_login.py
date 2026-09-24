@@ -11,11 +11,20 @@ WHY A BROWSER AT ALL
     Storing the password in Secrets Manager does not change that; the thing that
     expires is a SESSION, and only a login can mint a new one.
 
-THE RISK THIS IS TESTING
-    Bot detection. blogs.sap.com already returns 403 to a scripted request that
-    sends full browser headers, so accounts.sap.com may well refuse a headless
-    browser too. That is unknowable without trying, and it is the single thing
-    that decides whether unattended refresh is possible at all.
+WHAT THE FIRST RUN ALREADY SETTLED (2026-09-24)
+    Bot detection does NOT block this. That was the one risk that could have
+    closed the route outright -- blogs.sap.com returns 403 to a scripted request
+    even with full browser headers, so accounts.sap.com refusing a headless
+    browser was the likely outcome. It did not: the two-step form was found and
+    filled, SAML completed, and the browser landed back on Process Navigator.
+
+    What the first run did NOT settle is whether the resulting session can be
+    exported. Cookies were harvested the instant login finished, before the SPA
+    had called pr.alm.me.sap.com at all, and the replay returned 401. That is
+    the gap this version closes: it now drives one real service call from
+    inside the browser first, and reports the in-browser status separately from
+    the replayed one. A 401 that the browser also gets means no entitlement; a
+    401 the browser does not get means the export is missing something.
 
 WHAT IT DOES NOT DO
     No credential storage, no Secrets Manager, no IAM change, nothing written to
@@ -23,7 +32,11 @@ WHAT IT DOES NOT DO
     memory. The minted cookie is never printed -- only its length and whether it
     works.
 
-Install first (on the host that runs the fetch):
+Install first (on the host that runs the fetch). On Amazon Linux 2023 the OS
+libraries are NOT pulled in by pip, and Chromium fails at launch on
+libatk-1.0.so.0 with no hint that the cause is packaging:
+    sudo dnf install -y atk at-spi2-atk cups-libs libXcomposite libXdamage \
+         libXrandr libgbm pango alsa-lib nss
     pip3.11 install playwright && python3.11 -m playwright install chromium
 
 Usage:
@@ -43,6 +56,11 @@ VERIFY = ("https://pr.alm.me.sap.com/ui/earl-pn-ui/v1/odata/v4/EAXService/"
           "LatestSolutionScenarioIds?%24top=1")
 SHOT   = Path("/tmp/sap-login-probe.png")
 
+# Confirmed against the live SAP IdP on 2026-09-24: the form is TWO-STEP and
+# matched j_username -> #logOnFormSubmit -> j_password, i.e. the first entry
+# in each list. The rest are kept because SAP has used several login UIs
+# (Customer Data Cloud, IAS, the classic form) and swapping between them is
+# not something we would be told about.
 # SAP has used several login UIs (Customer Data Cloud, IAS, the classic form).
 # Rather than guess one, try the fields each of them uses and report which
 # matched -- a probe that says "none of these" is more useful than a timeout.
@@ -153,34 +171,70 @@ def main():
         page.wait_for_timeout(9000)                 # SAML round trip
         print("   now on: %s" % page.url[:95])
 
-        print("4. collecting cookies …")
+        # THE SESSION IS NOT USABLE THE MOMENT LOGIN COMPLETES. connect.sid is
+        # issued by pr.alm.me.sap.com, and until the SPA makes its first OData
+        # call that host has not seen the browser at all -- so cookies harvested
+        # here authenticate against accounts.sap.com and 401 against the service.
+        # Driving one real service call from inside the browser is what
+        # establishes it, and it doubles as the proof that the session works.
+        print("4. making the browser call the service …")
+        try:
+            resp = page.goto(VERIFY, wait_until="domcontentloaded", timeout=45000)
+            in_browser = resp.status if resp else None
+            body = page.content()[:400]
+        except Exception as exc:
+            in_browser, body = None, str(exc)[:200]
+        print("   in-browser status: %s" % in_browser)
+
         jar = ctx.cookies()
         names = sorted({c["name"] for c in jar})
-        sid = [c for c in jar if c["name"] == "connect.sid"]
-        if not sid:
+        has_sid = any(c["name"] == "connect.sid" for c in jar)
+        print("   cookies (%d): %s" % (len(names), ", ".join(names)))
+        print("   connect.sid present: %s" % has_sid)
+        if not has_sid:
             SHOT.parent.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(SHOT))
             browser.close()
-            return ("logged in but no connect.sid.\n   cookies: %s\n   shot: %s\n"
-                    "   connect.sid is set by pr.alm.me.sap.com, so the SPA may need "
-                    "to make its first OData call before it exists." % (names[:14], SHOT))
-        cookie = "; ".join("%s=%s" % (c["name"], c["value"]) for c in jar
-                           if c["domain"].endswith("sap.com"))
+            return ("logged in, but pr.alm never issued connect.sid.\n"
+                    "   in-browser status: %s\n   shot: %s\n   page: %s"
+                    % (in_browser, SHOT, body[:160]))
+
+        # Only the cookies pr.alm will actually be sent. Shipping the whole
+        # sap.com jar works too, but a 2 KB header of accounts.sap.com state
+        # makes it impossible to tell which cookie the service actually needs.
+        want = [c for c in jar if c["domain"].endswith("me.sap.com")]
+        cookie = "; ".join("%s=%s" % (c["name"], c["value"]) for c in want)
         browser.close()
 
-    print("   cookies: %s" % names[:14])
-    print("   header : %d chars (not printed)" % len(cookie))
+    print("   header : %d chars from %d me.sap.com cookie(s), not printed"
+          % (len(cookie), len(want)))
 
-    print("5. verifying against the OData service …")
+    print("5. replaying the cookie OUTSIDE the browser ...")
     ok, detail = verify(cookie)
-    print("   %s — %s" % ("OK" if ok else "FAILED", detail))
-    print("\n%s" % ("PASS — a headless login can mint a working session. Unattended "
-                    "refresh is feasible; next step is Secrets Manager plus a narrow "
-                    "IAM grant."
-                    if ok else
-                    "FAIL — a session was minted but it does not open the service. "
-                    "Check whether the account is entitled, or whether another cookie "
-                    "is needed."))
+    print("   %s - %s" % ("OK" if ok else "FAILED", detail))
+
+    # The two failures below need completely different responses, and the
+    # in-browser status is the only thing that tells them apart. Without it a
+    # 401 here is unattributable -- which is what made the first run look like
+    # a dead end when the login had in fact worked.
+    if ok:
+        verdict = ("PASS - a headless login mints a session that works outside the "
+                   "browser. Unattended refresh is feasible; next step is Secrets "
+                   "Manager plus a narrow IAM grant.")
+    elif in_browser == 200:
+        verdict = ("PARTIAL - the browser opens the service (HTTP 200) but the "
+                   "exported cookie does not. The login is NOT the problem: something "
+                   "the browser sends is missing from the replay. Likeliest is a "
+                   "header rather than a cookie - check whether the SPA sends "
+                   "x-csrf-token or an Authorization bearer, and if so drive the "
+                   "fetch from inside the browser instead of exporting cookies.")
+    else:
+        verdict = ("FAIL - the browser itself gets HTTP %s from the service, so this "
+                   "is not a cookie-export problem. Either the account lacks "
+                   "entitlement to this content, or the service wants a token the "
+                   "SAML login alone does not grant." % in_browser)
+    print("")
+    print(verdict)
     return None
 
 
