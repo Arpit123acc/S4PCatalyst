@@ -55,19 +55,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from sapbp_catalog import (                                  # noqa: E402
     RAW_DIR, DEFAULT_STABLE_ID, DEFAULT_COUNTRY, DEFAULT_LANGUAGE, DEFAULT_LANCODE,
-    fetch_all, NotAuthenticated,
+    fetch_all, releases_for, NotAuthenticated,
 )
 
 OUT = RAW_DIR / "capabilities_by_scope.json"
 ENTITY = "BcmOccurrenceWithSolutionProcessFlat"
-
-
-def releases(stable_id):
-    """Every release of a stableId, newest first."""
-    rows, _, _ = fetch_all("LatestSolutionScenarioIds",
-                           {"$filter": f"stableId eq '{stable_id}'", "$orderby": "seq"},
-                           "scenario versions", page=50)
-    return sorted(rows, key=lambda r: r.get("seq") or 99)
 
 
 def capabilities_for(scenario_id, country):
@@ -97,7 +89,7 @@ def main():
     a = ap.parse_args()
 
     found, caps = None, []
-    for r in releases(a.stable_id):
+    for r in releases_for(a.stable_id):
         rel, sid = r.get("targetRelease"), r.get("ID")
         caps = capabilities_for(sid, a.country)
         print(f"== release {rel}: {len(caps)} capability row(s)")

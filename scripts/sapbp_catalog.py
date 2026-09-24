@@ -216,6 +216,22 @@ def fetch_all(entity, params, label, page=PAGE):
     return rows, total, etag
 
 
+def releases_for(stable_id):
+    """Every release of a stableId, newest first (seq 1 is current).
+
+    One definition, three callers: resolve_scenario picks the newest to fetch,
+    sapbp_fetch_capabilities walks backwards to the newest release that has
+    capability data, and sapbp_delta compares the newest against what the
+    manifest recorded. Each had its own copy of this query at one point, which
+    is three chances for the entity name or the ordering to drift apart.
+    """
+    rows, _, _ = fetch_all(
+        "LatestSolutionScenarioIds",
+        {"$filter": f"stableId eq '{stable_id}'", "$orderby": "seq"},
+        "scenario versions", page=50)
+    return sorted(rows, key=lambda r: r.get("seq") or 99)
+
+
 def resolve_scenario(stable_id, explicit=None):
     """Newest scenario GUID for a stableId, with its release.
 
@@ -235,10 +251,7 @@ def resolve_scenario(stable_id, explicit=None):
     if explicit:
         return explicit, None, None
     try:
-        rows, _, _ = fetch_all(
-            "LatestSolutionScenarioIds",
-            {"$filter": f"stableId eq '{stable_id}'", "$orderby": "seq"},
-            "scenario versions", page=50)
+        rows = releases_for(stable_id)
     except Exception as exc:
         print(f"!! could not resolve {stable_id}: {exc}")
         print(f"!! falling back to the pinned GUID {DEFAULT_SCENARIO}")
@@ -458,7 +471,11 @@ def main():
         {"$filter": f"{country_clause(countries)} and language_ID eq '{lang}'"},
         "urls")
 
-    by_item = {u["bomItem_ID"]: u["url"] for u in urls if u.get("url")}
+    # URL *and* content version. The URL alone cannot tell you that SAP
+    # republished a document: the link is stable across releases while the file
+    # behind it changes, so a fetcher that skips URLs it already has would never
+    # pick the new content up. contentReleaseVersion_ID is what moves.
+    by_item = {u["bomItem_ID"]: u for u in urls if u.get("url")}
 
     # Scope item comes from the PROCESS, not from parsing a string. The process
     # rows carry `externalId` (657/657 populated, 657 distinct), so a BOM item
@@ -471,7 +488,8 @@ def main():
 
     manifest, hosts, access = [], Counter(), Counter()
     for b in boms:
-        url = by_item.get(b["ID"], "")
+        _u   = by_item.get(b["ID"]) or {}
+        url  = _u.get("url", "")
         parent = proc_by_id.get(b.get("parentEntityId")) or {}
         scope = parent.get("externalId")
         if not scope:
@@ -500,6 +518,7 @@ def main():
             "country": b.get("country_ID") or c,
             "language": lang,
             "url": url,
+            "content_release_version": _u.get("contentReleaseVersion_ID"),
             "host": host,
             "ext": os.path.splitext(urllib.parse.urlparse(url).path)[1].lower() or None,
         })
@@ -530,6 +549,13 @@ def main():
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     (RAW_DIR / "processes.json").write_text(
         json.dumps(procs, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Kept so sapbp_delta.py can diff this fetch against the last one. Without
+    # a previous snapshot there is nothing to compare and every refresh looks
+    # like a first run.
+    cur = RAW_DIR / "bom_manifest.json"
+    if cur.exists():
+        (RAW_DIR / "bom_manifest.prev.json").write_text(
+            cur.read_text(encoding="utf-8"), encoding="utf-8")
     (RAW_DIR / "bom_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     MANIFEST.write_text(json.dumps({
