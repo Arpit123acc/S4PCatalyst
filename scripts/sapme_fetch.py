@@ -305,6 +305,36 @@ def session_is_live(rows, cookie):
     return True if seen else None
 
 
+def login_means(host, cookie):
+    """A login page means three different things. Decide in ONE place.
+
+    Measured 2026-09-24 over a 200-row sample (probe_public_access): 188 of 189
+    support.sap.com /dam/ documents serve with NO cookie at all, and exactly one
+    -- a /General/ asset, not a Business Process Document -- returns a login
+    page. needs_auth is inferred from the host, so all 1,350 are marked private
+    when ~99.5% are public.
+
+    That single gated row used to abort the entire run. SessionExpired is the
+    right response to a session that DIED mid-run, because every further request
+    would write another copy of the same login page. It is the wrong response
+    when we never held a session: then the login page is not a failure at all,
+    it is the row telling us it genuinely needs one. Measured, where needs_auth
+    only ever guessed.
+
+    Conflating the two is what forced a human into the loop for the whole
+    corpus. Separated, the 99.5% downloads unattended with no credentials and
+    the remainder is a named, tiny list.
+    """
+    if host not in SESSION_HOSTS:
+        # A third-party sign-in -- a BTP Fiori launchpad, WalkMe, Mural. Our
+        # cookie was never for these and never will be. A per-document dead
+        # end, not a reason to abandon the other 6,000.
+        return "needs_other_login"
+    if not cookie:
+        return "needs_session"
+    return "session_expired"
+
+
 def save_state(path, state):
     """Write the state file, MERGING whatever is on disk first.
 
@@ -372,8 +402,15 @@ def main():
         print(f"\n=== {name}: {len(rows)} urls, {len(rows) - len(todo)} already fetched, "
               f"{len(todo)} to go ({need_auth} need a session)")
         if need_auth and not cookie and not a.public_only:
-            print("   WARNING: SAPME_COOKIE unset — those will return login pages.")
-            print("   Use --public-only, or export a support.sap.com cookie.")
+            # This used to say those rows "will return login pages", which a
+            # 200-row sample disproved: 188 of 189 served with no cookie. The
+            # flag is inferred from the host, not measured, so running without
+            # a session is now the NORMAL path -- the few rows that really need
+            # one get recorded as needs_session and picked up on a later pass.
+            print(f"   No SAPME_COOKIE. Fetching all {len(todo)} anyway: needs_auth is")
+            print("   inferred from the host and ~99% of these serve anonymously.")
+            print("   Any row that truly needs a session is recorded as "
+                  "'needs_session' and skipped, not fatal.")
         elif need_auth and not a.public_only and not a.dry_run:
             live = session_is_live(todo, cookie)
             if live is False:
@@ -412,19 +449,17 @@ def main():
                     continue
 
                 kind = classify(body, r["url"])
-                # A login page only means OUR session died if it came from a host
-                # our cookie is for. The catalogue also links third-party sites
-                # with their own sign-in -- a BTP Fiori launchpad
-                # (flpnwc-*.dispatcher.hana.ondemand.com), WalkMe, Mural. Treating
-                # those as session expiry aborted a run 200 documents in, on a
-                # host we never had a session for and never will.
-                if kind == "login" and r["host"] not in SESSION_HOSTS:
-                    tally["needs_other_login"] += 1
-                    state[r["url"]] = {"status": "needs_other_login", "id": r["id"],
-                                       "host": r["host"]}
-                    time.sleep(a.rate)
-                    continue
                 if kind == "login":
+                    means = login_means(r["host"], cookie)
+                    if means != "session_expired":
+                        # Either a third-party sign-in, or -- running with no
+                        # cookie at all -- this row measurably needing one.
+                        # Neither is a reason to stop; record it and carry on.
+                        tally[means] += 1
+                        state[r["url"]] = {"status": means, "id": r["id"],
+                                           "host": r["host"]}
+                        time.sleep(a.rate)
+                        continue
                     # Stop. An expired session does not recover, and every further
                     # request would write another copy of the same login page.
                     state[r["url"]] = {"status": "login_page", "id": r["id"]}
@@ -460,6 +495,18 @@ def main():
             ok = sum(1 for v in state.values() if v.get("status") == "ok")
             print(f"   -> {ok} usable files in {cfg['files']}")
             print(f"   -> state: {cfg['state']}")
+            # The whole point of the cookieless path is that the leftovers are
+            # a short, NAMED list rather than "everything on this host". Say how
+            # short, or the operator has no way to judge whether a session is
+            # even worth capturing.
+            gated = [u for u, v in state.items() if v.get("status") == "needs_session"]
+            if gated:
+                print(f"   -> {len(gated)} row(s) measurably need a session. Export "
+                      f"SAPME_COOKIE and re-run to collect just those:")
+                for u in gated[:5]:
+                    print(f"        {u[:96]}")
+                if len(gated) > 5:
+                    print(f"        ... and {len(gated) - 5} more")
 
     return rc
 

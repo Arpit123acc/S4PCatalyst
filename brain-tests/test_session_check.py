@@ -156,5 +156,46 @@ class SessionCheck(unittest.TestCase):
         self.assertNotEqual(final, "login")
 
 
+class LoginMeaning(unittest.TestCase):
+    """What a login page MEANS depends on whether we were holding a session.
+
+    Measured 2026-09-24 over 200 rows: 188 of 189 support.sap.com /dam/
+    documents serve with no cookie, and one /General/ asset does not. Under the
+    old code that single row raised SessionExpired and aborted the run, so an
+    unattended cookieless fetch of the other 1,338 was impossible. The whole
+    human-in-the-loop design rested on that one conflation.
+    """
+
+    def test_no_cookie_means_the_row_needs_one(self):
+        """Not an expiry. We never had a session to expire."""
+        self.assertEqual(f.login_means("support.sap.com", ""), "needs_session")
+
+    def test_cookie_present_means_the_session_died(self):
+        """We held one and it stopped working -- stop, it will not recover."""
+        self.assertEqual(f.login_means("support.sap.com", "SUPPORT_IDS_PROD=x"),
+                         "session_expired")
+
+    def test_third_party_host_is_never_our_session(self):
+        """A BTP launchpad or WalkMe wants its own sign-in, cookie or not."""
+        for cookie in ("", "SUPPORT_IDS_PROD=x"):
+            self.assertEqual(
+                f.login_means("flpnwc-abc.dispatcher.hana.ondemand.com", cookie),
+                "needs_other_login")
+
+    def test_every_session_host_is_covered(self):
+        """The rule must hold for all of them, not just support.sap.com."""
+        for host in f.SESSION_HOSTS:
+            self.assertEqual(f.login_means(host, ""), "needs_session")
+            self.assertEqual(f.login_means(host, "c=1"), "session_expired")
+
+    def test_only_one_outcome_aborts_a_run(self):
+        """Exactly one of the three is fatal. If that ever grows, look hard."""
+        outcomes = {f.login_means(h, c)
+                    for h in list(f.SESSION_HOSTS) + ["example.com"]
+                    for c in ("", "c=1")}
+        self.assertEqual(outcomes,
+                         {"needs_session", "session_expired", "needs_other_login"})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
