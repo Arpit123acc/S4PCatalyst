@@ -275,6 +275,18 @@ def session_is_live(rows, cookie):
     Deliberately NOT a substitute for the in-loop check. A session can expire
     during a run of ten thousand files, and that is exactly when it matters
     most that a login page is never written into the corpus.
+
+    CALL classify(). Do not test the return of fetch() directly. fetch returns
+    (body, content_type, final_url) and this function used to unpack the third
+    slot into a variable called `kind` and compare it to "login" -- a URL
+    against a classification, which is never equal. The guard therefore never
+    returned False in its life: every dead cookie passed pre-flight, and the
+    two-minute round trip it exists to prevent happened anyway.
+
+    That is this codebase's recurring defect, in its purest form. classify() is
+    the one place that decides what a response is; the in-loop check at the
+    bottom of main() calls it, this one re-implemented it from the wrong
+    variable, and the copy is what drifted. One rule, one source.
     """
     if not cookie:
         return None
@@ -284,10 +296,10 @@ def session_is_live(rows, cookie):
     seen = 0
     for r in probes:
         try:
-            _body, _status, kind = fetch(r["url"], cookie, attempts=1)
+            body, _ctype, _final = fetch(r["url"], cookie, attempts=1)
         except Exception:
             continue         # transient: does not tell us about the session
-        if kind == "login":
+        if classify(body, r["url"]) == "login":
             return False
         seen += 1
     return True if seen else None

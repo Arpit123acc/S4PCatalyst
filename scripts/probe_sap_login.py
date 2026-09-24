@@ -33,12 +33,33 @@ WHAT EARLIER RUNS SETTLED (2026-09-24)
     service call from inside the browser first fixed it -- HTTP 200 with a row,
     replayed OUTSIDE the browser. That is the pr.alm half proven.
 
+WHAT THE SECOND RUN EXPOSED (2026-09-24)
+    The support half reported PASS while SUPPORT_IDS_PROD -- the one cookie the
+    fetcher actually needs -- was absent from the jar. Two separate faults, and
+    the PASS was worthless:
+
+    1. sapme_fetch.session_is_live was broken. It unpacked fetch()'s third
+       return value (the final URL) into a variable named `kind` and compared
+       it to "login", so it had never returned False in its life. Fixed there,
+       routed through classify(), and pinned by brain-tests/test_session_check.
+    2. Navigating straight at a .xlsx DOWNLOADS it. The navigation aborts, no
+       HTML page loads, no SAML redirect runs, so support.sap.com never issues
+       a session at all. It now loads an HTML page on the host first.
+
+    A negative control was added as well, because neither fault would have been
+    caught by a check that only ever asks "did it work".
+
 THE RULE THIS FOLLOWS
     A session is proven by REPLAYING it outside the browser, never by the
     browser succeeding. The browser carries state a cookie export does not, so
     an in-browser 200 is necessary and nowhere near sufficient. Both halves
     below report the two numbers separately, because a failure that only the
     replay sees needs the opposite response from one the browser sees too.
+
+    And a PASS is only believed once the same test has been shown to FAIL on a
+    junk cookie. Three of the four defects found in this probe so far produced
+    a false pass rather than a false failure, which is the strictly more
+    expensive direction.
 
 WHAT IT DOES NOT DO
     No credential storage, no Secrets Manager, no IAM change, nothing written to
@@ -71,6 +92,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 ENTRY  = "https://me.sap.com/processnavigator/SolS/EARL_SolS-013/2608?region=DE"
 VERIFY = ("https://pr.alm.me.sap.com/ui/earl-pn-ui/v1/odata/v4/EAXService/"
           "LatestSolutionScenarioIds?%24top=1")
+# An HTML page on support.sap.com that requires a session, so loading it runs
+# the SAML redirect and makes the host issue SUPPORT_IDS_PROD. Navigating
+# straight at a document does not: the browser downloads the file, the
+# navigation aborts, and no session is ever established.
+SUPPORT_SSO = "https://launchpad.support.sap.com/"
 SHOT   = Path("/tmp/sap-login-probe.png")
 
 # Confirmed against the live SAP IdP on 2026-09-24: the form is TWO-STEP and
@@ -205,14 +231,29 @@ def fetch_rows():
     return _ROWS
 
 
+CONTROL_COOKIE = "s4pc-probe-control=not-a-session"
+
+
 def replay_support(cookie):
-    """Reuse the fetcher's OWN session check rather than writing a second one.
+    """Reuse the fetcher's OWN session check, and CONTROL it before believing it.
 
     session_is_live already probes several rows, because needs_auth is inferred
     from the host and some support.sap.com assets serve anonymously -- a single
     probe once reported "session ok" against a cookie that was already dead.
     Re-implementing that here would give this project two definitions of a live
     session, and the copy is always the one that drifts.
+
+    THE CONTROL IS NOT OPTIONAL. PROBE_N=3 reduced the anonymous-asset false
+    positive; it did not remove it. If all three probe rows happen to be DAM
+    files that serve without a session -- and the first authenticated row in
+    this manifest is /content/dam/... -- then "live" comes back True for a
+    cookie that authenticates nothing at all. On the first run of this probe it
+    did exactly that, while SUPPORT_IDS_PROD was absent from the jar.
+
+    So ask the same question with a junk cookie first. If the answer is still
+    "live", the probe rows cannot distinguish a session from no session, and
+    the only honest verdict is INCONCLUSIVE. A test that passes when it should
+    fail has negative value: it moves the blame somewhere else.
     """
     rows, why = fetch_rows()
     if rows is None:
@@ -221,10 +262,19 @@ def replay_support(cookie):
     auth = [r for r in rows if r.get("needs_auth") and r.get("url")]
     if not auth:
         return None, "no rows need auth - nothing to test with"
+
+    control = session_is_live(rows, CONTROL_COOKIE)
+    if control is not False:
+        return None, ("NOT DISCRIMINATING - a junk cookie also scores %r on these "
+                      "probe rows, so they serve anonymously and a pass here would "
+                      "prove nothing. Point the probe at a row that genuinely "
+                      "demands a session." % control)
+
     live = session_is_live(rows, cookie)
     if live is None:
         return None, "inconclusive (every probe was a transient failure)"
-    return live, "%d authenticated row(s) in the manifest; probed the first few" % len(auth)
+    return live, ("%d authenticated row(s); junk cookie correctly rejected, so this "
+                  "result is meaningful" % len(auth))
 
 
 def support_nav_url():
@@ -297,14 +347,30 @@ def main():
             results["pralm"] = (status, header)
 
         if do_support:
-            print("5. support.sap.com: opening a real document URL ...")
+            # SSO FIRST, DOCUMENT SECOND. Navigating straight at a .xlsx makes
+            # the browser DOWNLOAD it -- the navigation aborts, no HTML page
+            # loads, so no SAML redirect runs and support.sap.com never issues
+            # a session. The first run did exactly that and reported "nav
+            # aborted" with SUPPORT_IDS_PROD absent, while the replay still
+            # claimed to pass. Load a real page on the host first.
+            print("5. support.sap.com: establishing the session via SSO ...")
+            status, _h, _g = mint(page, ctx, SUPPORT_SSO, "support.sap.com")
+            print("   %s -> %s" % (SUPPORT_SSO, status))
+            page.wait_for_timeout(5000)
+
+            print("   then opening a real document URL ...")
             print("   %s" % nav_url[:95])
-            status, header, got = mint(page, ctx, nav_url, "sap.com")
+            dstatus, header, got = mint(page, ctx, nav_url, "sap.com")
             names = sorted({c["name"] for c in got})
-            print("   in-browser status : %s" % status)
+            has_ids = "SUPPORT_IDS_PROD" in names
+            print("   in-browser status : %s   (a download aborts navigation; "
+                  "not a failure)" % dstatus)
             print("   cookies (%d)       : %s" % (len(names), ", ".join(names)[:180]))
-            print("   SUPPORT_IDS_PROD  : %s" % ("SUPPORT_IDS_PROD" in names))
+            print("   SUPPORT_IDS_PROD  : %s%s"
+                  % (has_ids, "" if has_ids else "   <-- the cookie the fetcher needs"))
             print("   header            : %d chars, not printed" % len(header))
+            # The SSO page status is what says whether a session exists; the
+            # document navigation aborting tells us nothing either way.
             results["support"] = (status, header)
 
         if not any(h for _s, h in results.values()):
