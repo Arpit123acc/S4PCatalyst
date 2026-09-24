@@ -46,6 +46,8 @@ import hashlib
 import json
 import re
 import sys
+import tempfile
+import zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -57,6 +59,99 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 BRAIN = BASE_DIR / "brain"
 
 MIN_USEFUL_CHARS = 400          # below this it is a stub, a shell or a bad extract
+
+# Limits for expanding a plain .zip. An archive is attacker-shaped even when it
+# is not an attack: the catalogue links a 19.7 MB bundle, and nothing says a
+# future one will not be 2 GB unpacked. Checked against the declared
+# uncompressed size BEFORE reading, so a zip bomb is refused rather than
+# survived.
+MAX_ARCHIVE_MEMBERS = 250
+MAX_MEMBER_BYTES = 60 * 1024 * 1024
+MAX_ARCHIVE_BYTES = 250 * 1024 * 1024
+# Which members are worth extracting. Anything else in a bundle -- images, the
+# .msg files, licence stubs -- costs time and contributes no prose.
+ARCHIVE_MEMBER_SUFFIXES = {".docx", ".xlsx", ".xlsm", ".pdf", ".txt", ".html", ".htm", ".csv"}
+
+
+def is_office_package(path):
+    """True for .docx/.xlsx/.pptx, which are themselves zips.
+
+    classify() returns "zip" from the PK magic bytes for BOTH an Office file
+    and a plain archive, so magic bytes cannot route them. The internal part
+    names can: word/, xl/, ppt/. Without this an archive branch would swallow
+    every Word document whose URL happened to carry no extension.
+    """
+    try:
+        with zipfile.ZipFile(path) as z:
+            return any(n.startswith(("word/", "xl/", "ppt/")) for n in z.namelist())
+    except Exception:                                    # noqa: BLE001
+        return False
+
+
+def archive_text(path):
+    """Text from every readable document inside a plain .zip.
+
+    WHY THIS EXISTS
+        The catalogue links bundles, not only single documents --
+        Two-Tier_ERP_Assets_User_Guides_Templates.zip is 19.7 MB of user guides
+        and templates. It reached docx_text, which is python-docx, which raised
+        and returned "", so the file counted as too_short and 19.7 MB of content
+        was dropped in silence. Nothing failed loudly enough to notice.
+
+    ONE LEVEL ONLY. A nested archive is skipped and named in the output rather
+    than recursed into: unbounded recursion over untrusted zips is how a
+    decompression bomb gets in, and no catalogue bundle so far needs it.
+
+    Members are concatenated with a header naming each one, so a retrieval hit
+    inside a bundle can still say which document it came from.
+    """
+    try:
+        zf = zipfile.ZipFile(path)
+    except Exception:                                    # noqa: BLE001
+        return ""
+
+    parts, total, skipped = [], 0, Counter()
+    with zf:
+        members = [i for i in zf.infolist() if not i.is_dir()]
+        for info in members[:MAX_ARCHIVE_MEMBERS]:
+            suffix = Path(info.filename).suffix.lower()
+            if suffix not in ARCHIVE_MEMBER_SUFFIXES:
+                skipped[suffix or "(none)"] += 1
+                continue
+            # Declared size, checked before reading a single byte.
+            if info.file_size > MAX_MEMBER_BYTES:
+                skipped["oversized"] += 1
+                continue
+            if total + info.file_size > MAX_ARCHIVE_BYTES:
+                skipped["budget"] += 1
+                break
+            try:
+                blob = zf.read(info)
+            except Exception:                            # noqa: BLE001
+                skipped["unreadable"] += 1
+                continue
+            total += len(blob)
+            with tempfile.TemporaryDirectory() as td:
+                # The extractors take a path, and openpyxl/python-docx both
+                # want a real file rather than a stream.
+                tmp = Path(td) / ("m" + (suffix or ".bin"))
+                tmp.write_bytes(blob)
+                if suffix in (".xlsx", ".xlsm"):
+                    text = xlsx_text(tmp)
+                elif suffix == ".docx":
+                    text = docx_text(tmp)
+                elif suffix == ".pdf":
+                    text = pdf_text(tmp)
+                elif suffix in (".html", ".htm"):
+                    text = html_text(blob)
+                else:
+                    text = blob.decode("utf-8", errors="replace")
+            if text:
+                parts.append("## %s\n%s" % (info.filename, text))
+    if len(members) > MAX_ARCHIVE_MEMBERS:
+        parts.append("[%d further member(s) not read: archive member cap]"
+                     % (len(members) - MAX_ARCHIVE_MEMBERS))
+    return "\n\n".join(parts)
 
 
 def docx_text(path):
@@ -306,8 +401,16 @@ def ingest_files(source, dry, tally):
             text = docx_text(path)
         elif suffix == ".pdf" or st.get("kind") == "pdf":
             text = pdf_text(path)
+        elif suffix == ".zip":
+            text = archive_text(path)
         elif st.get("kind") == "zip":
-            text = docx_text(path)
+            # PK magic bytes, no useful extension. That is an Office file OR a
+            # plain archive, and only the part names tell them apart. This used
+            # to go straight to docx_text, so a 19.7 MB bundle of user guides
+            # raised inside python-docx, returned "", and was counted as
+            # too_short -- the whole archive lost without an error.
+            text = (docx_text(path) if is_office_package(path)
+                    else archive_text(path))
         else:
             text = html_text(path.read_bytes())
 
