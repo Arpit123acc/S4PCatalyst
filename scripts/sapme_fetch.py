@@ -391,8 +391,12 @@ def main():
                     help="skip everything needing a session")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--match", default="",
-                    help="only URLs whose title contains this (case-insensitive), "
+                    help="only URLs whose TITLE contains this (case-insensitive), "
                          "so a high-value subset can jump the queue")
+    ap.add_argument("--url-match", default="",
+                    help="only URLs whose URL contains this. The sapbp title is "
+                         "the document name ('Test script'), so a scope item like "
+                         "5I2 appears only in the URL and --match cannot find it")
     ap.add_argument("--rate", type=float, default=0.5, help="seconds between requests")
     ap.add_argument("--include-duplicates", action="store_true",
                     help="Also fetch secondary-country copies of scope items the "
@@ -411,6 +415,17 @@ def main():
         if a.match:
             m = a.match.lower()
             rows = [r for r in rows if m in (r.get("title") or "").lower()]
+        if a.url_match:
+            m = a.url_match.lower()
+            before = len(rows)
+            rows = [r for r in rows if m in (r.get("url") or "").lower()]
+            # Say so. A filter that silently matches nothing looks exactly like
+            # a source with nothing left to do -- "0 urls, 0 to go" reads as
+            # success, and that has already sent one verification down a blind
+            # alley in this session.
+            print(f"   --url-match {a.url_match!r}: {len(rows)} of {before} row(s)")
+            if not rows:
+                print("   Nothing matched. The filter tests the URL, not the title.")
         if a.limit:
             rows = rows[:a.limit]
 
