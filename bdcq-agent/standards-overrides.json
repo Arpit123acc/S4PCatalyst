@@ -1,0 +1,7 @@
+{
+  "_comment": "Functional-team verified SAP standard values. Keyed by SAP ID (string). These always override Claude-generated values.",
+  "102641": {
+    "standardValue": "SAP Standard Work Item Types (pre-delivered):\n• MLST – Milestone\n• TASK – Task\n• PHASE – Phase\n\nSAP Standard Work Item Groups (pre-delivered):\n• ADMIN – Administration\n• DELIV – Delivery\n• MGMT – Management\n• PROC – Procurement\n\nCustomer-specific groups can be added via SSCUI 102641 (Manage Your Solution) in the Fiori launchpad.",
+    "watchOut": "Customer-specific work item types and groups must be configured before project templates are built. Changes after go-live require re-assignment of existing work packages."
+  }
+}

@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+kdd-generator/node_modules/
+bdcq-agent/node_modules/
+
+# Generated output
+output/
+bdcq/
+kdd/
+f2s/
+xlsx/
+
+# User-specific decisions
+decisions/
+
+# Large cache / catalog files — each user generates their own via the extension
+kdd-cache.json
+scope-catalog.json
+scope-catalog-f2s.json
+
+# Notify config has email address
+notify/config.json
+
+# Migrated/temp files
+decisions.json.migrated
+
+# Catalog backups (timestamped)
+scope-catalog.backup.*.json
+
+# Logs
+*.log
+npm-debug.log*
+fulcrum-startup.log
+
+# Claude session data
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+*.suo
+*.user
+
+# Lock file (let each user generate their own)
+package-lock.json
+
+# Build output. Was tracked, duplicating the whole source tree: every
+# .js existed twice and a fix applied to one copy silently missed the
+# other. Rebuild with build.ps1 instead.
+dist/
+node_modules/
