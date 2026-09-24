@@ -113,7 +113,7 @@ module.exports = {
       max_restarts: 10,
       min_uptime: '30s',
       restart_delay: 5000,
-      max_memory_restart: '2G',    // FAISS index is held in memory
+      max_memory_restart: '3G',    // FAISS index is held in memory
       out_file: '/home/ec2-user/.pm2/logs/s4pc-mcp-out.log',
       error_file: '/home/ec2-user/.pm2/logs/s4pc-mcp-err.log',
       time: true,
@@ -200,6 +200,42 @@ module.exports = {
       },
       out_file: '/home/ec2-user/.pm2/logs/brain-refresh-out.log',
       error_file: '/home/ec2-user/.pm2/logs/brain-refresh-err.log',
+      time: true,
+    },
+    {
+      // BDCQ + KDD + Deck agents (the Fulcrum cartridge, vendored at fulcrum/
+      // as a git subtree of nehaabhardwaj1/explore-phase_b_rai_n).
+      name: 'fulcrum-agents',
+      cwd: '/home/ec2-user/s4pc/fulcrum',
+      script: 'server.js',
+      env: {
+        // Her default is 8321, which is already the s4pc-webapp port. Left
+        // unset, pm2 starts it and the bind fails with EADDRINUSE.
+        PORT: 8330,
+        NODE_ENV: 'production',
+        // PATH and HOME are BOTH load-bearing. agents/generation-agent.js
+        // spawns the Claude CLI with cwd=os.tmpdir() and a PATH it builds
+        // from ~/.local/bin plus whatever it inherits -- and the CLI actually
+        // lives in ~/.npm-global/bin, which pm2 does not pass on by default.
+        // With cwd in /tmp, HOME is the only way the CLI finds its
+        // credentials in ~/.claude.
+        //
+        // Getting this wrong is not a clean failure: the agent catches ENOENT
+        // and shows the user "Claude CLI not found, install it from
+        // claude.ai/code" -- about a CLI that is installed and working.
+        PATH: '/home/ec2-user/.npm-global/bin:/usr/local/bin:/usr/bin:/bin',
+        HOME: '/home/ec2-user',
+      },
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: '30s',
+      restart_delay: 5000,
+      // Each KDD run spawns a Claude CLI child with a 240s timeout; the parent
+      // itself stays small. 400M is generous for express + exceljs and low
+      // enough that a leak restarts rather than competing with the FAISS index.
+      max_memory_restart: '400M',
+      out_file: '/home/ec2-user/.pm2/logs/fulcrum-agents-out.log',
+      error_file: '/home/ec2-user/.pm2/logs/fulcrum-agents-err.log',
       time: true,
     },
   ],
