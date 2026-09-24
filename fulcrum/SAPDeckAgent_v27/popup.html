@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:340px;font-family:'Segoe UI',sans-serif;background:#0a0a0a;color:#fff}
+.hdr{background:#000;border-bottom:2px solid #A100FF;padding:12px 16px;display:flex;align-items:center;gap:10px}
+.tri{width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #A100FF}
+.htitle{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.hsub{font-size:10px;color:#555;margin-top:1px}
+.body{padding:14px 16px}
+.card{background:#111;border:0.5px solid #222;border-radius:8px;padding:11px 13px;margin-bottom:8px}
+.card-title{font-size:11px;font-weight:700;margin-bottom:6px}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:11px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.g{background:#00C875}.dot.p{background:#A100FF}.dot.a{background:#FFAB00}
+.lbl{color:#555;min-width:80px}.val{color:#fff;font-weight:500}
+.btn{width:100%;padding:10px;border:none;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;margin-bottom:6px;border-radius:4px}
+.btn-p{background:#A100FF;color:#fff}.btn-p:hover{background:#7500C0}
+.btn-p:disabled{background:#333;color:#555;cursor:not-allowed}
+.btn-s{background:#1a1a1a;color:#777;border:0.5px solid #2a2a2a}
+.btn-g{background:#003320;color:#00C875;border:0.5px solid #00C87544}
+.btn-c{background:#002233;color:#00AAFF;border:0.5px solid #00AAFF44}
+.btn-c:disabled{background:#111;color:#555;cursor:not-allowed;border-color:#1a1a1a}
+.input{width:100%;padding:8px 10px;background:#1a1a1a;border:0.5px solid #333;color:#fff;font-size:11px;border-radius:4px;outline:none;margin-bottom:8px}
+.input:focus{border-color:#A100FF}
+.pb-wrap{background:#1a1a1a;height:3px;margin:8px 0 4px;overflow:hidden;border-radius:2px}
+.pb{height:100%;background:#A100FF;width:0%;transition:width .3s ease}
+.pct{font-size:10px;color:#555;margin-bottom:6px}
+.result{background:#0a180a;border:0.5px solid #00C87544;border-radius:6px;padding:10px 12px;margin-bottom:8px}
+.rtitle{font-size:11px;font-weight:700;color:#00C875;margin-bottom:5px}
+.rrow{display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px}
+.rk{color:#555}.rv{color:#ccc;font-weight:500}
+.err{background:#1a0505;border:0.5px solid #FF4D4D44;border-radius:4px;padding:8px 10px;font-size:10px;color:#FF6B6B;line-height:1.5;margin-bottom:8px}
+.warn{background:#1a1000;border:0.5px solid #FFAB0044;border-radius:4px;padding:8px 10px;font-size:10px;color:#FFAB00;line-height:1.5;margin-bottom:8px}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;background:#1a0028;color:#A100FF;padding:2px 8px 2px 6px;border-radius:3px;margin:2px}
+.tag button{background:transparent;border:none;color:#A100FF;cursor:pointer;font-size:11px;padding:0 0 0 2px}
+.divider{height:0.5px;background:#1a1a1a;margin:8px 0}
+.footer{background:#000;padding:8px 16px;border-top:0.5px solid #111;font-size:9px;color:#333;display:flex;justify-content:space-between}
+.file-item{display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:0.5px solid #1a1a1a;font-size:10px;color:#aaa;line-height:1.4}
+.file-item:last-child{border-bottom:none}
+.file-icon{color:#00C875;flex-shrink:0;margin-top:1px}
+.file-name{word-break:break-word}
+.file-access{color:#555;font-size:9px;white-space:nowrap}
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:2px;margin-left:4px}
+.badge-bdcq{background:#1a0028;color:#A100FF}
+.badge-pub{background:#003320;color:#00C875}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="tri"></div>
+  <div>
+    <div class="htitle">SAP Deck Agent</div>
+    <div class="hsub" id="hdrSub">Accenture · S/4HANA Cloud PE · v27</div>
+  </div>
+</div>
+
+<div class="body">
+  <div id="loading" style="text-align:center;padding:16px 0;font-size:11px;color:#555">Checking page…</div>
+
+  <!-- ── Not SAP ─────────────────────────────────────────────────────────── -->
+  <div id="notSap" style="display:none">
+    <div class="card" style="background:#1a0505;border-color:#FF4D4D33">
+      <div class="card-title" style="color:#FF4D4D">⚠️ Not on SAP for Me</div>
+      <div style="font-size:10px;color:#666;line-height:1.5">
+        Navigate to <strong>me.sap.com/processnavigator</strong> or
+        <strong>me.sap.com/roadmapviewer</strong> to use this extension.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Process Navigator mode ──────────────────────────────────────────── -->
+  <div id="mainMode" style="display:none">
+
+    <!-- Status -->
+    <div class="card">
+      <div class="row"><div class="dot g"></div><span class="lbl">SAP session</span><span class="val">Active ✓</span></div>
+      <div class="row"><div class="dot p"></div><span class="lbl">Current page</span><span class="val" id="pageType">—</span></div>
+    </div>
+
+    <!-- Full Process Catalog (L1–L4) -->
+    <div class="card" style="border-color:#A100FF44">
+      <div class="card-title" style="color:#A100FF">⚡ Load Complete Process Data — KDD &amp; Fit-to-Standard (L1–L4)</div>
+      <div id="catalogWarn" class="warn" style="display:none"></div>
+      <div style="font-size:10px;color:#555;margin-bottom:8px;line-height:1.5">
+        Fetches <strong>all processes</strong> and builds two catalogs in one go:<br>
+        <strong>KDD agent</strong> — scope-catalog.json with raw process descriptions.<br>
+        <strong>Fit-to-Standard agent</strong> — scope-catalog-f2s.json with L1 domain → L2 function → L3 scope item → L4 process steps, plus Overview, Business Benefits and Key Features.<br>
+        Reload every 6 months when SAP releases a new version.
+      </div>
+      <div id="catalogStatus" style="font-size:10px;color:#555;margin-bottom:6px"></div>
+      <div id="catalogProgArea" style="display:none">
+        <div class="pb-wrap"><div class="pb" id="catalogPb"></div></div>
+        <div class="pct" id="catalogPct">Loading…</div>
+      </div>
+      <div class="result" id="catalogResult" style="display:none">
+        <div class="rtitle">✓ Catalog ready</div>
+        <div class="rrow"><span class="rk">Processes (L3)</span><span class="rv" id="rCatalogCount">—</span></div>
+        <div class="rrow"><span class="rk">L1 domains</span><span class="rv" id="rCatalogL1">—</span></div>
+        <div class="rrow"><span class="rk">L2 functions</span><span class="rv" id="rCatalogL2">—</span></div>
+        <div class="rrow"><span class="rk">L4 steps extracted</span><span class="rv" id="rCatalogL4">—</span></div>
+        <div class="rrow"><span class="rk">Version</span><span class="rv" id="rCatalogVersion">—</span></div>
+      </div>
+      <div id="catalogErr" class="err" style="display:none"></div>
+      <button class="btn btn-p" id="btnLoadCatalog">⚡ Load All Processes + Details</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Save to Cartridge + Generate Agent Files (merged) -->
+    <div class="card" style="border-color:#00C87544">
+      <div class="card-title" style="color:#00C875">📁 Save to Cartridge &amp; Generate Agent Files</div>
+      <div id="saveErr" class="err" style="display:none"></div>
+      <div id="saveResult" class="result" style="display:none">
+        <div class="rtitle" id="saveResultTitle">✓ Saved</div>
+      </div>
+      <div id="genProgArea" style="display:none">
+        <div class="pb-wrap"><div class="pb" id="genPb" style="background:#00C875"></div></div>
+        <div class="pct" id="genPct">Building…</div>
+      </div>
+      <div id="genErr" class="err" style="display:none"></div>
+      <div id="genResult" class="result" style="display:none">
+        <div class="rtitle" id="genResultTitle">✓ Agent files ready</div>
+        <div id="genResultRows" style="max-height:120px;overflow-y:auto"></div>
+      </div>
+      <button class="btn btn-g" id="btnSaveCartridge">📁 Save &amp; Generate Agent Files</button>
+    </div>
+
+  </div>
+
+  <!-- ── Roadmap Viewer / BDCQ mode ──────────────────────────────────────── -->
+  <div id="roadmapMode" style="display:none">
+
+    <!-- Status -->
+    <div class="card">
+      <div class="row"><div class="dot g"></div><span class="lbl">SAP session</span><span class="val">Active ✓</span></div>
+      <div class="row"><div class="dot a"></div><span class="lbl">Page</span><span class="val">Roadmap Viewer</span></div>
+    </div>
+
+    <!-- Scanner -->
+    <div class="card" style="border-color:#A100FF44">
+      <div class="card-title" style="color:#A100FF">🔍 Scan for BDCQ Files</div>
+      <div style="font-size:10px;color:#555;margin-bottom:8px;line-height:1.5">
+        Scans this Phase Accelerator page for <strong>BDC Questionnaire</strong> Excel files.
+        Navigate to the <strong>Explore</strong> phase Accelerators tab first, then scan.
+        The scan auto-scrolls the page to load all file URLs — no manual scrolling needed.
+      </div>
+      <div id="scanProgArea" style="display:none">
+        <div class="pb-wrap"><div class="pb" id="scanPb" style="background:#A100FF"></div></div>
+        <div class="pct" id="scanPct">Scanning…</div>
+      </div>
+      <div id="scanResult" style="display:none">
+        <div class="result">
+          <div class="rtitle">✓ Scan complete</div>
+          <div class="rrow"><span class="rk">BDCQ xlsx files</span><span class="rv" id="rBdcqCount">—</span></div>
+          <div class="rrow"><span class="rk">All files found</span><span class="rv" id="rAllCount">—</span></div>
+        </div>
+        <div id="bdcqFileList" style="max-height:130px;overflow-y:auto;margin-bottom:8px;padding:2px 0"></div>
+        <div id="noBdcqWarn" class="warn" style="display:none">
+          No BDCQ files found on this page. Navigate to the Explore or Prepare phase
+          that lists BDC Questionnaire files, then click Scan again.
+        </div>
+      </div>
+      <div id="scanErr" class="err" style="display:none"></div>
+      <button class="btn btn-p" id="btnScan">🔍 Scan Page for BDCQ Files</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Download -->
+    <div class="card" style="border-color:#00AAFF44">
+      <div class="card-title" style="color:#00AAFF">📥 Save BDCQ Files</div>
+      <div style="font-size:10px;color:#555;margin-bottom:8px;line-height:1.5">
+        Click the button — a folder picker opens first, then all 15 files save there.
+        Pick your <strong>agentic project folder</strong> so the files are ready to use directly.
+      </div>
+      <!-- Chosen folder display (shown after first pick) -->
+      <div id="chosenFolderRow" style="display:none;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span id="chosenFolderName" style="font-size:10px;color:#00C875;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">📂 </span>
+        <button id="btnChangeFolder" style="background:transparent;border:none;color:#555;font-size:10px;cursor:pointer;flex-shrink:0;padding:0 0 0 6px">change</button>
+      </div>
+      <div id="dlProgArea" style="display:none">
+        <div class="pb-wrap"><div class="pb" id="dlPb" style="background:#00AAFF"></div></div>
+        <div class="pct" id="dlPct">Saving…</div>
+      </div>
+      <div id="dlResult" class="result" style="display:none">
+        <div class="rtitle" id="dlResultTitle">✓ Saved</div>
+        <div id="dlResultRows"></div>
+      </div>
+      <div id="dlErr" class="err" style="display:none"></div>
+      <button class="btn btn-c" id="btnDownloadBDCQ" disabled>📥 Choose Folder &amp; Save BDCQ Files</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="footer">
+  <span>SAP Deck Agent v27</span>
+  <span>Accenture · Explore Accelerator</span>
+</div>
+<script src="xlsx.full.min.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

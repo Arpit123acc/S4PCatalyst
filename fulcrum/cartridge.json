@@ -1,0 +1,16 @@
+{
+  "name": "fulcrum",
+  "displayName": "Fulcrum",
+  "version": "1.1.0",
+  "description": "Design intelligence for SAP Activate Explore phase. KDD generation, gap analysis, decision learning, and workshop tools for S/4HANA Cloud Public Edition.",
+  "author": "Accenture SAP Practice",
+  "skills": [
+    {
+      "name": "s4pc-kdd-generator",
+      "file": ".claude/agents/s4pc-kdd-generator.md",
+      "description": "Generates Key Design Decisions (KDD) for SAP S/4HANA Cloud Public Edition scope items"
+    }
+  ],
+  "sapReleaseTrack": "Cloud Public Edition",
+  "extension": "SAPDeckAgent_v26"
+}

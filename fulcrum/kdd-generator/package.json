@@ -1,0 +1,14 @@
+{
+  "name": "kdd-generator",
+  "version": "1.0.0",
+  "description": "Excel and PPT builder for Fulcrum · KDD Generator",
+  "main": "excel-builder.js",
+  "scripts": {
+    "build": "node excel-builder.js --input ../output/kdd-data.json",
+    "test": "node -e \"const h=require('./helpers'); console.log('helpers ok'); const r={fitGap:'Gap',complexity:'High',designQuestion:'test',module:'FIN',rationale:'',impactActions:'',notes:''}; console.log('RAG:',h.getRAGStatus(r)); console.log('Phase:',h.getSAPActivatePhase(r)); console.log('Expected release:',h.expectedRelease());\""
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "xlsx": "^0.18.5"
+  }
+}

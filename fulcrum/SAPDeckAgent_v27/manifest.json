@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "SAP Deck Agent",
+  "version": "27.0",
+  "description": "Explore Accelerator — fetches SAP Process Navigator content and downloads BDCQ questionnaires from Roadmap Viewer",
+  "permissions": [
+    "tabs",
+    "webNavigation",
+    "clipboardWrite",
+    "storage",
+    "scripting",
+    "activeTab",
+    "downloads",
+    "webRequest",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://me.sap.com/*",
+    "https://pr.alm.me.sap.com/*",
+    "https://*.sap.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://pr.alm.me.sap.com/*"
+      ],
+      "js": [
+        "content_iframe.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://me.sap.com/roadmapviewer/*"
+      ],
+      "js": [
+        "content_roadmap.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["xlsx.full.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

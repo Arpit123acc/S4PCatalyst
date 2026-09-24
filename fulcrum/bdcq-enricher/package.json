@@ -1,0 +1,12 @@
+{
+  "name": "bdcq-enricher",
+  "version": "1.0.0",
+  "description": "Fulcrum BDCQ Enricher — adds country localisation, industry context, and Cloud PE constraints to SAP BDCQ questions",
+  "main": "enrich.js",
+  "scripts": {
+    "enrich": "node enrich.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
