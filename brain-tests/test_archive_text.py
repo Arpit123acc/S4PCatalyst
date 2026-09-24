@@ -152,5 +152,52 @@ class Archives(unittest.TestCase):
         self.assertNotIn("deep.txt", out)
 
 
+class OneDispatch(unittest.TestCase):
+    """extract_text is the only router. Copies of it go stale within a day.
+
+    diagnose_zero_text imported the extractor functions but inlined the
+    BRANCHES, which reads like reuse. When the .zip branch landed in the
+    ingest, the diagnostic kept sending archives to python-docx and reported a
+    bundle as broken minutes after the ingest had recovered it. Same shape as
+    session_is_live re-deriving classify(), and as the size check that applied
+    to one format -- three in one day, this one self-inflicted.
+    """
+
+    def setUp(self):
+        import tempfile                                      # noqa: PLC0415
+        self.tmp = tempfile.mkdtemp()
+
+    def test_zip_by_suffix(self):
+        z = _zip(self.tmp, [("g.txt", PROSE)])
+        self.assertGreater(len(ing.extract_text(z, None)), ing.MIN_USEFUL_CHARS)
+
+    def test_zip_by_kind_when_the_url_had_no_extension(self):
+        """The real case: PK magic, no suffix, so only `kind` identifies it."""
+        z = _zip(self.tmp, [("g.txt", PROSE)])
+        noext = Path(self.tmp) / "abcd-1234"
+        noext.write_bytes(z.read_bytes())
+        self.assertGreater(len(ing.extract_text(noext, "zip")), ing.MIN_USEFUL_CHARS)
+
+    def test_office_file_with_no_suffix_still_goes_to_docx(self):
+        blob = _docx_bytes(PROSE)
+        if blob is None:
+            self.skipTest("python-docx not installed")
+        noext = Path(self.tmp) / "efgh-5678"
+        noext.write_bytes(blob)
+        self.assertIn("two-tier ERP", ing.extract_text(noext, "zip"))
+
+    def test_html_falls_through_to_the_shared_parser(self):
+        p = Path(self.tmp) / "page.html"
+        p.write_bytes(b"<html><body><p>" + PROSE.encode() + b"</p></body></html>")
+        self.assertIn("two-tier ERP", ing.extract_text(p, "html"))
+
+    def test_the_diagnostic_calls_it_rather_than_copying_it(self):
+        """Pin the fix: no second dispatch anywhere in the diagnostic."""
+        src = (REPO / "scripts" / "diagnose_zero_text.py").read_text(encoding="utf-8")
+        self.assertIn("ing.extract_text(", src)
+        for copied in ("ing.xlsx_text(", "ing.docx_text(", "ing.pdf_text("):
+            self.assertNotIn(copied, src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

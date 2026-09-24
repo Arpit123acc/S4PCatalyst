@@ -140,6 +140,21 @@ def classify_cause(path, text, suffix, libs):
 
     if size < 2000:
         return "genuinely_short", {"bytes": size, "chars": len(text or "")}
+
+    # An HTML page whose visible text is ~nothing is a single-page-app shell,
+    # not a broken extractor. Calling it extractor_failed puts it in the
+    # "fixable in code" column and invites someone to go hunting for a bug
+    # that is not there: the server sent a JavaScript bootstrap and the
+    # content never existed in the response. Eleven copies of the SAP
+    # Discovery Center shell sat in that wrong column until this was split out.
+    head = b""
+    try:
+        head = path.open("rb").read(400).lstrip().lower()
+    except Exception:                                        # noqa: BLE001
+        pass
+    if head.startswith((b"<!doctype", b"<html")) and len(text or "") < 50:
+        return "spa_shell", {"bytes": size, "chars": len(text or "")}
+
     return "extractor_failed", {"bytes": size, "chars": len(text or "")}
 
 
@@ -197,16 +212,12 @@ def main():
             continue
         suffix = path.suffix.lower()
         try:
-            if suffix in (".xlsx", ".xlsm", ".xls"):
-                text = ing.xlsx_text(path)
-            elif suffix == ".docx":
-                text = ing.docx_text(path)
-            elif suffix == ".pdf" or st.get("kind") == "pdf":
-                text = ing.pdf_text(path)
-            elif st.get("kind") == "zip":
-                text = ing.docx_text(path)
-            else:
-                text = ing.html_text(path.read_bytes())
+            # ing.extract_text, not a copy of its branches. This file used to
+            # inline the dispatch while importing the extractors, which reads
+            # like reuse and is not: when the .zip branch was added to the
+            # ingest, this diagnostic kept sending archives to python-docx and
+            # reported a 19.7 MB bundle as broken after it had been recovered.
+            text = ing.extract_text(path, st.get("kind"))
         except Exception as exc:                             # noqa: BLE001
             causes["extractor_raised"].append(
                 (path.name, {"error": type(exc).__name__, "detail": str(exc)[:70]}))
@@ -251,7 +262,13 @@ def main():
                 ("extractor_failed", "extractor_raised", "wrong_format", "library_missing")))
     print("   nothing to recover                     %d"
           % sum(len(causes.get(c, [])) for c in
-                ("genuinely_short", "empty_pdf", "unreadable", "missing_file")))
+                ("genuinely_short", "empty_pdf", "unreadable", "missing_file",
+                 "spa_shell")))
+    shells = len(causes.get("spa_shell", []))
+    if shells:
+        print("      of which %d are JS app shells: the page was rendered" % shells)
+        print("      client-side, so the text was never in the response. No")
+        print("      extractor reaches it -- they need the site's content API.")
     if not ocr:
         print("\n   No scanned PDFs. Textract would cost money and recover nothing --")
         print("   every remaining cause is either a code fix or genuinely empty.")

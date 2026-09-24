@@ -73,6 +73,38 @@ MAX_ARCHIVE_BYTES = 250 * 1024 * 1024
 ARCHIVE_MEMBER_SUFFIXES = {".docx", ".xlsx", ".xlsm", ".pdf", ".txt", ".html", ".htm", ".csv"}
 
 
+def extract_text(path, kind=None):
+    """Route a downloaded file to the right extractor. THE ONE DISPATCH.
+
+    Callers must not re-derive this. diagnose_zero_text.py copied the branches
+    inline while importing the extractor functions, which looked like reuse and
+    was not: when the .zip branch was added here, the diagnostic kept routing
+    archives to python-docx and went on reporting a document the ingest had
+    already recovered. A rule in two code paths, and the copy is what rots --
+    the third instance of that shape in one day, this one self-inflicted.
+
+    `kind` is the fetch state's classification, used only where the filename
+    carries no usable suffix.
+    """
+    suffix = path.suffix.lower()
+    if suffix in (".xlsx", ".xlsm", ".xls"):
+        return xlsx_text(path)
+    if suffix == ".docx":
+        return docx_text(path)
+    if suffix == ".pdf" or kind == "pdf":
+        return pdf_text(path)
+    if suffix == ".zip":
+        return archive_text(path)
+    if kind == "zip":
+        # PK magic bytes, no useful extension: an Office file OR a plain
+        # archive, and only the internal part names tell them apart. This used
+        # to go straight to docx_text, so a 19.7 MB bundle of user guides
+        # raised inside python-docx, returned "", and counted as too_short --
+        # the whole archive lost without an error.
+        return docx_text(path) if is_office_package(path) else archive_text(path)
+    return html_text(path.read_bytes())
+
+
 def is_office_package(path):
     """True for .docx/.xlsx/.pptx, which are themselves zips.
 
@@ -393,26 +425,7 @@ def ingest_files(source, dry, tally):
         if not path.exists():
             tally["missing_file"] += 1
             continue
-        suffix = path.suffix.lower()
-
-        if suffix in (".xlsx", ".xlsm", ".xls"):
-            text = xlsx_text(path)
-        elif suffix == ".docx":
-            text = docx_text(path)
-        elif suffix == ".pdf" or st.get("kind") == "pdf":
-            text = pdf_text(path)
-        elif suffix == ".zip":
-            text = archive_text(path)
-        elif st.get("kind") == "zip":
-            # PK magic bytes, no useful extension. That is an Office file OR a
-            # plain archive, and only the part names tell them apart. This used
-            # to go straight to docx_text, so a 19.7 MB bundle of user guides
-            # raised inside python-docx, returned "", and was counted as
-            # too_short -- the whole archive lost without an error.
-            text = (docx_text(path) if is_office_package(path)
-                    else archive_text(path))
-        else:
-            text = html_text(path.read_bytes())
+        text = extract_text(path, st.get("kind"))
 
         if text is None:
             tally["needs_pymupdf"] += 1
