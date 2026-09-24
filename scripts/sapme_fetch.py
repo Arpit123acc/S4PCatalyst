@@ -305,8 +305,14 @@ def session_is_live(rows, cookie):
     return True if seen else None
 
 
-def login_means(host, cookie):
-    """A login page means three different things. Decide in ONE place.
+# Consecutive login pages that mean the SESSION died rather than the documents
+# being inaccessible. One is not evidence: an unentitled document returns a
+# login page from a perfectly live session. Three in a row is.
+LOGIN_STREAK = 3
+
+
+def login_means(host, cookie, streak=1):
+    """A login page means four different things. Decide in ONE place.
 
     Measured 2026-09-24 over a 200-row sample (probe_public_access): 188 of 189
     support.sap.com /dam/ documents serve with NO cookie at all, and exactly one
@@ -324,6 +330,19 @@ def login_means(host, cookie):
     Conflating the two is what forced a human into the loop for the whole
     corpus. Separated, the 99.5% downloads unattended with no credentials and
     the remainder is a named, tiny list.
+
+    THE FOURTH CASE: UNENTITLED, NOT EXPIRED. SAP answers a request for content
+    the account cannot see -- Sol_Pack/S4O, which is on-premise -- with a login
+    page, not a 403. Holding a cookie therefore does NOT make a login page mean
+    the session died; one such row sits in this corpus right now and was
+    misdiagnosed as expiry three separate times, each costing a fetch cycle.
+
+    The evidence that separates them is already in the run: a session that
+    fetched the previous document has not expired between two requests. So an
+    ISOLATED login page among successes is an inaccessible document, and only a
+    STREAK of them is a dead session. Hence the streak argument -- it is the
+    difference between "refresh your cookie" (wrong, and expensive to act on)
+    and "you cannot see this document" (true, and nothing to do about it).
     """
     if host not in SESSION_HOSTS:
         # A third-party sign-in -- a BTP Fiori launchpad, WalkMe, Mural. Our
@@ -332,7 +351,9 @@ def login_means(host, cookie):
         return "needs_other_login"
     if not cookie:
         return "needs_session"
-    return "session_expired"
+    if streak >= LOGIN_STREAK:
+        return "session_expired"
+    return "no_access"
 
 
 def save_state(path, state):
@@ -434,6 +455,7 @@ def main():
 
         cfg["files"].mkdir(parents=True, exist_ok=True)
         tally = Counter()
+        streak = 0                      # consecutive login pages, see login_means
         try:
             for i, r in enumerate(todo, 1):
                 try:
@@ -449,8 +471,11 @@ def main():
                     continue
 
                 kind = classify(body, r["url"])
+                if kind != "login":
+                    streak = 0          # this session just worked; it is alive
                 if kind == "login":
-                    means = login_means(r["host"], cookie)
+                    streak += 1
+                    means = login_means(r["host"], cookie, streak)
                     if means != "session_expired":
                         # Either a third-party sign-in, or -- running with no
                         # cookie at all -- this row measurably needing one.
@@ -465,9 +490,11 @@ def main():
                     state[r["url"]] = {"status": "login_page", "id": r["id"]}
                     save_state(cfg["state"], state)
                     raise SessionExpired(
-                        f"{name}: got a login page for {r['url'][:90]}\n"
-                        "   The support.sap.com session is missing or expired. Refresh\n"
-                        "   SAPME_COOKIE and re-run -- everything already fetched is kept.")
+                        f"{name}: {streak} consecutive login pages, last for "
+                        f"{r['url'][:80]}\n"
+                        "   That streak is the evidence -- a single login page is an\n"
+                        "   unentitled document, not an expiry. Refresh SAPME_COOKIE and\n"
+                        "   re-run; everything already fetched is kept.")
                 if kind == "html" and len(re.sub(r"<[^>]+>", " ", body.decode(
                         "utf-8", errors="replace"))) < MIN_USEFUL_HTML:
                     kind = "shell"
@@ -507,6 +534,13 @@ def main():
                     print(f"        {u[:96]}")
                 if len(gated) > 5:
                     print(f"        ... and {len(gated) - 5} more")
+            # Distinct from the above: we HAD a session and it was refused. No
+            # cookie fixes these, so do not let them read as an open action.
+            shut = [u for u, v in state.items() if v.get("status") == "no_access"]
+            if shut:
+                print(f"   -> {len(shut)} row(s) refused WITH a live session -- the "
+                      f"account is not entitled to them (Sol_Pack/S4O is on-premise).")
+                print("      Nothing to do: a new cookie will not open these.")
 
     return rc
 

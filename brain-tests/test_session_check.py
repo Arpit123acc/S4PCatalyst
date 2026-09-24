@@ -170,11 +170,6 @@ class LoginMeaning(unittest.TestCase):
         """Not an expiry. We never had a session to expire."""
         self.assertEqual(f.login_means("support.sap.com", ""), "needs_session")
 
-    def test_cookie_present_means_the_session_died(self):
-        """We held one and it stopped working -- stop, it will not recover."""
-        self.assertEqual(f.login_means("support.sap.com", "SUPPORT_IDS_PROD=x"),
-                         "session_expired")
-
     def test_third_party_host_is_never_our_session(self):
         """A BTP launchpad or WalkMe wants its own sign-in, cookie or not."""
         for cookie in ("", "SUPPORT_IDS_PROD=x"):
@@ -182,19 +177,52 @@ class LoginMeaning(unittest.TestCase):
                 f.login_means("flpnwc-abc.dispatcher.hana.ondemand.com", cookie),
                 "needs_other_login")
 
+    # -- the misdiagnosis that cost three fetch cycles -----------------------
+
+    def test_one_login_with_a_cookie_is_NOT_expiry(self):
+        """SAP returns a login page for unentitled content, not a 403.
+
+        Sol_Pack/S4O is on-premise and this account cannot see it. Calling that
+        an expired session sends the operator to re-capture a cookie that was
+        never the problem.
+        """
+        self.assertEqual(f.login_means("support.sap.com", "c=1", streak=1),
+                         "no_access")
+
+    def test_a_streak_IS_expiry(self):
+        """Consecutive login pages are the evidence a single one is not."""
+        self.assertEqual(
+            f.login_means("support.sap.com", "c=1", streak=f.LOGIN_STREAK),
+            "session_expired")
+
+    def test_the_boundary(self):
+        """One below the threshold must not abort; at it, must."""
+        self.assertEqual(f.login_means("support.sap.com", "c=1",
+                                       streak=f.LOGIN_STREAK - 1), "no_access")
+        self.assertEqual(f.login_means("support.sap.com", "c=1",
+                                       streak=f.LOGIN_STREAK + 9), "session_expired")
+
+    def test_a_streak_without_a_cookie_is_still_not_expiry(self):
+        """No session was ever held, so no number of refusals means it died."""
+        self.assertEqual(f.login_means("support.sap.com", "", streak=99),
+                         "needs_session")
+
     def test_every_session_host_is_covered(self):
         """The rule must hold for all of them, not just support.sap.com."""
         for host in f.SESSION_HOSTS:
             self.assertEqual(f.login_means(host, ""), "needs_session")
-            self.assertEqual(f.login_means(host, "c=1"), "session_expired")
+            self.assertEqual(f.login_means(host, "c=1", 1), "no_access")
+            self.assertEqual(f.login_means(host, "c=1", f.LOGIN_STREAK),
+                             "session_expired")
 
     def test_only_one_outcome_aborts_a_run(self):
-        """Exactly one of the three is fatal. If that ever grows, look hard."""
-        outcomes = {f.login_means(h, c)
+        """Exactly one of the four is fatal. If that ever grows, look hard."""
+        outcomes = {f.login_means(h, c, s)
                     for h in list(f.SESSION_HOSTS) + ["example.com"]
-                    for c in ("", "c=1")}
-        self.assertEqual(outcomes,
-                         {"needs_session", "session_expired", "needs_other_login"})
+                    for c in ("", "c=1")
+                    for s in (1, 2, f.LOGIN_STREAK, 50)}
+        self.assertEqual(outcomes, {"needs_session", "no_access",
+                                    "session_expired", "needs_other_login"})
 
 
 if __name__ == "__main__":
