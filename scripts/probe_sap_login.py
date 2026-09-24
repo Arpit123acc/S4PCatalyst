@@ -402,6 +402,13 @@ def main():
     for half, (ok, status, _detail) in verdict.items():
         if ok:
             print("   %-8s PASS - the session replays outside the browser" % half)
+        elif ok is None:
+            # None is "could not tell", which is NOT the same as "failed" and
+            # must not be rendered as one. Printing EXPORT PROBLEM here sent
+            # the reader hunting for a missing header when the actual finding
+            # was that the probe rows serve anonymously.
+            print("   %-8s INCONCLUSIVE - the test could not tell. This is not a" % half)
+            print("            failure; see the reason on the line above.")
         elif status == 200:
             print("   %-8s EXPORT PROBLEM - the browser opens it (200), the exported" % half)
             print("            cookie does not. Login is NOT the issue; look for a")
