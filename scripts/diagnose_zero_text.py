@@ -81,11 +81,34 @@ def zip_shape(path):
             "media": sum(1 for n in names if "/media/" in n)}
 
 
+# A file this big that yields less than the threshold has NOT told us it is
+# short -- something failed to read it. Sized well above a genuinely brief memo
+# and well below the 1.4 MB workbooks that first exposed the gap.
+BIG_ENOUGH_TO_BE_SUSPECT = 50_000
+
+
 def classify_cause(path, text, suffix, libs):
     """Why did this produce no text? One cause per document, most specific first."""
     if text is None:
         return "library_missing", {}
     size = path.stat().st_size
+    # Checked before the per-format branches, because it used to be checked only
+    # in the generic one. Two 1,397,988-byte workbooks yielding 168 chars were
+    # therefore labelled "genuinely short", which reads as "nothing to recover"
+    # and would have closed the case on a real extraction gap. A rule that
+    # applies to one branch and not the others is the defect this repo keeps
+    # producing; the size test belongs to every format or none.
+    if size >= BIG_ENOUGH_TO_BE_SUSPECT:
+        detail = {"bytes": size, "chars": len(text or "")}
+        if suffix in (".xlsx", ".xlsm", ".docx", ".pptx"):
+            detail.update(zip_shape(path))
+        elif suffix == ".pdf":
+            shape = pdf_shape(path) or {}
+            # A big PDF with images is still an OCR candidate, not a bug.
+            if shape.get("images", 0) > 0 and shape.get("chars", 0) < 400:
+                return "scanned_pdf", shape
+            detail.update(shape)
+        return "extractor_failed", detail
 
     if suffix == ".pdf":
         shape = pdf_shape(path)
