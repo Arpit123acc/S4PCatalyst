@@ -60,10 +60,8 @@ SHOT   = Path("/tmp/sap-login-probe.png")
 # matched j_username -> #logOnFormSubmit -> j_password, i.e. the first entry
 # in each list. The rest are kept because SAP has used several login UIs
 # (Customer Data Cloud, IAS, the classic form) and swapping between them is
-# not something we would be told about.
-# SAP has used several login UIs (Customer Data Cloud, IAS, the classic form).
-# Rather than guess one, try the fields each of them uses and report which
-# matched -- a probe that says "none of these" is more useful than a timeout.
+# not something we would be told about. A probe that says "none of these
+# matched" is more useful than a timeout.
 USER_SEL = ["input[name='j_username']", "#j_username", "input[name='identifier']",
             "input[type='email']", "input[name='username']", "#logonId"]
 PASS_SEL = ["input[name='j_password']", "#j_password", "input[type='password']",
