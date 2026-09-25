@@ -158,7 +158,9 @@ function getDomainScopeRefs(domain, limit = 8) {
     const ids = [];
     for (const proc of processes) {
       if (!proc.id) continue;
-      const lobNorm = (proc.lob || "").toLowerCase();
+      // Same widening as /scope-lookup, in the opposite direction: an industry
+      // scope item is findable by its business area or not at all.
+      const lobNorm = ((proc.lob || "") + " " + (proc.businessArea || "")).toLowerCase();
       if (matchingLobKws.some(kw => lobNorm.includes(kw))) {
         if (!ids.includes(proc.id)) ids.push(proc.id);
         if (ids.length >= limit) break;
@@ -681,6 +683,18 @@ router.get("/scope-lookup", (req, res) => {
     if (ids.includes((item.id || "").toUpperCase())) {
       matchedIds.push(item.id);
       if (item.lob) lobSet.add(item.lob);
+      // BUSINESS AREA TOO, not just LOB. An industry scope item carries the
+      // generic LOB "Solutions for Specific Industries", which names no
+      // questionnaire, while its business area names one exactly --
+      // J11 Customer Project Management is lob="Solutions for Specific
+      // Industries", businessArea="Professional Services", and Professional
+      // Services is a BDCQ domain with 12 questions.
+      //
+      // Measured over the 679-item catalogue: 571 resolve from LOB alone, 55
+      // resolve ONLY from business area, and 53 genuinely have no
+      // questionnaire. Those 55 returned "No matching BDCQ domains found",
+      // which reads as "SAP published none" rather than "we did not look".
+      if (item.businessArea) lobSet.add(item.businessArea);
     }
   }
 
