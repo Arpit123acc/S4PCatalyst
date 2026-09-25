@@ -959,6 +959,10 @@ app.post("/api/kdd/generate", async (req, res) => {
   const send      = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
   const startTime = Date.now();
 
+  /* Name the run the way S4PC names a pipeline run, so runs.log entries can be
+     referred to afterwards and a recorded lesson can point back at one. */
+  const runId = agentRun.newRunId("KDD", client, project, ensureOutput());
+
   const cat   = readCatalog();
   const cache = getCache();
 
@@ -1022,16 +1026,18 @@ app.post("/api/kdd/generate", async (req, res) => {
   exec(cmd, { cwd: ROOT }, (err, stdout) => {
     const durationMs = Date.now() - startTime;
     if (err) {
-      appendRunLog({ ts: new Date().toISOString(), client, project, scopeIds,
+      appendRunLog({ ts: new Date().toISOString(), runId, agent: agentRun.AGENT_ID,
+                     client, project, scopeIds,
                      status: "excel_error", totalKDDs: allRows.length, durationMs, sources: srcCounts });
       send({ type: "fatal", message: "Excel build failed: " + err.message });
     } else {
       const match    = stdout.match(/Excel written:\s*(.+\.xlsx)/);
       const filename = match ? path.basename(match[1].trim()) : null;
-      appendRunLog({ ts: new Date().toISOString(), client, project, scopeIds,
+      appendRunLog({ ts: new Date().toISOString(), runId, agent: agentRun.AGENT_ID,
+                     client, project, scopeIds,
                      status: "ok", filename, totalKDDs: allRows.length, durationMs,
                      sources: srcCounts, agentPipeline: true });
-      send({ type: "complete", filename, totalKDDs: allRows.length, sources: srcCounts });
+      send({ type: "complete", runId, filename, totalKDDs: allRows.length, sources: srcCounts });
 
       /* EMAIL NOTIFY — commented out
       if (filename) {
@@ -1897,7 +1903,26 @@ app.post("/api/mcp/invoke", express.json({ limit: "512kb" }), (req, res) => {
 
 // ── BDCQ Agent routes ─────────────────────────────────────────────────────────
 // All BDCQ logic lives in bdcq-agent/ — this is the only line needed here.
+const agentRun = require("./agent-run");
 app.use("/api/bdcq", require("./bdcq-agent/routes"));
+
+/* Record a distilled lesson against a run, into the brain's shared experience
+   store (L3). Inert unless S4PC_MCP_URL is set, so a host that has not been
+   told where the brain lives behaves exactly as before.
+
+   Deliberately a call someone makes, not something that fires on every run:
+   see agent-run.js for why counts are not lessons. */
+app.post("/api/experience", express.json({ limit: "64kb" }), async (req, res) => {
+  const { topic, lesson, impact, tags, runId, category } = req.body || {};
+  if (!topic || !lesson) {
+    return res.status(400).json({ ok: false, error: "topic and lesson are required" });
+  }
+  const status = await agentRun.recordExperience({ topic, lesson, impact, tags, runId, category });
+  // 200 even when the write failed: the caller asked us to try, and the status
+  // says what happened. A 500 here would invite a retry loop against a brain
+  // that is simply not configured.
+  res.json({ ok: status === "recorded", status, agent: agentRun.AGENT_ID, runId: runId || null });
+});
 /* Self-description, so the dashboard registry can point at this service
    instead of keeping its own copy of what these agents are. Same contract
    S4PC Catalyst serves at /api/agent-manifest. */
