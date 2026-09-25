@@ -205,7 +205,19 @@ Return ONLY a JSON array of exactly 15 objects with these 6 fields:
 JSON only. No markdown.`;
 
   const out  = await spawnClaude(prompt, CLAUDE_TIMEOUT_MS);
-  let   rows = extractJSON(out);
+
+  // Same reason as call-2: extractJSON throws when the reply holds no array,
+  // which skipped the retry immediately below. One prose answer was therefore
+  // fatal with no second attempt, even though a retry is exactly what the
+  // author provided for. classifyRICEFW already wraps this call in try/catch;
+  // these two had been left unprotected.
+  let rows = null;
+  try {
+    rows = extractJSON(out);
+  } catch (err) {
+    console.warn(`[generation-agent] ${item.id} call-1 unparseable: ${err.message}` +
+                 ` | reply starts: ${String(out).trim().slice(0, 200)}`);
+  }
 
   if (!Array.isArray(rows) || rows.length !== 15) {
     if (retryCount === 0) {
@@ -243,7 +255,22 @@ Return ONLY a JSON array of exactly ${questions.length} objects:
 Cloud PE only. No ABAP/ECC/SAP GUI. JSON only.`;
 
   const out    = await spawnClaude(prompt, CLAUDE_TIMEOUT_MS);
-  let   detail = extractJSON(out);
+
+  // extractJSON THROWS when the reply contains no array, and the degradation
+  // below was written to handle exactly that -- but a throw here skipped it
+  // entirely, so a call-2 that answered in prose failed the whole generation
+  // instead of yielding 15 questions with blank enrichment. Catch it and let
+  // the existing retry/fallback do its job.
+  let detail = null;
+  try {
+    detail = extractJSON(out);
+  } catch (err) {
+    // The first 200 characters are the only clue to WHY the model did not
+    // return an array; without them the next occurrence is as opaque as this
+    // one was.
+    console.warn(`[generation-agent] ${item.id} call-2 unparseable: ${err.message}` +
+                 ` | reply starts: ${String(out).trim().slice(0, 200)}`);
+  }
 
   if (!Array.isArray(detail) || detail.length !== questions.length) {
     if (retryCount === 0) {

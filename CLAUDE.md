@@ -13,10 +13,10 @@ explore-accelerator/
 │   ├── helpers.js               ← RAG, phase, owner, effort, on-prem detection
 │   ├── excel-builder.js         ← Builds the 5-sheet XLSX output
 │   └── package.json             ← xlsx dependency
-├── SAPDeckAgent_v27/            ← Chrome extension (install in Chrome)
-├── bdcq/                        ← BDCQ Excel files + bdcq-questions.json (from extension)
+├── SAPDeckAgent_v27/            ← Chrome extension (fallback only — see Data Files)
+├── bdcq/                        ← bdcq-questions.json (generated from the S4PC brain)
 ├── output/                      ← Generated files land here
-├── scope-catalog.json           ← Saved from extension (update every 6 months)
+├── scope-catalog.json           ← Generated from the S4PC brain (see Data Files)
 └── cartridge.json
 ```
 
@@ -27,10 +27,29 @@ explore-accelerator/
 | KDD Generator | `/s4pc-kdd-generator` | Generates KDD log from scope catalog for given scope items — exports 5-sheet Excel |
 
 ## Setup (One Time)
-1. Install Chrome extension: Chrome → `chrome://extensions` → Load unpacked → pick `SAPDeckAgent_v27/`
-2. Run `npm install` in the `kdd-generator/` folder
-3. **For BDCQ enrichment**: Open SAP Roadmap Viewer → Explore phase → Accelerators tab → extension → Scan → Save BDCQ Files → pick this folder → creates `bdcq/bdcq-questions.json`
-4. **For KDD generation**: Open SAP for Me Process Navigator → extension → Load Full Catalog → Save to Cartridge → creates `scope-catalog.json`
+1. Run `npm install` in the repo root and in the `kdd-generator/` folder
+2. Generate both data files from the S4PC brain:
+   ```
+   python3.11 scripts/export_scope_catalog.py  --out <this-folder>/scope-catalog.json
+   python3.11 scripts/export_bdcq_questions.py --out <this-folder>/bdcq/bdcq-questions.json
+   ```
+   Both run unattended on the brain host. No browser, no SAP session, no
+   Chrome extension.
+
+### Where the data comes from, and why it changed
+Both files used to be produced by the `SAPDeckAgent_v27` Chrome extension,
+which needed a logged-in SAP session and a human at a browser. The S4PC brain
+already holds the same content from the same SAP sources — the 657 solution
+processes from the EAXService OData API, and all 16 Business Driven
+Configuration Questionnaire workbooks from the SAP Activate accelerator
+catalogue — so the exporters produce identical files without any of that.
+
+The shape is unchanged, so nothing in this cartridge needed modifying. What
+is gained is release provenance: each file records which S/4HANA release its
+content describes, which the scraped version could not say.
+
+The extension still works and remains in the repo as a fallback for anyone
+without brain access.
 
 ## Running the BDCQ Enricher
 ```
@@ -50,8 +69,8 @@ Or with scope IDs and project details upfront:
 ## Data Files
 | File | What | How often |
 |---|---|---|
-| `bdcq/bdcq-questions.json` | Parsed BDCQ Excel files — all domains, all questions | Per project (download from Roadmap Viewer) |
-| `scope-catalog.json` | 657 SAP processes with descriptions, LOB, benefits | Every 6 months (new SAP release) |
+| `bdcq/bdcq-questions.json` | 16 BDCQ workbooks, 1,337 questions, all domains | `export_bdcq_questions.py` after a brain refresh |
+| `scope-catalog.json` | 657 SAP processes with descriptions, LOB, benefits | `export_scope_catalog.py` after a brain refresh |
 
 ## Output
 Excel files are written to the `output/` folder:
@@ -64,6 +83,10 @@ output/Accenture_KDD_<Client>_<Project>_<Date>.xlsx
 The skill automatically checks if `scope-catalog.json` matches the expected current SAP release.
 SAP releases every 6 months — February (XX02) and August (XX08).
 A warning is shown if your catalog is outdated.
+
+Files generated from the brain also carry a `_source` block naming the exact
+`target_release` and `internal_version` they were built from, so the release
+can be read off the file rather than inferred from its age.
 
 ## Rules — Cloud PE Only
 This cartridge strictly enforces SAP S/4HANA **Cloud Public Edition** standards.
