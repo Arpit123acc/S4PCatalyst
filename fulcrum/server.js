@@ -1898,6 +1898,10 @@ app.post("/api/mcp/invoke", express.json({ limit: "512kb" }), (req, res) => {
 // ── BDCQ Agent routes ─────────────────────────────────────────────────────────
 // All BDCQ logic lives in bdcq-agent/ — this is the only line needed here.
 app.use("/api/bdcq", require("./bdcq-agent/routes"));
+/* Self-description, so the dashboard registry can point at this service
+   instead of keeping its own copy of what these agents are. Same contract
+   S4PC Catalyst serves at /api/agent-manifest. */
+app.use("/api/agent-manifest", require("./agent-manifest"));
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 
