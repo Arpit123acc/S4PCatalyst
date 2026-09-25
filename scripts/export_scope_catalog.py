@@ -281,6 +281,14 @@ def main():
         # still claiming "Up to date", because parseInt(undefined) < 2608 is
         # NaN < 2608, which is false. A missing value that reads as current.
         "version": man.get("target_release") or "",
+        # Settings reads these two directly. Without them the page showed
+        # "Loaded from SAP: Unknown" and "Country: —" for a catalogue that
+        # knew both -- the facts were in _source, just not where the UI looks.
+        "extractedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        # Not one country: the export collapses per-country variants to one row
+        # per scope item. Reporting a single code would be a lie, so report the
+        # mix that was actually kept.
+        "country": ", ".join("%s %d" % kv for kv in rep["country_used"].most_common()),
         # Fulcrum reads exactly this key; public/js/app.js rejects a file
         # without it.
         "processes": rows,
