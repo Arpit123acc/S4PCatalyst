@@ -78,6 +78,11 @@ if _EXP_BACKEND == "postgres":
 else:
     EXPERIENCE = _catalog_db.load_experience()
 
+# Taken from whichever store is active rather than restated here. Both define it
+# identically, and a third copy in this file is the one that would drift when the
+# default changes.
+DEFAULT_AGENT = getattr(_exp_store, "DEFAULT_AGENT", "ricefw-builder")
+
 # Authoritative documentation sources — cite these in every solution.
 REFERENCE_LINKS = {
     "sap_business_accelerator_hub": {
@@ -807,6 +812,11 @@ def _exp_tokens(query):
 def tool_query_experience(args):
     query = (args.get("query") or "").strip().lower()
     category = (args.get("category") or "").strip().lower()
+    # Optional. Omitted returns every agent's lessons, which is the useful default:
+    # a KDD run still wants "this tenant's output determination is unusual" from a
+    # RICEFW run. The filter is for the case where an agent's own history is the
+    # question, not a wall between agents.
+    agent = (args.get("agent") or "").strip().lower()
     # WHY THIS IS NOT `tok in hay`
     #     It was, and it meant the filter did not filter. A bare substring test makes
     #     "at" match inside "data" and "in" inside "using", so ANY query containing a
@@ -824,6 +834,8 @@ def tool_query_experience(args):
     scored = []
     for e in (EXPERIENCE.get("entries") or []):
         if category and (e.get("category") or "") != category:
+            continue
+        if agent and (e.get("agent") or "").lower() != agent:
             continue
         # `or ""`/`or []` (not .get defaults): a stored null bypasses the default and breaks join()
         hay = " ".join([e.get("topic") or "", e.get("lesson") or "", e.get("category") or "",
@@ -1064,10 +1076,17 @@ def tool_record_experience(args):
     # lose the lesson, which is worse. The response says so instead.
     run_id = (args.get("run_id") or "").strip()[:80]
     src = (args.get("source") or "").strip()[:80]
+    # WHICH AGENT LEARNED THIS. Defaulted rather than required, and defaulted to the
+    # RICEFW pipeline because for the store's whole life it was the only writer -- the
+    # same assumption the backfill makes about existing rows, so a caller that does not
+    # pass it lands in the same bucket as its own history. A second agent must pass its
+    # own id; that is why the field exists.
+    agent = (args.get("agent") or "").strip()[:40] or DEFAULT_AGENT
     entry = {"id": next_id, "category": category, "topic": topic, "lesson": lesson,
              "impact": (args.get("impact") or "").strip()[:200],
              "tags": [t.strip()[:30] for t in (args.get("tags") or [])][:8],
              "added": time.strftime("%Y-%m-%d"),
+             "agent": agent,
              "source": run_id or src or "pipeline run"}
     if run_id:
         entry["run_id"] = run_id
@@ -1930,7 +1949,8 @@ TOOLS = {
                         "evidence. Read those before applying a lesson you did not write."),
         "schema": {"type": "object", "properties": {
             "query": {"type": "string", "description": "Keywords, e.g. 'badi validation' or 'btp cost'"},
-            "category": {"type": "string", "description": "Optional: general | enhancement | report | interface | conversion | form | workflow | developer | key_user | side_by_side"}},
+            "category": {"type": "string", "description": "Optional: general | enhancement | report | interface | conversion | form | workflow | developer | key_user | side_by_side"},
+            "agent": {"type": "string", "description": "Optional: restrict to one agent's lessons, e.g. 'ricefw-builder', 'kdd-generator', 'bdcq-agent'. OMIT IT unless the question is specifically about that agent's own history — lessons cross over, and a KDD run still benefits from what a RICEFW run learned about the same tenant."}},
             "required": []},
         "handler": tool_query_experience,
     },
@@ -1947,6 +1967,7 @@ TOOLS = {
             "impact": {"type": "string", "description": "One line: why it matters"},
             "tags": {"type": "array", "items": {"type": "string"}},
             "run_id": {"type": "string", "description": "The output/<RUN-ID> folder name this lesson came from, e.g. 'SMART-SEARCH-FD'. Resolves to the run's deliverables in query_experience's from_run."},
+            "agent": {"type": "string", "description": "Which agent learned this: 'ricefw-builder' (default), 'kdd-generator', 'bdcq-agent'. Pass it if you are NOT the RICEFW pipeline — the default exists because that pipeline was the only writer for the store's whole life, so an unset value means it."},
             "source": {"type": "string", "description": "Free-text origin for lessons with no pipeline run. Prefer run_id when there is one."}},
             "required": ["topic", "lesson"]},
         "handler": tool_record_experience,

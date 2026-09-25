@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS experience (
     tags     TEXT,
     added    TEXT,
     source   TEXT,
-    run_id   TEXT
+    run_id   TEXT,
+    agent    TEXT
 );
 CREATE TABLE IF NOT EXISTS lint_rules (
     id          TEXT PRIMARY KEY,
@@ -106,8 +107,18 @@ def _ensure_retired_columns(con):
             con.execute("ALTER TABLE %s ADD COLUMN retired_at TEXT" % table)
 
 
+# Every lesson in the store predates agent attribution, and every one of them came
+# from the RICEFW pipeline — it was the only agent. Backfilling says so instead of
+# leaving 800 rows unattributed, for the reason _normalise_tags_once already gives
+# about tags: a column that is populated for new rows and null for old ones is worse
+# than no column, because a filter over it returns a subset that reads as a complete
+# answer. Guarded by a meta flag so the scan runs once, not on every connection.
+_AGENT_BACKFILL_FLAG = "_experience_agent_backfilled_v1"
+DEFAULT_AGENT = "ricefw-builder"
+
+
 def _ensure_experience_columns(con):
-    """Add `run_id` to the experience table. Idempotent.
+    """Add `run_id` and `agent` to the experience table. Idempotent.
 
     Not in _do_migrate for the same reason as _ensure_retired_columns: that runs once,
     guarded by the _migrated flag, so a catalog created before this column existed would
@@ -116,6 +127,13 @@ def _ensure_experience_columns(con):
     cols = {r[1] for r in con.execute("PRAGMA table_info(experience)")}
     if "run_id" not in cols:
         con.execute("ALTER TABLE experience ADD COLUMN run_id TEXT")
+    if "agent" not in cols:
+        con.execute("ALTER TABLE experience ADD COLUMN agent TEXT")
+    if not _get_meta(con, _AGENT_BACKFILL_FLAG):
+        con.execute("UPDATE experience SET agent=? WHERE agent IS NULL OR agent=''",
+                    (DEFAULT_AGENT,))
+        _set_meta(con, _AGENT_BACKFILL_FLAG, True)
+        con.commit()
 
 
 def get_conn():
@@ -307,6 +325,10 @@ def _exp_row(row):
     rid = _col(row, "run_id")
     if rid:
         d["run_id"] = rid
+    # Always present, unlike run_id. Attribution is only useful if every row carries
+    # it: an absent agent would be indistinguishable from a lesson belonging to no
+    # agent, and the backfill exists precisely so that case does not arise.
+    d["agent"] = _col(row, "agent") or DEFAULT_AGENT
     return d
 
 
@@ -431,8 +453,8 @@ def _exp_normalise(entry):
     return e
 
 
-_EXP_COLS = "id,category,topic,lesson,impact,tags,added,source,run_id"
-_EXP_QS   = "?,?,?,?,?,?,?,?,?"
+_EXP_COLS = "id,category,topic,lesson,impact,tags,added,source,run_id,agent"
+_EXP_QS   = "?,?,?,?,?,?,?,?,?,?"
 
 
 def _exp_values(entry):
@@ -441,7 +463,7 @@ def _exp_values(entry):
     e = _exp_normalise(entry)
     return (e.get("id"), e.get("category"), e.get("topic"), e.get("lesson"),
             e.get("impact"), _jdump(e.get("tags")), e.get("added"), e.get("source"),
-            (e.get("run_id") or None))
+            (e.get("run_id") or None), (e.get("agent") or DEFAULT_AGENT))
 
 
 def append_experience(entry):
