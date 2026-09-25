@@ -24,7 +24,6 @@ const routes = {
   "bdcq-agent":       pagBDCQ,
   "kdd-generator":    pagKDD,
   catalog:            pagCatalog,
-  reference:          pagReference,
   output:             pagOutput,
   editor:             pagEditor,
   "gap-analysis":     pagGapAnalysis,
@@ -905,21 +904,6 @@ function bindKDD() {
     if (!type) { el.innerHTML = ""; return; }
     el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
   }
-}
-
-// ── REFERENCE page ────────────────────────────────────────────────────────────
-async function pagReference() {
-  return `
-    <div class="page-header">
-      <div class="page-title">Explore Phase Agents</div>
-      <div class="page-sub">Agents and workflows for SAP S/4HANA Cloud Public Edition — in project execution order</div>
-    </div>
-    <div class="agent-list">
-      ${agentCard(1,"BDCQ Agent","Automates retrieval and processing of BDCQ accelerator content from SAP Roadmap Viewer into structured outputs.","Active","Explore","navigate('bdcq-agent')")}
-      ${agentCard(2,"Fit-to-Standard Material Generation","Auto-generates fit-to-standard workshop decks, process overviews, and attendee pre-read packs from the scope catalog.","Coming Soon","Explore",null)}
-      ${agentCard(3,"KDD Creation","Generates 15 Cloud PE-compliant KDD questions per scope item and exports a 5-sheet Excel. Reads scope-catalog.json for real SAP process context.","Active","SAP Activate","navigate('kdd-generator')")}
-      ${agentCard(4,"Business Process Design L1 to L5","Builds a structured process hierarchy (L1–L5) from scope catalog data, ready for workshop facilitation.","Coming Soon","Explore",null)}
-    </div>`;
 }
 
 // ── OUTPUT page ───────────────────────────────────────────────────────────────
