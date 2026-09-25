@@ -32,15 +32,33 @@ const path = require("path");
 const router = express.Router();
 const ROOT = path.join(__dirname);
 
-/* Read a JSON file and report a count without throwing. A manifest that 500s
-   because a data file is mid-write is worse than one that says "unknown": the
-   dashboard would show the agent as down. */
-function count(file, pick) {
+/* How many of a thing, or null if we genuinely cannot tell.
+ *
+ * ABSENT IS NOT UNKNOWN. A missing decisions.json means nobody has saved a
+ * decision yet -- that is zero, a real answer. A file that exists but will
+ * not parse is unknown. Reporting both as null hides a working agent behind
+ * the same blank the dashboard shows for a broken one.
+ *
+ * SIZE OF AN ARRAY *OR* AN OBJECT. kdd-cache.json keys its items by scope
+ * item id, so the first version of this returned null for 679 real entries:
+ * `(d.items || []).length` is undefined on an object, and undefined failed
+ * the number check. Counting only arrays silently under-reports whichever
+ * store happens to be a map.
+ */
+function size(v) {
+  if (Array.isArray(v)) return v.length;
+  if (v && typeof v === "object") return Object.keys(v).length;
+  if (typeof v === "number") return v;
+  return null;
+}
+
+function count(file, pick, missingMeansZero = false) {
+  const full = path.join(ROOT, file);
+  if (!fs.existsSync(full)) return missingMeansZero ? 0 : null;
   try {
-    const d = JSON.parse(fs.readFileSync(path.join(ROOT, file), "utf8"));
-    const v = pick(d);
-    return typeof v === "number" ? v : null;
+    return size(pick(JSON.parse(fs.readFileSync(full, "utf8"))));
   } catch {
+    // Present but unreadable -- mid-write, or corrupt. Not zero.
     return null;
   }
 }
@@ -109,13 +127,13 @@ function service() {
     name: "Fulcrum",
     version: require(path.join(ROOT, "package.json")).version,
     data: {
-      scopeItems: count("scope-catalog.json", (d) => (d.processes || []).length),
-      kddCached: count("kdd-cache.json", (d) => (d.items || []).length),
-      bdcqDomains: count("bdcq/bdcq-questions.json", (d) => (d.domains || []).length),
+      scopeItems: count("scope-catalog.json", (d) => d.processes),
+      kddCached: count("kdd-cache.json", (d) => d.items),
+      bdcqDomains: count("bdcq/bdcq-questions.json", (d) => d.domains),
       bdcqQuestions: count("bdcq/bdcq-questions.json", (d) =>
         (d.domains || []).reduce(
           (n, dom) => n + (dom.sheets || []).reduce((m, s) => m + (s.rows || []).length, 0), 0)),
-      decisions: count("decisions.json", (d) => (Array.isArray(d) ? d : d.decisions || []).length),
+      decisions: count("decisions.json", (d) => (Array.isArray(d) ? d : d.decisions), true),
     },
     catalogSource: catalogSource(),
   };
