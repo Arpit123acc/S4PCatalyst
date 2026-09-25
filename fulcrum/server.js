@@ -167,13 +167,29 @@ function readCatalog() {
 }
 function clearCatalogCache() { _catalog = null; }
 
-// Watch scope-catalog.json — fires when Chrome extension saves a fresh catalog
+/* Watch scope-catalog.json — fires when a fresh catalog is written.
+ *
+ * DO NOT FILTER ON THE EVENT NAME. This used to require event === "change",
+ * which misses the way the catalog is now written: the brain exporter writes a
+ * temp file and renames it over the target, so the read can never catch a
+ * half-written file. A rename emits "rename", not "change", so the cache was
+ * never cleared and the server went on serving the previous catalog until
+ * someone restarted it -- a refresh that appeared to work, with stale data
+ * behind it and nothing reporting the gap.
+ *
+ * fs.watch's event names are inconsistent across platforms and editors anyway,
+ * so the only durable rule is: this filename changed somehow, re-read it. The
+ * re-read is lazy (readCatalog does it on next request), so an extra
+ * invalidation costs nothing. */
 fs.watch(ROOT, (event, filename) => {
-  if (filename === "scope-catalog.json" && event === "change") {
-    _catalog = null;                          // force re-read on next request
-    _catalogChangedAt = new Date().toISOString();
-    console.log(`[catalog] scope-catalog.json updated at ${_catalogChangedAt}`);
-  }
+  if (filename !== "scope-catalog.json") return;
+  // A rename fires twice on some platforms (old gone, new arrived); clearing a
+  // cache twice is harmless, and checking existence avoids logging the moment
+  // between unlink and rename.
+  if (!fs.existsSync(CATALOG_PATH)) return;
+  _catalog = null;                            // force re-read on next request
+  _catalogChangedAt = new Date().toISOString();
+  console.log(`[catalog] scope-catalog.json updated at ${_catalogChangedAt} (${event})`);
 });
 
 function ensureOutput() {
