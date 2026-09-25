@@ -275,6 +275,12 @@ def main():
         pass
 
     payload = {
+        # Fulcrum's UI reads cat.version and compares it against
+        # helpers.expectedRelease() -- "2608" for the second half of 2026.
+        # Without it the home page showed "CATALOG VERSION undefined" while
+        # still claiming "Up to date", because parseInt(undefined) < 2608 is
+        # NaN < 2608, which is false. A missing value that reads as current.
+        "version": man.get("target_release") or "",
         # Fulcrum reads exactly this key; public/js/app.js rejects a file
         # without it.
         "processes": rows,
