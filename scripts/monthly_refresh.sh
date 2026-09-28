@@ -181,6 +181,42 @@ fi
 #    renders no version tags and no object names, which looks like a corpus that has
 #    neither rather than a stale process. It also ranks with whatever
 #    BRAIN_SUPERSEDED_PENALTY was in force when it started.
+say "── L1 process index (scope item -> applications, steps, roles)"
+# A JOIN over files already on disk -- no network, a few seconds. It is rebuilt
+# unconditionally because it is derived: processes.json, applications.json,
+# diagram_steps.json, capabilities_by_scope.json and the scope catalogue all feed
+# it, and an index older than its inputs is the same "confidently wrong derived
+# store" this job exists to prevent.
+#
+# It matters more since Fulcrum started reading it: 553 of 679 scope items take
+# their Fiori application names from here, so a stale index quietly ages the
+# Explore-phase agents' output as well as the brain's own answers.
+#
+# THIS STEP MUST STAY ABOVE THE s4pc-mcp RESTART. process_lookup.load() holds the
+# index in a module global for the life of the process, with no mtime check --
+# the same @lru_cache trap documented for brain_search below. Rebuild the file
+# after the restart and the running server keeps serving the previous index, so
+# the Fulcrum export at the end of this script reads fresh-looking data that is a
+# month old. It would not error; it would simply be last month's applications.
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would rebuild brain/sapbp/raw/process_index.json"
+elif [ ! -f "brain/sapbp/raw/processes.json" ]; then
+  say "   sapbp raw data not present on this host, nothing to rebuild"
+else
+  if $PY scripts/sapbp_build_process_index.py >/tmp/sapbp_index.$$ 2>&1; then
+    # The builder prints its own coverage counts (scope_items, *_with_apps,
+    # *_with_steps). Echo them rather than a bare "ok": this index failing by
+    # covering FEWER scope items than last month is the shape that would
+    # otherwise go unnoticed, because a smaller index is still a valid one.
+    grep -aE "scope_items|with_apps|with_steps|wrote " /tmp/sapbp_index.$$ | sed 's/^ */     /'
+  else
+    say "   FAILED: process index rebuild"
+    sed 's/^/     /' /tmp/sapbp_index.$$ | tail -5
+    fail_steps="$fail_steps process-index"
+  fi
+  rm -f /tmp/sapbp_index.$$
+fi
+
 if [ -z "$DRY" ]; then
   run "restart s4pc-mcp" pm2 restart s4pc-mcp || true
   # `|| true` and a presence check: brain-ui is optional on a host that only serves
@@ -346,35 +382,6 @@ sys.exit(0 if r['status'] == 'OK' else 3)
     say "   ATTENTION: a derived layer no longer matches its source (see above)."
     fail_steps="$fail_steps layer-freshness"
   fi
-fi
-
-say "── L1 process index (scope item -> applications, steps, roles)"
-# A JOIN over files already on disk -- no network, a few seconds. It is rebuilt
-# unconditionally because it is derived: processes.json, applications.json,
-# diagram_steps.json, capabilities_by_scope.json and the scope catalogue all feed
-# it, and an index older than its inputs is the same "confidently wrong derived
-# store" this job exists to prevent.
-#
-# It matters more since Fulcrum started reading it: 553 of 679 scope items take
-# their Fiori application names from here, so a stale index quietly ages the
-# Explore-phase agents' output as well as the brain's own answers.
-if [ -n "$DRY" ]; then
-  say "   DRY RUN, would rebuild brain/sapbp/raw/process_index.json"
-elif [ ! -f "brain/sapbp/raw/processes.json" ]; then
-  say "   sapbp raw data not present on this host, nothing to rebuild"
-else
-  if $PY scripts/sapbp_build_process_index.py >/tmp/sapbp_index.$$ 2>&1; then
-    # The builder prints its own coverage counts (scope_items, *_with_apps,
-    # *_with_steps). Echo them rather than a bare "ok": this index failing by
-    # covering FEWER scope items than last month is the shape that would
-    # otherwise go unnoticed, because a smaller index is still a valid one.
-    grep -aE "scope_items|with_apps|with_steps|wrote " /tmp/sapbp_index.$$ | sed 's/^ */     /'
-  else
-    say "   FAILED: process index rebuild"
-    sed 's/^/     /' /tmp/sapbp_index.$$ | tail -5
-    fail_steps="$fail_steps process-index"
-  fi
-  rm -f /tmp/sapbp_index.$$
 fi
 
 say "── downstream agent data (Fulcrum: BDCQ + KDD)"
