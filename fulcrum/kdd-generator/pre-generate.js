@@ -12,11 +12,35 @@ const brainScope = require(path.join(ROOT, "brain-scope"));
 const cat     = JSON.parse(fs.readFileSync(path.join(ROOT, "scope-catalog.json"), "utf8"));
 
 // ── Module mapping ────────────────────────────────────────────────────────────
+/* Keys are the LoB labels SAP actually publishes, not shortened forms of them.
+   "Procurement" was one such shortening: the catalogue says "Sourcing and
+   Procurement", so every procurement scope item missed this map, fell through
+   `|| "Cross"`, and drew generic cross-component master data, org units and app
+   names. Nothing failed — the content was merely generic, which is why it
+   survived 679 items without being noticed.
+
+   The four platform/industry LoBs at the bottom genuinely have no single module
+   and are mapped to Cross DELIBERATELY. Mapping them explicitly rather than
+   letting them fall through matters: pre-generate warns about labels missing
+   from this map, and a warning that always lists six entries is one nobody
+   reads when a seventh appears. */
 const LOB_MODULE = {
-  "Finance": "FIN", "Sales": "SD", "Procurement": "MM",
-  "Manufacturing": "PP", "Human Resources": "HCM",
-  "Supply Chain": "SCM", "Asset Management": "AM",
-  "Service": "CS", "Quality Management": "QM"
+  "Finance": "FIN",
+  "Sales": "SD",
+  "Sourcing and Procurement": "MM",
+  "Procurement": "MM",                       // pre-2608 label, kept for older catalogues
+  "Manufacturing": "PP",
+  "R&D/Engineering": "PP",                   // BOMs, routings and work centres are PP here
+  "Human Resources": "HCM",
+  "Supply Chain": "SCM",
+  "Asset Management": "AM",
+  "Service": "CS",
+  "Quality Management": "QM",
+  // No single module — Cross is the correct answer, stated rather than defaulted.
+  "Solutions for Specific Industries": "Cross",
+  "Database and Data Management": "Cross",
+  "IT Management": "Cross",
+  "Application Platform and Infrastructure": "Cross",
 };
 
 const LOB_DOCS = {
