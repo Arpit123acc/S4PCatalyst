@@ -348,6 +348,35 @@ sys.exit(0 if r['status'] == 'OK' else 3)
   fi
 fi
 
+say "── L1 process index (scope item -> applications, steps, roles)"
+# A JOIN over files already on disk -- no network, a few seconds. It is rebuilt
+# unconditionally because it is derived: processes.json, applications.json,
+# diagram_steps.json, capabilities_by_scope.json and the scope catalogue all feed
+# it, and an index older than its inputs is the same "confidently wrong derived
+# store" this job exists to prevent.
+#
+# It matters more since Fulcrum started reading it: 553 of 679 scope items take
+# their Fiori application names from here, so a stale index quietly ages the
+# Explore-phase agents' output as well as the brain's own answers.
+if [ -n "$DRY" ]; then
+  say "   DRY RUN, would rebuild brain/sapbp/raw/process_index.json"
+elif [ ! -f "brain/sapbp/raw/processes.json" ]; then
+  say "   sapbp raw data not present on this host, nothing to rebuild"
+else
+  if $PY scripts/sapbp_build_process_index.py >/tmp/sapbp_index.$$ 2>&1; then
+    # The builder prints its own coverage counts (scope_items, *_with_apps,
+    # *_with_steps). Echo them rather than a bare "ok": this index failing by
+    # covering FEWER scope items than last month is the shape that would
+    # otherwise go unnoticed, because a smaller index is still a valid one.
+    grep -aE "scope_items|with_apps|with_steps|wrote " /tmp/sapbp_index.$$ | sed 's/^ */     /'
+  else
+    say "   FAILED: process index rebuild"
+    sed 's/^/     /' /tmp/sapbp_index.$$ | tail -5
+    fail_steps="$fail_steps process-index"
+  fi
+  rm -f /tmp/sapbp_index.$$
+fi
+
 say "── downstream agent data (Fulcrum: BDCQ + KDD)"
 # The catalogue and questionnaires those agents read are DERIVED from what this
 # job just refreshed, and this script's own rule applies: a derived store nobody
@@ -373,7 +402,26 @@ else
   # that file changes. Regenerating it here is the same argument as rebuilding L1
   # and L2 after a catalog sync.
   if [ "$_fulcrum_ok" = "1" ] && [ -f "$FULCRUM_DIR/kdd-generator/pre-generate.js" ]; then
-    ( cd "$FULCRUM_DIR" && node kdd-generator/pre-generate.js >/dev/null 2>&1 )       || { say "   FAILED: KDD cache rebuild"; _fulcrum_ok=0; }
+    # Output was discarded here with >/dev/null. pre-generate prints the one fact
+    # that says whether the rebuild was worth anything -- whether it reached the
+    # brain, or silently fell back to the LoB table and produced generic app names
+    # for all 679 items. Throwing that away made a degraded rebuild and a good one
+    # look identical, and the step still reported "ok".
+    if ( cd "$FULCRUM_DIR" && node kdd-generator/pre-generate.js ) >/tmp/kddgen.$$ 2>&1; then
+      grep -aE "scope facts:|Real SAP|LoB labels|Not sourced" /tmp/kddgen.$$ | sed 's/^ */     /'
+      # A cache built without the brain is not a failure on a laptop, but on a host
+      # that just refreshed the brain it means the exports are missing -- and the
+      # result is 679 items of generic content that nothing downstream flags.
+      if ! grep -aq "source=brain" /tmp/kddgen.$$; then
+        say "   ATTENTION: KDD cache did NOT use the brain — set S4PC_MCP_URL and S4PC_MCP_KEY"
+        fail_steps="$fail_steps kdd-cache-source"
+      fi
+    else
+      say "   FAILED: KDD cache rebuild"
+      sed 's/^/     /' /tmp/kddgen.$$ | tail -5
+      _fulcrum_ok=0
+    fi
+    rm -f /tmp/kddgen.$$
   fi
   if [ "$_fulcrum_ok" = "1" ]; then
     say "   ok: agent data regenerated from this refresh"
