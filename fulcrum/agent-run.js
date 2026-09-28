@@ -93,7 +93,8 @@ function newRunId(kind, client, project, outputDir) {
   return `${base}-R${Date.now()}`;
 }
 
-function post(body) {
+function post(body, timeoutMs) {
+  const limit = Number(timeoutMs) > 0 ? Number(timeoutMs) : TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     let u;
     try { u = new URL(MCP_URL); } catch (e) { return reject(e); }
@@ -105,7 +106,7 @@ function post(body) {
         port: u.port || (u.protocol === "https:" ? 443 : 80),
         path: u.pathname + u.search,
         method: "POST",
-        timeout: TIMEOUT_MS,
+        timeout: limit,
         headers: {
           "Content-Type": "application/json",
           "Content-Length": payload.length,
@@ -115,13 +116,52 @@ function post(body) {
       (res) => {
         let out = "";
         res.on("data", (d) => { out += d; });
-        res.on("end", () => resolve({ status: res.statusCode, body: out.slice(0, 400) }));
+        // Full body. This used to truncate at 400 chars, which was right when the
+        // only caller wanted a status string out of record_experience and wrong the
+        // moment a second caller wanted a payload. Truncation belongs at the point
+        // an error message is built, not in the transport every caller shares.
+        res.on("end", () => resolve({ status: res.statusCode, body: out }));
       }
     );
-    req.on("timeout", () => { req.destroy(new Error(`timeout after ${TIMEOUT_MS}ms`)); });
+    req.on("timeout", () => { req.destroy(new Error(`timeout after ${limit}ms`)); });
     req.on("error", reject);
     req.end(payload);
   });
+}
+
+/* Call any MCP tool and return its parsed payload. Throws on every failure so
+ * the caller decides what a failure means -- recordExperience swallows it,
+ * brain-scope surfaces it when the brain is declared required.
+ *
+ * ONE TRANSPORT. This is the only place that knows the URL, the auth header,
+ * the timeout and how an MCP envelope unwraps. A second caller with its own
+ * copy of those four things is the copy that drifts, so new brain reads come
+ * through here rather than repeating post().
+ */
+async function callTool(name, args, { timeoutMs } = {}) {
+  if (!MCP_URL) throw new Error("S4PC_MCP_URL unset");
+  const r = await post({
+    jsonrpc: "2.0", id: Date.now(), method: "tools/call",
+    params: { name, arguments: args || {} },
+  }, timeoutMs);
+  if (r.status !== 200) throw new Error(`HTTP ${r.status} ${r.body.slice(0, 400)}`);
+
+  let env;
+  try { env = JSON.parse(r.body); }
+  catch { throw new Error(`unparseable reply: ${r.body.slice(0, 120)}`); }
+  if (env.error) throw new Error(`MCP error: ${JSON.stringify(env.error).slice(0, 200)}`);
+
+  // Tool payloads arrive as a JSON string inside result.content[0].text. A tool
+  // that reports its own failure does so in-band, so check for it here rather
+  // than letting {"error": ...} reach a caller reading .results.
+  const text = env.result && env.result.content && env.result.content[0]
+    && env.result.content[0].text;
+  if (typeof text !== "string") throw new Error("reply had no content[0].text");
+  let payload;
+  try { payload = JSON.parse(text); }
+  catch { throw new Error(`tool payload not JSON: ${text.slice(0, 120)}`); }
+  if (payload && payload.error) throw new Error(`tool error: ${payload.error}`);
+  return payload;
 }
 
 /* Write one lesson to L3. Resolves to a short status string; never rejects.
@@ -135,23 +175,15 @@ async function recordExperience({ topic, lesson, impact, tags, runId, category }
   if (!MCP_URL) return "skipped: S4PC_MCP_URL unset";
   if (!topic || !lesson) return "skipped: needs topic and lesson";
   try {
-    const r = await post({
-      jsonrpc: "2.0", id: Date.now(), method: "tools/call",
-      params: {
-        name: "record_experience",
-        arguments: {
-          topic: String(topic).slice(0, 160),
-          lesson: String(lesson).slice(0, 1200),
-          impact: impact ? String(impact).slice(0, 200) : undefined,
-          category: category || "general",
-          tags: (tags || []).slice(0, 8),
-          run_id: runId,
-          agent: AGENT_ID,
-        },
-      },
+    await callTool("record_experience", {
+      topic: String(topic).slice(0, 160),
+      lesson: String(lesson).slice(0, 1200),
+      impact: impact ? String(impact).slice(0, 200) : undefined,
+      category: category || "general",
+      tags: (tags || []).slice(0, 8),
+      run_id: runId,
+      agent: AGENT_ID,
     });
-    if (r.status !== 200) return `failed: HTTP ${r.status} ${r.body}`;
-    if (/"error"/.test(r.body)) return `failed: ${r.body}`;
     return "recorded";
   } catch (err) {
     // The brain being unreachable must never surface to the caller. It is a
@@ -175,4 +207,4 @@ async function recordExperience({ topic, lesson, impact, tags, runId, category }
  * an automatic hook.
  */
 
-module.exports = { newRunId, recordExperience, AGENT_ID, slug };
+module.exports = { newRunId, recordExperience, callTool, AGENT_ID, slug, MCP_URL };

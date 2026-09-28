@@ -2847,9 +2847,42 @@ try:
     if BASE_DIR not in sys.path:
         sys.path.insert(0, BASE_DIR)
     import brain_server as _brain_mod
+
+    # Two brain tools share a NAME with a governance tool defined above while answering
+    # a different question over different data. setdefault kept the governance one and
+    # dropped the brain one with no signal, so `lookup_process` resolved to the L1 graph
+    # walk over catalog/processes.json (1.9 KB) while the 675-scope-item process index it
+    # shadowed — the only source of per-scope-item Fiori applications — was unreachable
+    # over HTTP despite being registered on every boot.
+    #
+    # Alias the shadowed ones, and make any FUTURE collision loud. A tool that silently
+    # becomes a thinner tool of the same name answers 200 with a short, valid-looking
+    # payload; that is the hardest kind of wrong to notice, and it is why this was never
+    # caught. An alias that is itself already taken is reported as a drop, not skipped.
+    _BRAIN_ALIASES = {
+        "lookup_process":    "get_scope_item_process",
+        "lookup_scope_item": "search_scope_items",
+    }
+    _aliased, _dropped = [], []
     for _bname, _bspec in _brain_mod.TOOLS.items():
-        TOOLS.setdefault(_bname, _bspec)
+        if _bname not in TOOLS:
+            TOOLS[_bname] = _bspec
+            continue
+        _alias = _BRAIN_ALIASES.get(_bname)
+        if _alias and _alias not in TOOLS:
+            TOOLS[_alias] = dict(_bspec, description=(
+                "%s  [Registered under this name because `%s` on this server is a "
+                "different tool over different data.]"
+                % (_bspec.get("description", ""), _bname)))
+            _aliased.append("%s -> %s" % (_bname, _alias))
+        else:
+            _dropped.append(_bname)
     log_stderr("brain tools registered: %s" % ", ".join(sorted(_brain_mod.TOOLS)))
+    if _aliased:
+        log_stderr("brain tool collisions aliased: %s" % "; ".join(sorted(_aliased)))
+    if _dropped:
+        log_stderr("WARNING: brain tools DROPPED (name taken, no alias): %s"
+                   % ", ".join(sorted(_dropped)))
 
     # ── Entity linking ────────────────────────────────────────────────────────
     # A retrieved delivery document names SAP objects, but a 2024 FD citing API_X says

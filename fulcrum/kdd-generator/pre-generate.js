@@ -8,6 +8,7 @@ const path    = require("path");
 const helpers = require("./helpers");
 
 const ROOT    = path.join(__dirname, "..");
+const brainScope = require(path.join(ROOT, "brain-scope"));
 const cat     = JSON.parse(fs.readFileSync(path.join(ROOT, "scope-catalog.json"), "utf8"));
 
 // ── Module mapping ────────────────────────────────────────────────────────────
@@ -103,11 +104,26 @@ function extractBenefits(description) {
 }
 
 // ── Generate 15 KDDs per scope item ──────────────────────────────────────────
-function generateKDDs(item) {
+function generateKDDs(item, facts) {
   const mod    = LOB_MODULE[item.lob] || "Cross";
-  const steps  = extractSteps(item.description);
+
+  // SAP's own per-scope-item applications and steps, when the brain supplied
+  // them. The LOB_* tables below are a fallback of last resort: they hold one
+  // usable app name per module, so on that path every item in a module cites
+  // the same app. Prefer real data; record when we could not.
+  const brainApps  = (facts && facts.applications) || [];
+  const brainSteps = (facts && facts.steps) || [];
+
+  const steps  = brainSteps.length ? brainSteps : extractSteps(item.description);
   const docs   = LOB_DOCS[mod]   || LOB_DOCS.Cross;
-  const fiori  = LOB_FIORI[mod]  || LOB_FIORI.Cross;
+
+  // Was `fiori.split(",")[0]` -- only ever the FIRST name, leaving two thirds of
+  // each list unreachable. Name up to three so the question reads as guidance
+  // rather than a single prescribed app.
+  const fioriList = brainApps.length
+    ? brainApps
+    : String(LOB_FIORI[mod] || LOB_FIORI.Cross).split(",").map(s => s.trim()).filter(Boolean);
+  const fioriEg   = fioriList.slice(0, 3).join(", ");
   const orgs   = LOB_ORGUNITS[mod] || LOB_ORGUNITS.Cross;
   const mdata  = LOB_MASTERDATA[mod] || LOB_MASTERDATA.Cross;
   const name   = item.name;
@@ -121,7 +137,7 @@ function generateKDDs(item) {
     {
       cat: "fiori", phase: "Realize", fitGap: "Fit", complexity: "Low",
       owner: "Business Process Owner",
-      q: `Which SAP Fiori applications (e.g. ${fiori.split(",")[0].trim()}) will be configured for end users of ${name}, and what launchpad tile groups and spaces need to be set up?`,
+      q: `Which SAP Fiori applications (e.g. ${fioriEg}) will be configured for end users of ${name}, and what launchpad tile groups and spaces need to be set up?`,
       r: `Fiori tile and launchpad configuration determines the user experience and access entry points for ${name}.`,
       i: `Without defined Fiori app assignments, users cannot access ${name} functionality after go-live.`,
       n: `Configure via Manage Launchpad Settings (Fiori). Use SAP standard business roles for ${name} where available.`,
@@ -319,26 +335,66 @@ function buildOverview(item) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-console.log(`\n🔄 Pre-generating KDD cache for ${cat.processes.length} scope items...\n`);
-const cache = {};
-let done = 0;
+// One bulk fetch of SAP's per-scope-item applications and steps, then the same
+// synchronous templating loop as before. The counters at the end are the point
+// of the exercise: without them a run that silently used the generic LoB table
+// for every item is indistinguishable from one that used real data.
+async function main() {
+  console.log(`\n🔄 Pre-generating KDD cache for ${cat.processes.length} scope items...\n`);
 
-for (const item of cat.processes) {
-  cache[item.id] = {
-    rows:     generateKDDs(item),
-    overview: buildOverview(item)
-  };
-  done++;
-  if (done % 100 === 0 || done === cat.processes.length) {
-    process.stdout.write(`   ${done} / ${cat.processes.length} items done\n`);
+  await brainScope.load();
+  console.log(`   ${brainScope.describe()}\n`);
+
+  const cache = {};
+  let done = 0, withApps = 0, withSteps = 0, unknownLob = new Set();
+
+  for (const item of cat.processes) {
+    const facts = brainScope.forScopeItem(item.id);
+    if (facts.applications.length) withApps++;
+    if (facts.steps.length) withSteps++;
+    if (!LOB_MODULE[item.lob]) unknownLob.add(item.lob || "(none)");
+
+    cache[item.id] = {
+      rows:     generateKDDs(item, facts),
+      overview: buildOverview(item)
+    };
+    done++;
+    if (done % 100 === 0 || done === cat.processes.length) {
+      process.stdout.write(`   ${done} / ${cat.processes.length} items done\n`);
+    }
   }
+
+  const outPath = path.join(ROOT, "kdd-cache.json");
+  fs.writeFileSync(outPath, JSON.stringify({
+    version: cat.version,
+    generatedAt: new Date().toISOString(),
+    scopeFacts: { source: brainScope.source(), coverage: brainScope.coverage() },
+    items: cache,
+  }), "utf8");
+
+  const total = Object.values(cache).reduce((s, v) => s + v.rows.length, 0);
+  const n = cat.processes.length;
+  console.log(`\n✅  kdd-cache.json written`);
+  console.log(`   Items cached      : ${Object.keys(cache).length}`);
+  console.log(`   Total KDDs        : ${total.toLocaleString()}`);
+  console.log(`   Real SAP apps     : ${withApps} / ${n} items  (${n - withApps} fell back to the LoB table)`);
+  console.log(`   Real SAP steps    : ${withSteps} / ${n} items  (${n - withSteps} parsed from prose)`);
+  console.log(`   File size         : ${(fs.statSync(outPath).size / 1024 / 1024).toFixed(1)} MB`);
+
+  // An unrecognised LoB label silently becomes "Cross" and takes the generic
+  // content for every item under it. Name them -- a mapping gap this quiet is
+  // otherwise only visible as an oddly popular app name in the output.
+  if (unknownLob.size) {
+    console.log(`\n   ⚠  LoB labels not in LOB_MODULE (routed to "Cross"): ${[...unknownLob].join(", ")}`);
+  }
+  if (brainScope.source() !== "brain") {
+    console.log(`\n   ⚠  Not sourced from the brain — app names are generic per line of business.`);
+    console.log(`      Set S4PC_MCP_URL (and S4PC_MCP_KEY) to use SAP's per-item applications.`);
+  }
+  console.log("");
 }
 
-const outPath = path.join(ROOT, "kdd-cache.json");
-fs.writeFileSync(outPath, JSON.stringify({ version: cat.version, generatedAt: new Date().toISOString(), items: cache }), "utf8");
-
-const totalKDDs = Object.values(cache).reduce((s, v) => s + v.rows.length, 0);
-console.log(`\n✅  kdd-cache.json written`);
-console.log(`   Items cached : ${Object.keys(cache).length}`);
-console.log(`   Total KDDs   : ${totalKDDs.toLocaleString()}`);
-console.log(`   File size    : ${(fs.statSync(outPath).size / 1024 / 1024).toFixed(1)} MB\n`);
+main().catch((err) => {
+  console.error(`\n❌  pre-generate failed: ${err.message}\n`);
+  process.exit(1);
+});
